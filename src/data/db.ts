@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const DB_DIR = path.join(process.cwd(), 'src/data/db');
 
@@ -16,7 +17,11 @@ const PATHS = {
   auditLogs: path.join(DB_DIR, 'audit_logs.json'),
   homepage: path.join(DB_DIR, 'homepage.json'),
   users: path.join(DB_DIR, 'users.json'),
-  orders: path.join(DB_DIR, 'orders.json')
+  orders: path.join(DB_DIR, 'orders.json'),
+  admin: path.join(DB_DIR, 'admin.json'),
+  partners: path.join(DB_DIR, 'partners.json'),
+  sessions: path.join(DB_DIR, 'sessions.json'),
+  inventoryIssues: path.join(DB_DIR, 'inventory_issues.json')
 };
 
 // Seed default products if not exists
@@ -86,10 +91,67 @@ if (!fs.existsSync(PATHS.homepage)) {
   fs.writeFileSync(PATHS.homepage, JSON.stringify(defaultHomepage, null, 2), 'utf8');
 }
 
+// Seed admin credentials separately & securely
+if (!fs.existsSync(PATHS.admin)) {
+  const hash = crypto.createHash('sha256').update('admin123' + 'fatafat_salt').digest('hex');
+  const initialAdmin = [
+    {
+      email: 'superadmin@fatafat.com',
+      passwordHash: hash,
+      name: 'FATAFAT Ops Admin',
+      phone: '9999999990',
+      role: 'admin'
+    }
+  ];
+  fs.writeFileSync(PATHS.admin, JSON.stringify(initialAdmin, null, 2), 'utf8');
+}
+
+// Seed delivery partners with location rules
+if (!fs.existsSync(PATHS.partners)) {
+  const hash = crypto.createHash('sha256').update('rider123' + 'fatafat_salt').digest('hex');
+  const initialPartners = [
+    {
+      id: 'DP-001',
+      name: 'Rahul',
+      phone: '9999999999',
+      email: 'rider@fatafat.com',
+      passwordHash: hash,
+      role: 'delivery_partner',
+      locationId: 'nawabganj-unnao',
+      locationName: 'Nawabganj, Unnao',
+      status: 'Active',
+      isOnline: true
+    },
+    {
+      id: 'DP-002',
+      name: 'Aman',
+      phone: '8888888888',
+      email: 'aman_rider@fatafat.com',
+      passwordHash: hash,
+      role: 'delivery_partner',
+      locationId: 'chandigarh-university-up',
+      locationName: 'Chandigarh University, Uttar Pradesh',
+      status: 'Active',
+      isOnline: false
+    }
+  ];
+  fs.writeFileSync(PATHS.partners, JSON.stringify(initialPartners, null, 2), 'utf8');
+}
+
+// Seed sessions table
+if (!fs.existsSync(PATHS.sessions)) {
+  fs.writeFileSync(PATHS.sessions, JSON.stringify([], null, 2), 'utf8');
+}
+
+// Seed inventory issue reports
+if (!fs.existsSync(PATHS.inventoryIssues)) {
+  fs.writeFileSync(PATHS.inventoryIssues, JSON.stringify([], null, 2), 'utf8');
+}
+
 // Database helper functions
 export const db = {
   // Read any JSON table
-  readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders'): T[] {
+  readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues'): T[] {
     try {
       const filePath = PATHS[key];
       if (!fs.existsSync(filePath)) return [];
@@ -102,7 +164,7 @@ export const db = {
   },
 
   // Write any JSON table
-  writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders', data: T[]): boolean {
+  writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues', data: T[]): boolean {
     try {
       const filePath = PATHS[key];
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
@@ -112,6 +174,7 @@ export const db = {
       return false;
     }
   },
+
 
   // Read Homepage config
   readHomepage(): any {

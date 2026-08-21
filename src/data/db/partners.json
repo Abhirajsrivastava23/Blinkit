@@ -1,0 +1,26 @@
+[
+  {
+    "id": "DP-001",
+    "name": "Rahul",
+    "phone": "9999999999",
+    "email": "rider@fatafat.com",
+    "passwordHash": "54fc687d843354f6265230ebac2eb4584bb100c1002b04118864f41c74aefbe4",
+    "role": "delivery_partner",
+    "locationId": "nawabganj-unnao",
+    "locationName": "Nawabganj, Unnao",
+    "status": "Active",
+    "isOnline": true
+  },
+  {
+    "id": "DP-002",
+    "name": "Aman",
+    "phone": "8888888888",
+    "email": "aman_rider@fatafat.com",
+    "passwordHash": "54fc687d843354f6265230ebac2eb4584bb100c1002b04118864f41c74aefbe4",
+    "role": "delivery_partner",
+    "locationId": "chandigarh-university-up",
+    "locationName": "Chandigarh University, Uttar Pradesh",
+    "status": "Active",
+    "isOnline": false
+  }
+]

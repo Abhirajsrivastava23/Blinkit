@@ -33,42 +33,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (isLoginPage) return;
 
-    const storedUser = localStorage.getItem('fatafat_user');
-    if (!storedUser) {
-      router.push('/admin/login');
-      return;
-    }
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) {
+          showToast('Access denied: Operations Console authorization required.', 'error');
+          router.push('/admin/login');
+          return;
+        }
 
-    try {
-      const parsedUser = JSON.parse(storedUser);
-      const email = parsedUser.email || '';
-      
-      // Determine simulated roles based on emails
-      const isSuperAdmin = email === 'superadmin@fatafat.com';
-      const isAdmin = email === 'admin@fatafat.com';
-      const isManager = email === 'manager@fatafat.com';
+        const data = await res.json();
+        if (data.user.role !== 'admin') {
+          showToast('Access denied: Admin role required for this system.', 'error');
+          router.push('/admin/login');
+          return;
+        }
 
-      if (!isSuperAdmin && !isAdmin && !isManager) {
-        showToast('Access denied: Unauthorized credentials', 'error');
+        // Keep simulated role categories for sidebar visibility limits if needed
+        const email = data.user.email || '';
+        if (email === 'superadmin@fatafat.com') {
+          setUserRole('SUPER_ADMIN');
+        } else if (email === 'manager@fatafat.com') {
+          setUserRole('INVENTORY_MANAGER');
+        } else {
+          setUserRole('ADMIN');
+        }
+
+        setAdminName(data.user.name || 'Admin Operations');
+        setAdminEmail(email);
+      } catch (err) {
+        console.error('Admin layout auth error:', err);
         router.push('/admin/login');
-        return;
       }
+    };
 
-      // Set state values for displays
-      if (isSuperAdmin) {
-        setUserRole('SUPER_ADMIN');
-        setAdminName(parsedUser.name || 'Super Admin');
-      } else if (isManager) {
-        setUserRole('INVENTORY_MANAGER');
-        setAdminName(parsedUser.name || 'Inv Manager');
-      } else {
-        setUserRole('ADMIN');
-        setAdminName(parsedUser.name || 'Admin Operations');
-      }
-      setAdminEmail(email);
-    } catch (e) {
-      router.push('/admin/login');
-    }
+    checkAuth();
   }, [pathname, router, isLoginPage]);
 
   // Close dropdowns on outside click
@@ -131,7 +130,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     {
       title: 'Delivery',
       links: [
-        { href: '/admin/delivery', label: 'Delivery Ops', icon: Truck }
+        { href: '/admin/delivery', label: 'Delivery Ops', icon: Truck },
+        { href: '/admin/delivery-partners', label: 'Delivery Partners', icon: Users }
       ]
     },
     {

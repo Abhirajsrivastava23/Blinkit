@@ -1,5 +1,32 @@
 [
   {
+    "id": "log-1787339166396",
+    "adminUser": "Admin Console",
+    "action": "Deleted Partner",
+    "dateTime": "2026-08-21T19:06:06.396Z",
+    "product": "Automation Test Rider",
+    "previousValue": "ID: DP-TEST-99",
+    "newValue": "Removed from database"
+  },
+  {
+    "id": "log-1787339165448",
+    "adminUser": "Delivery Partner",
+    "action": "Reported Stock Issue",
+    "dateTime": "2026-08-21T19:06:05.448Z",
+    "product": "Chocolate Truffle Cake",
+    "previousValue": "Order: undefined",
+    "newValue": "Reason: Product damaged"
+  },
+  {
+    "id": "log-1787339164374",
+    "adminUser": "Admin Console",
+    "action": "Created Partner",
+    "dateTime": "2026-08-21T19:06:04.374Z",
+    "product": "Automation Test Rider",
+    "previousValue": "ID: DP-TEST-99",
+    "newValue": "Location: Nawabganj, Unnao"
+  },
+  {
     "id": "log-1787294179849",
     "adminUser": "Admin Console",
     "action": "Updated Product",

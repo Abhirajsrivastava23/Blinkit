@@ -14,7 +14,7 @@ export default function AdminLoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -24,37 +24,38 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Determine simulated admin authorization roles
-    const isSuperAdmin = email.trim() === 'superadmin@fatafat.com';
-    const isAdmin = email.trim() === 'admin@fatafat.com';
-    const isManager = email.trim() === 'manager@fatafat.com';
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrId: email, password })
+      });
 
-    if (!isSuperAdmin && !isAdmin && !isManager) {
-      showToast('Access Denied: Store customer accounts are not allowed in the Operations console.', 'error');
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || 'Authentication failed. Please verify credentials.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      localStorage.setItem('fatafat_user', JSON.stringify(data.user));
+      showToast(`Welcome back, ${data.user.name}! Initialized Operations Console.`, 'success');
+      
+      // Redirect to main admin dashboard
+      setTimeout(() => {
+        router.push('/admin');
+      }, 800);
+    } catch (err) {
+      showToast('Connection to auth server failed.', 'error');
       setIsLoading(false);
-      return;
     }
-
-    // Save authorized session
-    const mockUser = {
-      phone: isSuperAdmin ? '9999999991' : isManager ? '9999999992' : '9999999990',
-      name: isSuperAdmin ? 'Harshvardhan (Super)' : isManager ? 'Karan Johar (Inventory)' : 'FATAFAT Ops Admin',
-      email: email.trim()
-    };
-
-    localStorage.setItem('fatafat_user', JSON.stringify(mockUser));
-    showToast(`Welcome back, ${mockUser.name}! Initialized Operations Console.`, 'success');
-    
-    // Redirect to main admin dashboard
-    setTimeout(() => {
-      router.push('/admin');
-    }, 800);
   };
 
   // Helper shortcut buttons
   const triggerDemoLogin = (demoEmail: string) => {
     setEmail(demoEmail);
-    setPassword('demopass123');
+    setPassword('admin123');
     showToast(`Autofilled demo credentials for: ${demoEmail}`, 'info');
   };
 

@@ -45,9 +45,13 @@ export default function DeliveryPartnerPage() {
   const [reportsLog, setReportsLog] = useState<any[]>([]);
 
   // Availability security: rider phone/email
-  const isRider = user && user.role === 'DELIVERY_PARTNER';
+  const isRider = user && user.role === 'delivery_partner';
 
-  // Load persistent rider data on mount
+  // Load persistent rider data on mount & Verify Session
+  const [verifyingSession, setVerifyingSession] = useState(true);
+  const [riderOrders, setRiderOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
   useEffect(() => {
     const storedOnline = localStorage.getItem('fatafat_rider_online');
     if (storedOnline !== null) {
@@ -57,30 +61,37 @@ export default function DeliveryPartnerPage() {
     if (storedReports) {
       setReportsLog(JSON.parse(storedReports));
     }
-  }, []);
 
-  const handleForceLogin = (partnerId: 'DP-001' | 'DP-002') => {
-    const partner = partnerId === 'DP-001'
-      ? { phone: '9999999999', name: 'Rahul', email: 'rider@fatafat.com', role: 'DELIVERY_PARTNER', deliveryPartnerId: 'DP-001', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao' }
-      : { phone: '8888888888', name: 'Aman', email: 'aman_rider@fatafat.com', role: 'DELIVERY_PARTNER', deliveryPartnerId: 'DP-002', locationId: 'chandigarh-university-up', locationName: 'Chandigarh University, Uttar Pradesh' };
-    
-    localStorage.setItem('fatafat_user', JSON.stringify(partner));
-    showToast(`Logged in as Delivery Partner ${partner.name}.`, 'success');
-    window.location.reload();
-  };
+    const checkRiderAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) {
+          router.push('/delivery-partner/login');
+          return;
+        }
 
-  // Load and filter orders from backend API to fulfill security constraint
-  const [riderOrders, setRiderOrders] = useState<Order[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(true);
+        const data = await res.json();
+        if (data.user.role !== 'delivery_partner') {
+          showToast('Access denied: Delivery Partner authorization required.', 'error');
+          router.push('/delivery-partner/login');
+          return;
+        }
+
+        // Store user in localStorage (Legacy matching)
+        localStorage.setItem('fatafat_user', JSON.stringify(data.user));
+        setVerifyingSession(false);
+      } catch (err) {
+        console.error('Rider layout verify error:', err);
+        router.push('/delivery-partner/login');
+      }
+    };
+
+    checkRiderAuth();
+  }, [router]);
 
   const fetchRiderOrders = async () => {
-    if (!user || !user.deliveryPartnerId) return;
     try {
-      const res = await fetch(`/api/delivery/orders?partnerId=${user.deliveryPartnerId}`, {
-        headers: {
-          'x-partner-id': user.deliveryPartnerId
-        }
-      });
+      const res = await fetch('/api/delivery/orders');
       if (res.ok) {
         const data = await res.json();
         setRiderOrders(data);
@@ -93,11 +104,12 @@ export default function DeliveryPartnerPage() {
   };
 
   useEffect(() => {
+    if (verifyingSession) return;
     fetchRiderOrders();
     // Poll every 3 seconds to get real-time rider dispatch notifications
     const interval = setInterval(fetchRiderOrders, 3000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [verifyingSession, user]);
 
   // Find current active assigned order (not delivered)
   const activeOrder = riderOrders.find(o => 
@@ -188,19 +200,41 @@ export default function DeliveryPartnerPage() {
   };
 
   // Inventory Updates
-  const handleUpdateStock = async (productId: string, inStock: boolean) => {
+  const handleReportIssue = async (productId: string, productName: string, reason: string, availableQty?: number, requestedQty?: number) => {
     try {
-      const res = await fetch(`/api/products/${productId}`, {
-        method: 'PATCH',
+      const res = await fetch('/api/delivery/issues', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inStock })
+        body: JSON.stringify({
+          productId,
+          productName,
+          reason,
+          availableQty,
+          requestedQty: requestedQty !== undefined ? requestedQty : 1,
+          orderId: activeOrder?.id || 'N/A'
+        })
       });
+
       if (res.ok) {
-        showToast(`Stock updated: Product is now ${inStock ? 'Available' : 'Out of Stock'}`, 'success');
-        refreshProducts();
+        showToast('Stock issue report submitted successfully!', 'success');
+        
+        const newReport = {
+          product: { name: productName, id: productId },
+          issue: reason,
+          reportedStock: availableQty !== undefined ? availableQty : 0,
+          date: new Date().toLocaleDateString()
+        };
+        const updatedReports = [newReport, ...reportsLog];
+        setReportsLog(updatedReports);
+        localStorage.setItem('fatafat_rider_reports', JSON.stringify(updatedReports));
+
+        setSelectedInvProduct(null);
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to submit stock issue report.', 'error');
       }
     } catch (err) {
-      showToast('Error updating stock status.', 'error');
+      showToast('Connection to server failed.', 'error');
     }
   };
 
@@ -208,33 +242,13 @@ export default function DeliveryPartnerPage() {
     e.preventDefault();
     if (!selectedInvProduct) return;
 
-    // Call simulated patch update
-    try {
-      const res = await fetch(`/api/products/${selectedInvProduct.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inStock: physicalCount > 0 })
-      });
-      if (res.ok) {
-        const newReport = {
-          product: selectedInvProduct,
-          issue: updateReason,
-          previousStock: selectedInvProduct.inStock ? 10 : 0,
-          reportedStock: physicalCount,
-          status: 'Applied',
-          date: new Date().toLocaleDateString()
-        };
-        const updatedReports = [newReport, ...reportsLog];
-        setReportsLog(updatedReports);
-        localStorage.setItem('fatafat_rider_reports', JSON.stringify(updatedReports));
-
-        showToast(`Report filed: Count set to ${physicalCount}`, 'success');
-        setSelectedInvProduct(null);
-        refreshProducts();
-      }
-    } catch (err) {
-      showToast('Failed to submit inventory adjustment.', 'error');
-    }
+    await handleReportIssue(
+      selectedInvProduct.id,
+      selectedInvProduct.name,
+      updateReason,
+      physicalCount,
+      1
+    );
   };
 
   // Filter catalog items
@@ -244,45 +258,12 @@ export default function DeliveryPartnerPage() {
   );
 
   // Authentication Fallback View
-  if (!isRider) {
+  if (!isRider || verifyingSession) {
     return (
-      <div className="min-h-screen bg-[#FAF9F6] flex flex-col justify-center items-center p-6 font-sans text-xs text-brand-charcoal selection:bg-brand-burgundy/10">
-        <div className="w-full max-w-sm bg-white border border-zinc-200/50 p-8 rounded-3xl shadow-xl space-y-6 text-center">
-          <div className="inline-flex items-center select-none font-sans font-black tracking-tighter text-2xl">
-            <span className="text-brand-burgundy">FATA</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded-lg text-white font-black text-[0.85em] uppercase leading-none bg-brand-coral">
-              DELIVERY
-            </span>
-          </div>
-          
-          <div className="space-y-2">
-            <h3 className="font-serif font-extrabold text-sm uppercase tracking-wider text-zinc-800">Operational Access Control</h3>
-            <p className="text-zinc-500 leading-relaxed font-medium">
-              This portal is restricted to authorized FATAFAT Delivery Partners and courier agents.
-            </p>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            <button
-              onClick={() => handleForceLogin('DP-001')}
-              className="w-full py-3.5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow transition-all hover:scale-102 flex flex-col items-center justify-center text-[10px]"
-            >
-              <div className="flex items-center gap-1.5 font-bold">
-                <Truck className="h-4 w-4" /> Login as Rahul (Rider A)
-              </div>
-              <span className="text-[8px] opacity-75 font-normal tracking-wide mt-0.5 font-sans">Authorized Zone: Nawabganj, Unnao (DP-001)</span>
-            </button>
-
-            <button
-              onClick={() => handleForceLogin('DP-002')}
-              className="w-full py-3.5 bg-zinc-800 hover:bg-zinc-900 text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow transition-all hover:scale-102 flex flex-col items-center justify-center text-[10px]"
-            >
-              <div className="flex items-center gap-1.5 font-bold">
-                <Truck className="h-4 w-4" /> Login as Aman (Rider B)
-              </div>
-              <span className="text-[8px] opacity-75 font-normal tracking-wide mt-0.5 font-sans">Authorized Zone: Chandigarh University (DP-002)</span>
-            </button>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF9F6] font-sans">
+        <div className="text-center space-y-2">
+          <RotateCw className="h-6 w-6 text-brand-burgundy animate-spin mx-auto" />
+          <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Verifying Rider Session...</p>
         </div>
       </div>
     );
@@ -869,15 +850,19 @@ export default function DeliveryPartnerPage() {
                         >
                           Adjust Count
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStock(p.id, !p.inStock)}
-                          className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white ${
-                            p.inStock ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-                          }`}
-                        >
-                          {p.inStock ? 'Stock Out' : 'Restock'}
-                        </button>
+                        {p.inStock ? (
+                          <button
+                            type="button"
+                            onClick={() => handleReportIssue(p.id, p.name, 'Product out of stock', 0, 1)}
+                            className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 font-sans"
+                          >
+                            Report Out
+                          </button>
+                        ) : (
+                          <span className="text-[8px] bg-red-50 text-red-650 px-2 py-1.5 rounded-lg font-extrabold uppercase tracking-wider">
+                            Reported Out
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -979,7 +964,8 @@ export default function DeliveryPartnerPage() {
               </div>
 
               <button
-                onClick={() => {
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST' });
                   localStorage.removeItem('fatafat_user');
                   showToast('Logged out successfully.', 'info');
                   router.push('/');

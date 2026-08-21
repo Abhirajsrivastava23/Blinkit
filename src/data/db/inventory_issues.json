@@ -1,0 +1,13 @@
+[
+  {
+    "id": "iss-383917",
+    "productId": "cake-1",
+    "productName": "Chocolate Truffle Cake",
+    "orderId": "N/A",
+    "partnerId": "DP-TEST-99",
+    "availableQty": 2,
+    "requestedQty": 5,
+    "reason": "Product damaged",
+    "createdAt": "2026-08-21T19:06:05.442Z"
+  }
+]

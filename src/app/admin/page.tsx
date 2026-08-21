@@ -102,11 +102,30 @@ export default function AdminDashboardPage() {
     };
   }).sort((a, b) => b.ordersCount - a.ordersCount).slice(0, 5);
 
-  // 5. Mock Delivery Partner Statuses matching spec
-  const deliveryPartnersList = [
-    { id: 'DP-001', name: 'Rahul', status: 'Online', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao' },
-    { id: 'DP-002', name: 'Aman', status: 'Offline', locationId: 'chandigarh-university-up', locationName: 'Chandigarh University, Uttar Pradesh' }
-  ];
+  // 5. Fetch Delivery Partner Statuses dynamically
+  const [deliveryPartnersList, setDeliveryPartnersList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchPartners = async () => {
+      try {
+        const res = await fetch('/api/admin/partners');
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            status: p.status === 'Active' ? (p.isOnline ? 'Online' : 'Offline') : 'Deactivated',
+            locationId: p.locationId,
+            locationName: p.locationName
+          }));
+          setDeliveryPartnersList(mapped);
+        }
+      } catch (err) {
+        console.warn('Error fetching delivery partners for admin:', err);
+      }
+    };
+    fetchPartners();
+  }, []);
 
   const getActiveOrdersCount = (partnerId: string) => {
     return orders.filter(o => o.assignedPartnerId === partnerId && o.status !== 'Delivered' && o.status !== 'Cancelled').length;

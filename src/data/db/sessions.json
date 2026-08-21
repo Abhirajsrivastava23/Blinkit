@@ -1,0 +1,23 @@
+[
+  {
+    "sessionId": "sess-831eb2e70d438750069ace8446b6faeb",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-28T19:06:03.377Z"
+  },
+  {
+    "sessionId": "sess-31c5eca7e0a2eb7543a08d37e16a37d1",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-28T19:06:03.486Z"
+  },
+  {
+    "sessionId": "sess-b1c280b859e9267970128660e919559a",
+    "userId": "DP-TEST-99",
+    "email": "test_rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-28T19:06:04.433Z"
+  }
+]
