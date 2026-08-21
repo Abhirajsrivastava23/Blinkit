@@ -1,26 +1,136 @@
 @import "tailwindcss";
 
+@theme {
+  /* FATAFAT Typography */
+  --font-serif: var(--font-serif), Georgia, serif;
+  --font-sans: var(--font-sans), sans-serif;
+
+  /* FATAFAT Premium Palette */
+  --color-brand-burgundy: #6B1D2F;
+  --color-brand-burgundy-dark: #4A121E;
+  --color-brand-burgundy-light: #8E2B41;
+  --color-brand-coral: #E58B75;
+  --color-brand-gold: #DFBA5E;
+  --color-brand-gold-dark: #BCA049;
+  --color-brand-gold-light: #F0D98C;
+  --color-brand-cream: #FDFBF7;
+  --color-brand-cream-dark: #FAF7F0;
+  --color-brand-blush: #FFF0EE;
+  --color-brand-charcoal: #2C2A29;
+
+  /* FATAFAT Wellness Luxury Dark Palette */
+  --color-wellness-black: #0B0B0E;
+  --color-wellness-dark: #121217;
+  --color-wellness-card: #1A1A22;
+  --color-wellness-bronze: #A38A5F;
+  --color-wellness-bronze-dark: #7F6A48;
+  --color-wellness-bronze-light: #C5B08D;
+  --color-wellness-text: #E4E4E7;
+  --color-wellness-muted: #A1A1AA;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #FDFBF7; /* brand-cream */
+  --foreground: #2C2A29; /* brand-charcoal */
 }
 
 body {
-  background: var(--background);
+  font-family: var(--font-sans);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom premium transitions & elements */
+.premium-shadow {
+  box-shadow: 0 4px 20px -2px rgba(107, 29, 47, 0.05), 0 2px 10px -1px rgba(0, 0, 0, 0.03);
+}
+
+.premium-shadow-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.premium-shadow-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(107, 29, 47, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.wellness-shadow {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.wellness-shadow-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wellness-shadow-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.8), 0 0 15px rgba(163, 138, 95, 0.15);
+}
+
+/* Custom premium scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E5E7EB;
+  border-radius: 9999px;
+}
+
+.dark-scroll ::-webkit-scrollbar-thumb {
+  background: #27272A;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D1D5DB;
+}
+
+/* Toast animations */
+@keyframes slide-in-right {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Loading shine animation */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 2s infinite;
+  content: '';
 }

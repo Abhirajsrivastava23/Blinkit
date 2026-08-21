@@ -1,0 +1,37 @@
+[
+  {
+    "id": "brand-1",
+    "name": "FATAFAT",
+    "description": "FATAFAT signature luxury craft brand",
+    "status": "Active",
+    "website": "https://fatafat.com"
+  },
+  {
+    "id": "brand-2",
+    "name": "Durex",
+    "description": "Verified Reckitt sexual wellbeing brand",
+    "status": "Active",
+    "website": "https://durex.com"
+  },
+  {
+    "id": "brand-3",
+    "name": "KamaSutra",
+    "description": "Raymond consumer care intimacy brand",
+    "status": "Active",
+    "website": "https://kamasutra.co.in"
+  },
+  {
+    "id": "brand-4",
+    "name": "Skore",
+    "description": "TTK protective devices flavor condom brand",
+    "status": "Active",
+    "website": "https://skore.com"
+  },
+  {
+    "id": "brand-5",
+    "name": "Manforce",
+    "description": "Mankind pharma premium flavored condom brand",
+    "status": "Active",
+    "website": "https://manforce.com"
+  }
+]

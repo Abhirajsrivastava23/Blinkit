@@ -1,0 +1,64 @@
+[
+  {
+    "id": "log-1787294179849",
+    "adminUser": "Admin Console",
+    "action": "Updated Product",
+    "dateTime": "2026-08-21T06:36:19.850Z",
+    "product": "Chocolate Truffle Cake",
+    "previousValue": "Stock status: Out of Stock -> In Stock",
+    "newValue": "Success"
+  },
+  {
+    "id": "log-1787293159314",
+    "adminUser": "Admin Console",
+    "action": "Updated Product",
+    "dateTime": "2026-08-21T06:19:19.314Z",
+    "product": "Chocolate Truffle Cake",
+    "previousValue": "Stock status: In Stock -> Out of Stock",
+    "newValue": "Success"
+  },
+  {
+    "id": "evt-1787306657844-55",
+    "userId": "u-7978",
+    "userEmail": "krishnamdwivedi17@gmail.com",
+    "userName": "krishnam",
+    "action": "Wellness access requested",
+    "adminId": "Admin",
+    "timestamp": "2026-08-21T10:04:17.845Z",
+    "requestId": "WR-1744",
+    "reason": "Auto verification via Aadhaar Card: 3672987638930"
+  },
+  {
+    "id": "evt-1787306787692-65",
+    "userId": "u-7978",
+    "userEmail": "krishnamdwivedi17@gmail.com",
+    "userName": "krishnam",
+    "action": "Wellness access approved",
+    "adminId": "superadmin@fatafat.com",
+    "timestamp": "2026-08-21T10:06:27.692Z",
+    "requestId": "WR-1744",
+    "reason": "Verified ID document proof"
+  },
+  {
+    "id": "evt-1787307109168-59",
+    "userId": "u-4558",
+    "userEmail": "aman@gmail.com",
+    "userName": "Aman Sharma",
+    "action": "Wellness access requested",
+    "adminId": "Admin",
+    "timestamp": "2026-08-21T10:11:49.168Z",
+    "requestId": "WR-9176",
+    "reason": "Auto verification via Aadhaar Card: 4912-3029-4821"
+  },
+  {
+    "id": "evt-1787307184370-95",
+    "userId": "u-4558",
+    "userEmail": "aman@gmail.com",
+    "userName": "Aman Sharma",
+    "action": "Wellness access approved",
+    "adminId": "superadmin@fatafat.com",
+    "timestamp": "2026-08-21T10:13:04.370Z",
+    "requestId": "WR-9176",
+    "reason": "Verified ID document proof"
+  }
+]

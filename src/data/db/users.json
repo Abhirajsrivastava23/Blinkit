@@ -1,0 +1,28 @@
+[
+  {
+    "userId": "u-7978",
+    "googleProviderId": "google-903387",
+    "name": "krishnam",
+    "email": "krishnamdwivedi17@gmail.com",
+    "profileImage": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60",
+    "createdAt": "2026-08-21T10:03:57.887Z",
+    "lastLoginAt": "2026-08-21T10:06:43.469Z",
+    "wellnessAccessStatus": "APPROVED",
+    "wellnessRequestId": "WR-1744",
+    "wellnessApprovedAt": "2026-08-21T10:06:27.690Z",
+    "wellnessApprovedBy": "superadmin@fatafat.com"
+  },
+  {
+    "userId": "u-4558",
+    "googleProviderId": "google-638466",
+    "name": "Aman Sharma",
+    "email": "aman@gmail.com",
+    "profileImage": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60",
+    "createdAt": "2026-08-21T10:11:18.249Z",
+    "lastLoginAt": "2026-08-21T10:13:43.207Z",
+    "wellnessAccessStatus": "APPROVED",
+    "wellnessRequestId": "WR-9176",
+    "wellnessApprovedAt": "2026-08-21T10:13:04.368Z",
+    "wellnessApprovedBy": "superadmin@fatafat.com"
+  }
+]

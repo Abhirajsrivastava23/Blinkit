@@ -1,0 +1,38 @@
+[
+  {
+    "id": "FF73030",
+    "customerId": "rider@fatafat.com",
+    "items": [
+      {
+        "productId": "cake-1",
+        "name": "Chocolate Truffle Cake",
+        "price": 699,
+        "quantity": 2,
+        "image": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80",
+        "selectedSize": "0.5 KG",
+        "selectedType": "Eggless"
+      }
+    ],
+    "subtotal": 1398,
+    "deliveryFee": 0,
+    "discount": 0,
+    "total": 1398,
+    "address": {
+      "name": "Guest Nawabganj",
+      "mobile": "9876543210",
+      "house": "Flat 101, Nawabganj Apartments",
+      "street": "Nawabganj Main Street",
+      "area": "Nawabganj",
+      "city": "Unnao",
+      "pincode": "209859",
+      "landmark": "Near Main Market",
+      "id": "addr-1787308611548"
+    },
+    "status": "Waiting for Partner",
+    "deliveryOption": "ASAP",
+    "eta": "35 mins",
+    "createdAt": "2026-08-21T10:38:30.226Z",
+    "deliveryLocationId": "nawabganj-unnao",
+    "deliveryLocationName": "Nawabganj, Unnao"
+  }
+]

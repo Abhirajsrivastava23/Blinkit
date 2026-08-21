@@ -1,0 +1,58 @@
+[
+  {
+    "id": "cat-1",
+    "name": "Cakes",
+    "slug": "cakes",
+    "description": "Freshly baked designer cakes",
+    "status": "Active"
+  },
+  {
+    "id": "cat-2",
+    "name": "Bakery",
+    "slug": "bakery",
+    "description": "Artisanal breads and buns",
+    "status": "Active"
+  },
+  {
+    "id": "cat-3",
+    "name": "Pastries",
+    "slug": "pastries",
+    "description": "Single-serve sweet pastries",
+    "status": "Active"
+  },
+  {
+    "id": "cat-4",
+    "name": "Flowers",
+    "slug": "flowers",
+    "description": "Luxury fresh flower bouquets",
+    "status": "Active"
+  },
+  {
+    "id": "cat-5",
+    "name": "Gifts & Hampers",
+    "slug": "gifts",
+    "description": "Custom styled gift boxes",
+    "status": "Active"
+  },
+  {
+    "id": "cat-6",
+    "name": "Chocolates",
+    "slug": "chocolates",
+    "description": "Artisanal chocolate truffles",
+    "status": "Active"
+  },
+  {
+    "id": "cat-7",
+    "name": "Celebrations",
+    "slug": "celebrations",
+    "description": "Sparklers, banners and kits",
+    "status": "Active"
+  },
+  {
+    "id": "cat-8",
+    "name": "Wellness (18+)",
+    "slug": "wellness",
+    "description": "Discreet and lawful adult-wellness items",
+    "status": "Active"
+  }
+]
