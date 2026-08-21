@@ -753,7 +753,7 @@ export default function DeliveryPartnerPage() {
                 <div className="space-y-1.5 max-w-sm mx-auto">
                   <h3 className="font-serif font-black text-sm uppercase tracking-wider text-zinc-900">You&apos;re all caught up! 🎉</h3>
                   <p className="text-[10px] text-zinc-500 leading-relaxed font-medium">
-                    No active deliveries assigned to your rider profile. Stay online to capture new courier tickets from Gurugram hubs.
+                    No active deliveries assigned to your rider profile. Stay online to capture new courier tickets from your authorized zone.
                   </p>
                 </div>
               </div>

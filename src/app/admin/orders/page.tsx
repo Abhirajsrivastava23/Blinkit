@@ -112,7 +112,7 @@ export default function AdminOrdersPage() {
                 return (
                   <tr key={order.id} className="hover:bg-zinc-50/20 transition-all cursor-pointer" onClick={() => router.push(`/admin/orders/${order.id}`)}>
                     <td className="p-3.5 font-bold text-brand-burgundy text-xs">
-                      #VM{order.id.slice(0, 5).toUpperCase()}
+                      #{order.id}
                     </td>
                     <td className="p-3.5">
                       <p className="font-bold text-zinc-800">{order.address.name}</p>

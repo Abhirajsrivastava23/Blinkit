@@ -24,7 +24,7 @@ export default function CampaignsPage() {
           <Megaphone className="h-8 w-8 mx-auto text-brand-burgundy/40" />
           <p className="font-bold text-zinc-700">No active campaigns</p>
           <p className="text-[10px] text-zinc-450 leading-relaxed font-medium">
-            Draft campaigns to promote seasonal designer cakes or festive floral packages to Gurugram users.
+            Draft campaigns to promote seasonal designer cakes or festive floral packages to FATAFAT users.
           </p>
         </div>
       </div>

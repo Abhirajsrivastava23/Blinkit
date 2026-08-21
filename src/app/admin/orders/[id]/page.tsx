@@ -77,7 +77,7 @@ export default function AdminOrderDetailPage() {
           <div className="bg-white border border-zinc-200/20 rounded-3xl p-6 shadow-sm flex flex-wrap justify-between items-center gap-4">
             <div>
               <span className="text-[9px] text-zinc-450 uppercase font-extrabold tracking-widest block">Reference</span>
-              <h4 className="text-sm font-bold text-zinc-800">Order #VM{order.id.slice(0, 5).toUpperCase()}</h4>
+              <h4 className="text-sm font-bold text-zinc-800">Order #{order.id}</h4>
             </div>
             <div>
               <span className="text-[9px] text-zinc-450 uppercase font-extrabold tracking-widest block">Total Amount</span>

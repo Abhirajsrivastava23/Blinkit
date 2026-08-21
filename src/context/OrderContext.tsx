@@ -126,7 +126,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const newOrder: Order = {
-      id: `FF${randomId}`,
+      id: `FT${randomId}`,
       customerId: activeCustomer,
       items,
       subtotal: pricing.subtotal,
