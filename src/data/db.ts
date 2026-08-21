@@ -91,51 +91,111 @@ if (!fs.existsSync(PATHS.homepage)) {
   fs.writeFileSync(PATHS.homepage, JSON.stringify(defaultHomepage, null, 2), 'utf8');
 }
 
+interface AdminRecord {
+  email: string;
+  passwordHash: string;
+  name: string;
+  phone: string;
+  role: string;
+}
+
+interface PartnerRecord {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  passwordHash: string;
+  role: string;
+  locationId: string;
+  locationName: string;
+  status: string;
+  isOnline: boolean;
+}
+
+interface AuditLogRecord {
+  id: string;
+  adminUser: string;
+  action: string;
+  dateTime: string;
+  product: string;
+  previousValue: string;
+  newValue: string;
+}
+
 // Seed admin credentials separately & securely
-if (!fs.existsSync(PATHS.admin)) {
-  const hash = crypto.createHash('sha256').update('admin123' + 'fatafat_salt').digest('hex');
-  const initialAdmin = [
-    {
-      email: 'superadmin@fatafat.com',
-      passwordHash: hash,
-      name: 'FATAFAT Ops Admin',
-      phone: '9999999990',
-      role: 'admin'
-    }
-  ];
-  fs.writeFileSync(PATHS.admin, JSON.stringify(initialAdmin, null, 2), 'utf8');
+const adminList: AdminRecord[] = fs.existsSync(PATHS.admin) ? JSON.parse(fs.readFileSync(PATHS.admin, 'utf8')) : [];
+const adminHash = crypto.createHash('sha256').update('admin123' + 'fatafat_salt').digest('hex');
+
+const defaultAdmins: AdminRecord[] = [
+  { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
+  { email: 'admin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' },
+  { email: 'manager@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Inv Manager', phone: '9999999992', role: 'admin' },
+  { email: 'admin@fatafat.local', passwordHash: adminHash, name: 'Local Dev Admin', phone: '9999999993', role: 'admin' }
+];
+
+let adminUpdated = false;
+for (const defAdmin of defaultAdmins) {
+  if (!adminList.some((a) => a.email.toLowerCase() === defAdmin.email.toLowerCase())) {
+    adminList.push(defAdmin);
+    adminUpdated = true;
+  }
+}
+if (adminUpdated || !fs.existsSync(PATHS.admin)) {
+  fs.writeFileSync(PATHS.admin, JSON.stringify(adminList, null, 2), 'utf8');
 }
 
 // Seed delivery partners with location rules
-if (!fs.existsSync(PATHS.partners)) {
-  const hash = crypto.createHash('sha256').update('rider123' + 'fatafat_salt').digest('hex');
-  const initialPartners = [
-    {
-      id: 'DP-001',
-      name: 'Rahul',
-      phone: '9999999999',
-      email: 'rider@fatafat.com',
-      passwordHash: hash,
-      role: 'delivery_partner',
-      locationId: 'nawabganj-unnao',
-      locationName: 'Nawabganj, Unnao',
-      status: 'Active',
-      isOnline: true
-    },
-    {
-      id: 'DP-002',
-      name: 'Aman',
-      phone: '8888888888',
-      email: 'aman_rider@fatafat.com',
-      passwordHash: hash,
-      role: 'delivery_partner',
-      locationId: 'chandigarh-university-up',
-      locationName: 'Chandigarh University, Uttar Pradesh',
-      status: 'Active',
-      isOnline: false
-    }
-  ];
-  fs.writeFileSync(PATHS.partners, JSON.stringify(initialPartners, null, 2), 'utf8');
+const partnerList: PartnerRecord[] = fs.existsSync(PATHS.partners) ? JSON.parse(fs.readFileSync(PATHS.partners, 'utf8')) : [];
+const riderHash = crypto.createHash('sha256').update('rider123' + 'fatafat_salt').digest('hex');
+
+const defaultPartners: PartnerRecord[] = [
+  {
+    id: 'DP-001',
+    name: 'Rahul',
+    phone: '9999999999',
+    email: 'rider@fatafat.com',
+    passwordHash: riderHash,
+    role: 'delivery_partner',
+    locationId: 'nawabganj-unnao',
+    locationName: 'Nawabganj, Unnao',
+    status: 'Active',
+    isOnline: true
+  },
+  {
+    id: 'DP-002',
+    name: 'Aman',
+    phone: '8888888888',
+    email: 'aman_rider@fatafat.com',
+    passwordHash: riderHash,
+    role: 'delivery_partner',
+    locationId: 'chandigarh-university-up',
+    locationName: 'Chandigarh University, Uttar Pradesh',
+    status: 'Active',
+    isOnline: false
+  },
+  {
+    id: 'DP-003',
+    name: 'Rider Local',
+    phone: '7777777777',
+    email: 'rider@fatafat.local',
+    passwordHash: riderHash,
+    role: 'delivery_partner',
+    locationId: 'nawabganj-unnao',
+    locationName: 'Nawabganj, Unnao',
+    status: 'Active',
+    isOnline: true
+  }
+];
+
+let partnerUpdated = false;
+for (const defPartner of defaultPartners) {
+  if (!partnerList.some((p) => p.id.toLowerCase() === defPartner.id.toLowerCase() || p.email.toLowerCase() === defPartner.email.toLowerCase())) {
+    partnerList.push(defPartner);
+    partnerUpdated = true;
+  }
+}
+if (partnerUpdated || !fs.existsSync(PATHS.partners)) {
+  fs.writeFileSync(PATHS.partners, JSON.stringify(partnerList, null, 2), 'utf8');
 }
 
 // Seed sessions table
@@ -177,7 +237,7 @@ export const db = {
 
 
   // Read Homepage config
-  readHomepage(): any {
+  readHomepage(): Record<string, unknown> {
     try {
       if (!fs.existsSync(PATHS.homepage)) return {};
       const content = fs.readFileSync(PATHS.homepage, 'utf8');
@@ -189,7 +249,7 @@ export const db = {
   },
 
   // Write Homepage config
-  writeHomepage(data: any): boolean {
+  writeHomepage(data: Record<string, unknown>): boolean {
     try {
       fs.writeFileSync(PATHS.homepage, JSON.stringify(data, null, 2), 'utf8');
       return true;
@@ -201,8 +261,8 @@ export const db = {
 
   // Create an audit log entry
   logActivity(adminUser: string, action: string, product: string, previousValue: string, newValue: string) {
-    const logs = this.readTable<any>('auditLogs');
-    const newLog = {
+    const logs = this.readTable<AuditLogRecord>('auditLogs');
+    const newLog: AuditLogRecord = {
       id: `log-${Date.now()}`,
       adminUser,
       action,

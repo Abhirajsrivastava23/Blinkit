@@ -32,13 +32,14 @@ export async function POST(request: Request) {
         response.cookies.set('fatafat_session_token', session.sessionId, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
           path: '/',
           maxAge: 7 * 24 * 60 * 60 // 7 days
         });
 
         return response;
       } else {
-        return NextResponse.json({ error: 'Invalid admin credentials' }, { status: 401 });
+        return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
       }
     }
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
 
     if (partnerObj) {
       if (partnerObj.status !== 'Active') {
-        return NextResponse.json({ error: 'This delivery partner account has been deactivated.' }, { status: 403 });
+        return NextResponse.json({ error: 'Your delivery partner account is currently inactive. Contact admin.' }, { status: 403 });
       }
 
       if (partnerObj.passwordHash === hashedInput) {
@@ -73,17 +74,18 @@ export async function POST(request: Request) {
         response.cookies.set('fatafat_session_token', session.sessionId, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
           path: '/',
           maxAge: 7 * 24 * 60 * 60 // 7 days
         });
 
         return response;
       } else {
-        return NextResponse.json({ error: 'Invalid partner credentials' }, { status: 401 });
+        return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
       }
     }
 
-    return NextResponse.json({ error: 'No account found matching this Email or Partner ID.' }, { status: 404 });
+    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   } catch (err) {
     console.error('Error in auth login endpoint:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

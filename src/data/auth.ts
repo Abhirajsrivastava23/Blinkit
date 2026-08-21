@@ -4,18 +4,26 @@ import { db } from './db';
 
 const SALT = 'fatafat_salt';
 
+export interface Session {
+  sessionId: string;
+  userId: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+}
+
 // 1. Hash password with salt
 export function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password + SALT).digest('hex');
 }
 
 // 2. Create session token and store it
-export function createSession(userId: string, email: string, role: string): any {
-  const sessions = db.readTable<any>('sessions') || [];
+export function createSession(userId: string, email: string, role: string): Session {
+  const sessions = db.readTable<Session>('sessions') || [];
   const sessionId = 'sess-' + crypto.randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
-  const newSession = {
+  const newSession: Session = {
     sessionId,
     userId,
     email,
@@ -29,7 +37,7 @@ export function createSession(userId: string, email: string, role: string): any 
 }
 
 // 3. Get session details from cookies or Authorization header
-export async function getSession(request?: Request): Promise<any | null> {
+export async function getSession(request?: Request): Promise<Session | null> {
   let token = '';
 
   // Attempt header extraction
@@ -45,14 +53,14 @@ export async function getSession(request?: Request): Promise<any | null> {
     try {
       const cookieStore = await cookies();
       token = cookieStore.get('fatafat_session_token')?.value || '';
-    } catch (e) {
+    } catch {
       // Cookies might throw if called outside Next request context
     }
   }
 
   if (!token) return null;
 
-  const sessions = db.readTable<any>('sessions') || [];
+  const sessions = db.readTable<Session>('sessions') || [];
   const session = sessions.find(s => s.sessionId === token);
   if (!session) return null;
 
@@ -68,12 +76,12 @@ export async function getSession(request?: Request): Promise<any | null> {
 
 // 4. Delete session (Logout)
 export function deleteSession(sessionId: string): void {
-  const sessions = db.readTable<any>('sessions') || [];
+  const sessions = db.readTable<Session>('sessions') || [];
   db.writeTable('sessions', sessions.filter(s => s.sessionId !== sessionId));
 }
 
 // 5. Endpoint guard helper to check required roles
-export async function validateRole(request: Request, allowedRoles: string[]): Promise<any | null> {
+export async function validateRole(request: Request, allowedRoles: string[]): Promise<Session | null> {
   const session = await getSession(request);
   if (!session) return null;
 

@@ -22,5 +22,29 @@
     "locationName": "Chandigarh University, Uttar Pradesh",
     "status": "Active",
     "isOnline": false
+  },
+  {
+    "id": "DP-003",
+    "name": "Rider Local",
+    "phone": "7777777777",
+    "email": "rider@fatafat.local",
+    "passwordHash": "54fc687d843354f6265230ebac2eb4584bb100c1002b04118864f41c74aefbe4",
+    "role": "delivery_partner",
+    "locationId": "nawabganj-unnao",
+    "locationName": "Nawabganj, Unnao",
+    "status": "Active",
+    "isOnline": true
+  },
+  {
+    "id": "DP-E2E-TEST",
+    "name": "E2E Rider Name",
+    "phone": "9999999901",
+    "email": "e2e_rider@fatafat.com",
+    "passwordHash": "d8cb0e78fae35507604f57f0d9f72eafc9a7614c7fd492d279f74e4766ba9b75",
+    "role": "delivery_partner",
+    "locationId": "nawabganj-unnao",
+    "locationName": "Nawabganj, Unnao",
+    "status": "Active",
+    "isOnline": false
   }
 ]

@@ -19,5 +19,47 @@
     "email": "test_rider@fatafat.com",
     "role": "delivery_partner",
     "expiresAt": "2026-08-28T19:06:04.433Z"
+  },
+  {
+    "sessionId": "sess-fa136cdb79612f29a5b328496433f712",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-28T19:19:44.550Z"
+  },
+  {
+    "sessionId": "sess-5426cd544b6240d3a1c858988b4c969f",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-28T19:20:37.896Z"
+  },
+  {
+    "sessionId": "sess-4e1e9cc5a4dbba18cb4d1f4357497eee",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-28T19:20:37.958Z"
+  },
+  {
+    "sessionId": "sess-047179893782352d72c657cb4f678de5",
+    "userId": "DP-TEST-99",
+    "email": "test_rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-28T19:20:38.221Z"
+  },
+  {
+    "sessionId": "sess-f8ed1f634f3805882b1dee49ee4b8f3f",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-28T19:24:30.326Z"
+  },
+  {
+    "sessionId": "sess-b39eb1670eaf45ffc0d5b3725a7f82f3",
+    "userId": "DP-E2E-TEST",
+    "email": "e2e_rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-28T19:30:47.217Z"
   }
 ]
