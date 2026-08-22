@@ -10,7 +10,7 @@ export interface Session {
   expiresAt: string;
 }
 
-// 1. Hash password with salt
+// 1. Hash password with salt (Force reload trigger)
 export function hashPassword(password: string): string {
   const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
   return crypto.createHash('sha256').update(password + salt).digest('hex');

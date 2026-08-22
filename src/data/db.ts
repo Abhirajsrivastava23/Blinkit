@@ -148,7 +148,7 @@ interface AuditLogRecord {
   newValue: string;
 }
 
-// Seed admin credentials separately & securely
+// Seed admin credentials separately & securely (Force reload trigger)
 ensureFileExists('admin');
 const adminList: AdminRecord[] = fs.existsSync(PATHS.admin) ? JSON.parse(fs.readFileSync(PATHS.admin, 'utf8')) : [];
 

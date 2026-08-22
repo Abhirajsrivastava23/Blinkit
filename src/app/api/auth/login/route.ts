@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { hashPassword, createSession } from '../../../../data/auth';
 
+// Trigger route reload
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
