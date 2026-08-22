@@ -2,8 +2,6 @@ import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { db } from './db';
 
-const SALT = process.env.AUTH_SECRET || 'fatafat_salt';
-
 export interface Session {
   sessionId: string;
   userId: string;
@@ -14,7 +12,8 @@ export interface Session {
 
 // 1. Hash password with salt
 export function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password + SALT).digest('hex');
+  const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
+  return crypto.createHash('sha256').update(password + salt).digest('hex');
 }
 
 // 2. Create session token and store it

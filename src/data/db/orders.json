@@ -1,5 +1,192 @@
 [
   {
+    "id": "FT-TEST-4390",
+    "customerId": "client.1234@fatafat.com",
+    "items": [
+      {
+        "productId": "cake-1",
+        "name": "Chocolate Cake",
+        "quantity": 1,
+        "price": 500
+      }
+    ],
+    "subtotal": 500,
+    "deliveryFee": 50,
+    "discount": 0,
+    "total": 550,
+    "address": {
+      "name": "Client A",
+      "mobile": "9876541234",
+      "house": "R-12",
+      "street": "Chandigarh Road",
+      "area": "Chandigarh University",
+      "city": "Chandigarh University, Uttar Pradesh",
+      "pincode": "140413"
+    },
+    "status": "Delivered",
+    "assignedPartnerId": "DP-001",
+    "assignedPartnerName": "Rider Partner",
+    "deliveryOtp": "241193",
+    "otpFailedAttempts": 0,
+    "otpExpiresAt": "2026-08-23T10:50:53.217Z",
+    "statusHistory": [
+      {
+        "previousStatus": null,
+        "newStatus": "Pending",
+        "changedByUserId": "client.1234@fatafat.com",
+        "changedByRole": "customer",
+        "timestamp": "2026-08-22T10:50:53.217Z"
+      },
+      {
+        "previousStatus": "Pending",
+        "newStatus": "Delivered",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:53.488Z"
+      }
+    ],
+    "adminOverrideReason": "Client phone battery dead",
+    "delivery_otp_verified": true,
+    "otp_verified_at": "2026-08-22T10:50:53.484Z",
+    "verified_by_partner_id": "ADMIN_OVERRIDE",
+    "delivery_completed_at": "2026-08-22T10:50:53.484Z",
+    "adminOverride": {
+      "adminId": "superadmin@fatafat.com",
+      "reason": "Client phone battery dead",
+      "timestamp": "2026-08-22T10:50:53.484Z"
+    }
+  },
+  {
+    "id": "FT-TEST-2815",
+    "customerId": "client.1234@fatafat.com",
+    "items": [
+      {
+        "productId": "cake-1",
+        "name": "Chocolate Cake",
+        "quantity": 1,
+        "price": 500
+      }
+    ],
+    "subtotal": 500,
+    "deliveryFee": 50,
+    "discount": 0,
+    "total": 550,
+    "address": {
+      "name": "Client A",
+      "mobile": "9876541234",
+      "house": "R-12",
+      "street": "Chandigarh Road",
+      "area": "Chandigarh University",
+      "city": "Chandigarh University, Uttar Pradesh",
+      "pincode": "140413"
+    },
+    "status": "Delivered",
+    "assignedPartnerId": "DP-001",
+    "assignedPartnerName": "Rider Partner",
+    "deliveryOtp": "795774",
+    "otpFailedAttempts": 0,
+    "otpExpiresAt": "2026-08-22T11:50:52.928Z",
+    "statusHistory": [
+      {
+        "previousStatus": null,
+        "newStatus": "Pending",
+        "changedByUserId": "client.1234@fatafat.com",
+        "changedByRole": "customer",
+        "timestamp": "2026-08-22T10:50:51.723Z"
+      },
+      {
+        "previousStatus": "Pending",
+        "newStatus": "Confirmed",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:52.018Z"
+      },
+      {
+        "previousStatus": "Confirmed",
+        "newStatus": "Preparing",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:52.059Z"
+      },
+      {
+        "previousStatus": "Preparing",
+        "newStatus": "Packed",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:52.111Z"
+      },
+      {
+        "previousStatus": "Packed",
+        "newStatus": "Ready for Delivery",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:52.157Z"
+      },
+      {
+        "previousStatus": "Ready for Delivery",
+        "newStatus": "Waiting for Partner",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:52.221Z"
+      },
+      {
+        "previousStatus": "Waiting for Partner",
+        "newStatus": "Assigned",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T10:50:52.285Z"
+      },
+      {
+        "previousStatus": "Assigned",
+        "newStatus": "Accepted",
+        "changedByUserId": "DP-001",
+        "changedByRole": "delivery_partner",
+        "timestamp": "2026-08-22T10:50:52.356Z"
+      },
+      {
+        "previousStatus": "Accepted",
+        "newStatus": "Picked Up",
+        "changedByUserId": "DP-001",
+        "changedByRole": "delivery_partner",
+        "timestamp": "2026-08-22T10:50:52.410Z"
+      },
+      {
+        "previousStatus": "Picked Up",
+        "newStatus": "Out for Delivery",
+        "changedByUserId": "DP-001",
+        "changedByRole": "delivery_partner",
+        "timestamp": "2026-08-22T10:50:52.463Z"
+      },
+      {
+        "previousStatus": "Out for Delivery",
+        "newStatus": "Out for Delivery",
+        "changedByUserId": "client.1234@fatafat.com",
+        "changedByRole": "customer",
+        "timestamp": "2026-08-22T10:50:52.928Z",
+        "action": "Regenerated OTP"
+      },
+      {
+        "previousStatus": "Out for Delivery",
+        "newStatus": "Delivered",
+        "changedByUserId": "DP-001",
+        "changedByRole": "delivery_partner",
+        "timestamp": "2026-08-22T10:50:53.007Z"
+      }
+    ],
+    "verifiedItemIds": [
+      "cake-1"
+    ],
+    "boxSealVerified": true,
+    "pickupTimestamp": "2026-08-22T10:50:52.410Z",
+    "pickupPartnerId": "DP-001",
+    "pickupVerificationStatus": "Verified",
+    "otpCode": "795774",
+    "delivery_otp_verified": true,
+    "otp_verified_at": "2026-08-22T10:50:53.007Z",
+    "verified_by_partner_id": "DP-001",
+    "delivery_completed_at": "2026-08-22T10:50:53.007Z"
+  },
+  {
     "id": "FT-TEST-8734",
     "customerId": "client.1234@fatafat.com",
     "items": [

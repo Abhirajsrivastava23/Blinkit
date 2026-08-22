@@ -243,5 +243,33 @@
     "email": "rider@fatafat.com",
     "role": "delivery_partner",
     "expiresAt": "2026-08-29T10:37:11.678Z"
+  },
+  {
+    "sessionId": "sess-c2da238f692da451e02e0425a3d5e479",
+    "userId": "9876541234",
+    "email": "client.1234@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:50:51.533Z"
+  },
+  {
+    "sessionId": "sess-b4bc3bceb95267c6a7fb93fe366aa2dc",
+    "userId": "9876545678",
+    "email": "client.5678@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:50:51.583Z"
+  },
+  {
+    "sessionId": "sess-4bfc564e46b2c1e8203a70a1d1daa37a",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:50:51.646Z"
+  },
+  {
+    "sessionId": "sess-5c6fc37d0c8f05ff02a3aee07a8d5e7e",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:50:51.678Z"
   }
 ]

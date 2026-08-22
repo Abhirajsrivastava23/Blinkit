@@ -151,21 +151,33 @@ interface AuditLogRecord {
 // Seed admin credentials separately & securely
 ensureFileExists('admin');
 const adminList: AdminRecord[] = fs.existsSync(PATHS.admin) ? JSON.parse(fs.readFileSync(PATHS.admin, 'utf8')) : [];
-const SALT = process.env.AUTH_SECRET || 'fatafat_salt';
-const adminHash = crypto.createHash('sha256').update('admin123' + SALT).digest('hex');
 
-const defaultAdmins: AdminRecord[] = [
-  { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
-  { email: 'admin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' },
-  { email: 'manager@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Inv Manager', phone: '9999999992', role: 'admin' },
-  { email: 'admin@fatafat.local', passwordHash: adminHash, name: 'Local Dev Admin', phone: '9999999993', role: 'admin' }
-];
+const getRuntimeSalt = () => process.env['AUTH_SECRET'] || 'fatafat_salt';
+
+const getSeededAdmins = (): AdminRecord[] => {
+  const salt = getRuntimeSalt();
+  const hash = crypto.createHash('sha256').update('admin123' + salt).digest('hex');
+  return [
+    { email: 'superadmin@fatafat.com', passwordHash: hash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
+    { email: 'admin@fatafat.com', passwordHash: hash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' },
+    { email: 'manager@fatafat.com', passwordHash: hash, name: 'FATAFAT Inv Manager', phone: '9999999992', role: 'admin' },
+    { email: 'admin@fatafat.local', passwordHash: hash, name: 'Local Dev Admin', phone: '9999999993', role: 'admin' }
+  ];
+};
+
+const defaultAdmins = getSeededAdmins();
 
 let adminUpdated = false;
 for (const defAdmin of defaultAdmins) {
-  if (!adminList.some((a) => a.email.toLowerCase() === defAdmin.email.toLowerCase())) {
+  const existingIdx = adminList.findIndex((a) => a.email.toLowerCase() === defAdmin.email.toLowerCase());
+  if (existingIdx === -1) {
     adminList.push(defAdmin);
     adminUpdated = true;
+  } else {
+    if (adminList[existingIdx].passwordHash !== defAdmin.passwordHash) {
+      adminList[existingIdx].passwordHash = defAdmin.passwordHash;
+      adminUpdated = true;
+    }
   }
 }
 if (adminUpdated || !fs.existsSync(PATHS.admin)) {
@@ -175,52 +187,63 @@ if (adminUpdated || !fs.existsSync(PATHS.admin)) {
 // Seed delivery partners with location rules
 ensureFileExists('partners');
 const partnerList: PartnerRecord[] = fs.existsSync(PATHS.partners) ? JSON.parse(fs.readFileSync(PATHS.partners, 'utf8')) : [];
-const riderHash = crypto.createHash('sha256').update('rider123' + SALT).digest('hex');
 
-const defaultPartners: PartnerRecord[] = [
-  {
-    id: 'DP-001',
-    name: 'Rahul',
-    phone: '9999999999',
-    email: 'rider@fatafat.com',
-    passwordHash: riderHash,
-    role: 'delivery_partner',
-    locationId: 'nawabganj-unnao',
-    locationName: 'Nawabganj, Unnao',
-    status: 'Active',
-    isOnline: true
-  },
-  {
-    id: 'DP-002',
-    name: 'Aman',
-    phone: '8888888888',
-    email: 'aman_rider@fatafat.com',
-    passwordHash: riderHash,
-    role: 'delivery_partner',
-    locationId: 'chandigarh-university-up',
-    locationName: 'Chandigarh University, Uttar Pradesh',
-    status: 'Active',
-    isOnline: false
-  },
-  {
-    id: 'DP-003',
-    name: 'Rider Local',
-    phone: '7777777777',
-    email: 'rider@fatafat.local',
-    passwordHash: riderHash,
-    role: 'delivery_partner',
-    locationId: 'nawabganj-unnao',
-    locationName: 'Nawabganj, Unnao',
-    status: 'Active',
-    isOnline: true
-  }
-];
+const getSeededPartners = (): PartnerRecord[] => {
+  const salt = getRuntimeSalt();
+  const hash = crypto.createHash('sha256').update('rider123' + salt).digest('hex');
+  return [
+    {
+      id: 'DP-001',
+      name: 'Rahul',
+      phone: '9999999999',
+      email: 'rider@fatafat.com',
+      passwordHash: hash,
+      role: 'delivery_partner',
+      locationId: 'nawabganj-unnao',
+      locationName: 'Nawabganj, Unnao',
+      status: 'Active',
+      isOnline: true
+    },
+    {
+      id: 'DP-002',
+      name: 'Aman',
+      phone: '8888888888',
+      email: 'aman_rider@fatafat.com',
+      passwordHash: hash,
+      role: 'delivery_partner',
+      locationId: 'chandigarh-university-up',
+      locationName: 'Chandigarh University, Uttar Pradesh',
+      status: 'Active',
+      isOnline: false
+    },
+    {
+      id: 'DP-003',
+      name: 'Rider Local',
+      phone: '7777777777',
+      email: 'rider@fatafat.local',
+      passwordHash: hash,
+      role: 'delivery_partner',
+      locationId: 'nawabganj-unnao',
+      locationName: 'Nawabganj, Unnao',
+      status: 'Active',
+      isOnline: true
+    }
+  ];
+};
+
+const defaultPartners = getSeededPartners();
 
 let partnerUpdated = false;
 for (const defPartner of defaultPartners) {
-  if (!partnerList.some((p) => p.id.toLowerCase() === defPartner.id.toLowerCase() || p.email.toLowerCase() === defPartner.email.toLowerCase())) {
+  const existingIdx = partnerList.findIndex((p) => p.id.toLowerCase() === defPartner.id.toLowerCase() || p.email.toLowerCase() === defPartner.email.toLowerCase());
+  if (existingIdx === -1) {
     partnerList.push(defPartner);
     partnerUpdated = true;
+  } else {
+    if (partnerList[existingIdx].passwordHash !== defPartner.passwordHash) {
+      partnerList[existingIdx].passwordHash = defPartner.passwordHash;
+      partnerUpdated = true;
+    }
   }
 }
 if (partnerUpdated || !fs.existsSync(PATHS.partners)) {

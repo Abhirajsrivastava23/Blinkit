@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { hashPassword, createSession } from '../../../../data/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
-    if (process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET) {
+    if (process.env.NODE_ENV === 'production' && !process.env['AUTH_SECRET']) {
       console.error('Configuration Error: AUTH_SECRET is not configured on the server.');
       return NextResponse.json(
         { error: 'Server configuration error: AUTH_SECRET is missing.' },
