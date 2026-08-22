@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
@@ -44,6 +46,18 @@ export async function GET(request: Request) {
           locationName: partnerObj.locationName,
           status: partnerObj.status,
           isOnline: partnerObj.isOnline
+        }
+      });
+    }
+
+    if (session.role === 'customer') {
+      return NextResponse.json({
+        authenticated: true,
+        user: {
+          name: session.email ? session.email.split('@')[0] : 'Valued Client',
+          email: session.email,
+          phone: session.userId,
+          role: 'customer'
         }
       });
     }

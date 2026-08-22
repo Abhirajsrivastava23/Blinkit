@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { db } from './db';
 
-const SALT = 'fatafat_salt';
+const SALT = process.env.AUTH_SECRET || 'fatafat_salt';
 
 export interface Session {
   sessionId: string;

@@ -56,10 +56,192 @@
     "expiresAt": "2026-08-28T19:24:30.326Z"
   },
   {
-    "sessionId": "sess-b39eb1670eaf45ffc0d5b3725a7f82f3",
-    "userId": "DP-E2E-TEST",
-    "email": "e2e_rider@fatafat.com",
+    "sessionId": "sess-aca7b613005a40fa3f3aa4cd9228aaeb",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:00:47.841Z"
+  },
+  {
+    "sessionId": "sess-82a18ba00b2adba26da58f36e6282148",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
     "role": "delivery_partner",
-    "expiresAt": "2026-08-28T19:30:47.217Z"
+    "expiresAt": "2026-08-29T10:01:40.884Z"
+  },
+  {
+    "sessionId": "sess-7429ebf41615a01050e6dd97367e65ee",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:14:38.747Z"
+  },
+  {
+    "sessionId": "sess-cfac951132356126f92dfef1af674fc1",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:14:38.826Z"
+  },
+  {
+    "sessionId": "sess-564ab740482ae0f8db616a888005bdf0",
+    "userId": "DP-TEST-99",
+    "email": "test_rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:14:39.245Z"
+  },
+  {
+    "sessionId": "sess-93fd292ff45e1d30e2ef414e887eefe3",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:16:01.400Z"
+  },
+  {
+    "sessionId": "sess-379f2934f7ff55a510b4bed7ae51a65c",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:18:39.655Z"
+  },
+  {
+    "sessionId": "sess-dc5f666d6ee57385c9fd37190b9c48bd",
+    "userId": "9999999999",
+    "email": "rider@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:27:12.501Z"
+  },
+  {
+    "sessionId": "sess-705690c02e9836ac5520df018abc5492",
+    "userId": "9999999999",
+    "email": "rider@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:27:12.530Z"
+  },
+  {
+    "sessionId": "sess-f9273846aab9e76481b6b9d2c3a08c05",
+    "userId": "9999999999",
+    "email": "rider@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:27:12.568Z"
+  },
+  {
+    "sessionId": "sess-2fe4e83e90d544aecf8e7c69a3885b5c",
+    "userId": "9999999999",
+    "email": "rider@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:27:12.606Z"
+  },
+  {
+    "sessionId": "sess-10174627d633910183e46f709e4592d5",
+    "userId": "DP-002",
+    "email": "aman_rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:31:42.903Z"
+  },
+  {
+    "sessionId": "sess-435143af2190caae391e979bccdf7e60",
+    "userId": "9876541234",
+    "email": "client.1234@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:34:55.967Z"
+  },
+  {
+    "sessionId": "sess-a627266e72a87672d2cd6d57cac61f80",
+    "userId": "9876545678",
+    "email": "client.5678@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:34:56.017Z"
+  },
+  {
+    "sessionId": "sess-12376da8679bf466f7085816838ba5d5",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:34:56.059Z"
+  },
+  {
+    "sessionId": "sess-48d64df88e03d42dfd86c84f0e8d3a93",
+    "userId": "9876541234",
+    "email": "client.1234@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:35:25.859Z"
+  },
+  {
+    "sessionId": "sess-db56d2c9ac48d91f3a62cd045b36efbc",
+    "userId": "9876545678",
+    "email": "client.5678@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:35:25.914Z"
+  },
+  {
+    "sessionId": "sess-0b3aa14a09c4e97e2911a288224e2936",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:35:25.973Z"
+  },
+  {
+    "sessionId": "sess-7b2ccfaf35968323603e9b90bf7151af",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:35:26.028Z"
+  },
+  {
+    "sessionId": "sess-604f6bdb5fd13ccfff38b136f0e8edf9",
+    "userId": "9876541234",
+    "email": "client.1234@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:36:15.556Z"
+  },
+  {
+    "sessionId": "sess-0f29bb2d4c2654143f96f1ef1ad6ad23",
+    "userId": "9876545678",
+    "email": "client.5678@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:36:15.589Z"
+  },
+  {
+    "sessionId": "sess-25a656088761dd9e2350ecfe87bf73f6",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:36:15.638Z"
+  },
+  {
+    "sessionId": "sess-827e453871b4da4efb2f2d08e103e776",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:36:15.671Z"
+  },
+  {
+    "sessionId": "sess-184f7270e5cbc0b3e52d3c9bcbca3fca",
+    "userId": "9876541234",
+    "email": "client.1234@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:37:11.568Z"
+  },
+  {
+    "sessionId": "sess-afecce546849c9017f522b86d5aa262e",
+    "userId": "9876545678",
+    "email": "client.5678@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T10:37:11.604Z"
+  },
+  {
+    "sessionId": "sess-c34f1a039cc5e3a0a683bee22bab4fc4",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T10:37:11.643Z"
+  },
+  {
+    "sessionId": "sess-d10e694cff6a8bf1cfabe754350e897a",
+    "userId": "DP-001",
+    "email": "rider@fatafat.com",
+    "role": "delivery_partner",
+    "expiresAt": "2026-08-29T10:37:11.678Z"
   }
 ]

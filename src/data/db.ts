@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-const DB_DIR = path.join(process.cwd(), 'src/data/db');
+const SEED_DIR = path.join(process.cwd(), 'src/data/db');
+const DB_DIR = process.env.NODE_ENV === 'production' || process.env.VERCEL
+  ? '/tmp/fatafat_db'
+  : SEED_DIR;
 
 // Ensure DB directory exists
 if (!fs.existsSync(DB_DIR)) {
@@ -24,72 +27,95 @@ const PATHS = {
   inventoryIssues: path.join(DB_DIR, 'inventory_issues.json')
 };
 
-// Seed default products if not exists
-const baseProductsPath = path.join(process.cwd(), 'src/data/products.json');
-if (!fs.existsSync(PATHS.products)) {
-  if (fs.existsSync(baseProductsPath)) {
-    fs.copyFileSync(baseProductsPath, PATHS.products);
-  } else {
-    fs.writeFileSync(PATHS.products, JSON.stringify([], null, 2), 'utf8');
+const FILE_NAMES: Record<string, string> = {
+  products: 'products.json',
+  categories: 'categories.json',
+  brands: 'brands.json',
+  auditLogs: 'audit_logs.json',
+  homepage: 'homepage.json',
+  users: 'users.json',
+  orders: 'orders.json',
+  admin: 'admin.json',
+  partners: 'partners.json',
+  sessions: 'sessions.json',
+  inventoryIssues: 'inventory_issues.json'
+};
+
+function ensureFileExists(key: keyof typeof PATHS) {
+  const filePath = PATHS[key];
+  if (!fs.existsSync(filePath)) {
+    const seedPath = path.join(SEED_DIR, FILE_NAMES[key]);
+    if (fs.existsSync(seedPath)) {
+      try {
+        fs.copyFileSync(seedPath, filePath);
+      } catch (err) {
+        console.error(`Failed to copy seed file for ${key}:`, err);
+      }
+    } else {
+      if (key === 'homepage') {
+        const defaultHomepage = {
+          heroImage: 'https://images.unsplash.com/photo-1464349153735-7db519248a5e?w=1600&auto=format&fit=crop&q=80',
+          heroHeading: 'Beautiful Moments. Delivered Fatafat.',
+          heroSubheading: 'Fresh cakes, beautiful flowers, thoughtful gifts and celebration essentials — delivered to your doorstep, right when you need them.',
+          heroCtaText: 'SHOP NOW',
+          heroCtaLink: '/cakes',
+          sectionsVisibility: {
+            hero: true,
+            categories: true,
+            moments: true,
+            velmoraEdit: true,
+            cakeEdit: true,
+            flowerEdit: true,
+            giftEdit: true,
+            combos: true,
+            personalisation: true,
+            brandStory: true,
+            testimonials: true
+          }
+        };
+        fs.writeFileSync(filePath, JSON.stringify(defaultHomepage, null, 2), 'utf8');
+      } else if (key === 'categories') {
+        const initialCategories = [
+          { id: 'cat-1', name: 'Cakes', slug: 'cakes', description: 'Freshly baked designer cakes', status: 'Active' },
+          { id: 'cat-2', name: 'Bakery', slug: 'bakery', description: 'Artisanal breads and buns', status: 'Active' },
+          { id: 'cat-3', name: 'Pastries', slug: 'pastries', description: 'Single-serve sweet pastries', status: 'Active' },
+          { id: 'cat-4', name: 'Flowers', slug: 'flowers', description: 'Luxury fresh flower bouquets', status: 'Active' },
+          { id: 'cat-5', name: 'Gifts & Hampers', slug: 'gifts', description: 'Custom styled gift boxes', status: 'Active' },
+          { id: 'cat-6', name: 'Chocolates', slug: 'chocolates', description: 'Artisanal chocolate truffles', status: 'Active' },
+          { id: 'cat-7', name: 'Celebrations', slug: 'celebrations', description: 'Sparklers, banners and kits', status: 'Active' },
+          { id: 'cat-8', name: 'Wellness (18+)', slug: 'wellness', description: 'Discreet and lawful adult-wellness items', status: 'Active' }
+        ];
+        fs.writeFileSync(filePath, JSON.stringify(initialCategories, null, 2), 'utf8');
+      } else if (key === 'brands') {
+        const initialBrands = [
+          { id: 'brand-1', name: 'FATAFAT', description: 'FATAFAT signature luxury craft brand', status: 'Active', website: 'https://fatafat.com' },
+          { id: 'brand-2', name: 'Durex', description: 'Verified Reckitt sexual wellbeing brand', status: 'Active', website: 'https://durex.com' },
+          { id: 'brand-3', name: 'KamaSutra', description: 'Raymond consumer care intimacy brand', status: 'Active', website: 'https://kamasutra.co.in' },
+          { id: 'brand-4', name: 'Skore', description: 'TTK protective devices flavor condom brand', status: 'Active', website: 'https://skore.com' },
+          { id: 'brand-5', name: 'Manforce', description: 'Mankind pharma premium flavored condom brand', status: 'Active', website: 'https://manforce.com' }
+        ];
+        fs.writeFileSync(filePath, JSON.stringify(initialBrands, null, 2), 'utf8');
+      } else {
+        fs.writeFileSync(filePath, JSON.stringify([], null, 2), 'utf8');
+      }
+    }
   }
 }
 
+// Seed default products if not exists
+ensureFileExists('products');
+
 // Seed default categories
-if (!fs.existsSync(PATHS.categories)) {
-  const initialCategories = [
-    { id: 'cat-1', name: 'Cakes', slug: 'cakes', description: 'Freshly baked designer cakes', status: 'Active' },
-    { id: 'cat-2', name: 'Bakery', slug: 'bakery', description: 'Artisanal breads and buns', status: 'Active' },
-    { id: 'cat-3', name: 'Pastries', slug: 'pastries', description: 'Single-serve sweet pastries', status: 'Active' },
-    { id: 'cat-4', name: 'Flowers', slug: 'flowers', description: 'Luxury fresh flower bouquets', status: 'Active' },
-    { id: 'cat-5', name: 'Gifts & Hampers', slug: 'gifts', description: 'Custom styled gift boxes', status: 'Active' },
-    { id: 'cat-6', name: 'Chocolates', slug: 'chocolates', description: 'Artisanal chocolate truffles', status: 'Active' },
-    { id: 'cat-7', name: 'Celebrations', slug: 'celebrations', description: 'Sparklers, banners and kits', status: 'Active' },
-    { id: 'cat-8', name: 'Wellness (18+)', slug: 'wellness', description: 'Discreet and lawful adult-wellness items', status: 'Active' }
-  ];
-  fs.writeFileSync(PATHS.categories, JSON.stringify(initialCategories, null, 2), 'utf8');
-}
+ensureFileExists('categories');
 
 // Seed default brands
-if (!fs.existsSync(PATHS.brands)) {
-  const initialBrands = [
-    { id: 'brand-1', name: 'FATAFAT', description: 'FATAFAT signature luxury craft brand', status: 'Active', website: 'https://fatafat.com' },
-    { id: 'brand-2', name: 'Durex', description: 'Verified Reckitt sexual wellbeing brand', status: 'Active', website: 'https://durex.com' },
-    { id: 'brand-3', name: 'KamaSutra', description: 'Raymond consumer care intimacy brand', status: 'Active', website: 'https://kamasutra.co.in' },
-    { id: 'brand-4', name: 'Skore', description: 'TTK protective devices flavor condom brand', status: 'Active', website: 'https://skore.com' },
-    { id: 'brand-5', name: 'Manforce', description: 'Mankind pharma premium flavored condom brand', status: 'Active', website: 'https://manforce.com' }
-  ];
-  fs.writeFileSync(PATHS.brands, JSON.stringify(initialBrands, null, 2), 'utf8');
-}
+ensureFileExists('brands');
 
 // Seed default activity logs
-if (!fs.existsSync(PATHS.auditLogs)) {
-  fs.writeFileSync(PATHS.auditLogs, JSON.stringify([], null, 2), 'utf8');
-}
+ensureFileExists('auditLogs');
 
 // Seed default homepage settings
-if (!fs.existsSync(PATHS.homepage)) {
-  const defaultHomepage = {
-    heroImage: 'https://images.unsplash.com/photo-1464349153735-7db519248a5e?w=1600&auto=format&fit=crop&q=80',
-    heroHeading: 'Beautiful Moments. Delivered Fatafat.',
-    heroSubheading: 'Fresh cakes, beautiful flowers, thoughtful gifts and celebration essentials — delivered to your doorstep, right when you need them.',
-    heroCtaText: 'SHOP NOW',
-    heroCtaLink: '/cakes',
-    sectionsVisibility: {
-      hero: true,
-      categories: true,
-      moments: true,
-      velmoraEdit: true,
-      cakeEdit: true,
-      flowerEdit: true,
-      giftEdit: true,
-      combos: true,
-      personalisation: true,
-      brandStory: true,
-      testimonials: true
-    }
-  };
-  fs.writeFileSync(PATHS.homepage, JSON.stringify(defaultHomepage, null, 2), 'utf8');
-}
+ensureFileExists('homepage');
 
 interface AdminRecord {
   email: string;
@@ -123,8 +149,10 @@ interface AuditLogRecord {
 }
 
 // Seed admin credentials separately & securely
+ensureFileExists('admin');
 const adminList: AdminRecord[] = fs.existsSync(PATHS.admin) ? JSON.parse(fs.readFileSync(PATHS.admin, 'utf8')) : [];
-const adminHash = crypto.createHash('sha256').update('admin123' + 'fatafat_salt').digest('hex');
+const SALT = process.env.AUTH_SECRET || 'fatafat_salt';
+const adminHash = crypto.createHash('sha256').update('admin123' + SALT).digest('hex');
 
 const defaultAdmins: AdminRecord[] = [
   { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
@@ -145,8 +173,9 @@ if (adminUpdated || !fs.existsSync(PATHS.admin)) {
 }
 
 // Seed delivery partners with location rules
+ensureFileExists('partners');
 const partnerList: PartnerRecord[] = fs.existsSync(PATHS.partners) ? JSON.parse(fs.readFileSync(PATHS.partners, 'utf8')) : [];
-const riderHash = crypto.createHash('sha256').update('rider123' + 'fatafat_salt').digest('hex');
+const riderHash = crypto.createHash('sha256').update('rider123' + SALT).digest('hex');
 
 const defaultPartners: PartnerRecord[] = [
   {
@@ -199,14 +228,10 @@ if (partnerUpdated || !fs.existsSync(PATHS.partners)) {
 }
 
 // Seed sessions table
-if (!fs.existsSync(PATHS.sessions)) {
-  fs.writeFileSync(PATHS.sessions, JSON.stringify([], null, 2), 'utf8');
-}
+ensureFileExists('sessions');
 
 // Seed inventory issue reports
-if (!fs.existsSync(PATHS.inventoryIssues)) {
-  fs.writeFileSync(PATHS.inventoryIssues, JSON.stringify([], null, 2), 'utf8');
-}
+ensureFileExists('inventoryIssues');
 
 // Database helper functions
 export const db = {

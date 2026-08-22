@@ -42,16 +42,37 @@ function apiCall(path, method = 'GET', body = null, headers = {}) {
 async function runTests() {
   console.log('=== STARTING AUTOMATED LOGISTICS VERIFICATION ===');
   
+  // 0. Login as Admin to authenticate requests
+  console.log('\nStep 0: Logging in as Admin...');
+  const loginRes = await apiCall('/api/auth/login', 'POST', {
+    emailOrId: 'superadmin@fatafat.com',
+    password: 'admin123'
+  });
+  
+  if (loginRes.status !== 200) {
+    console.error('Failed to log in as admin:', loginRes.status, loginRes.body);
+    process.exit(1);
+  }
+  
+  const setCookie = loginRes.headers['set-cookie'];
+  if (!setCookie) {
+    console.error('No session cookie returned');
+    process.exit(1);
+  }
+  const tokenMatch = setCookie[0].match(/fatafat_session_token=([^;]+)/);
+  const adminToken = tokenMatch ? tokenMatch[1] : '';
+  const authHeaders = { 'Authorization': `Bearer ${adminToken}` };
+  
   // 1. Fetch all orders
   console.log('\nStep 1: Fetching all orders...');
-  const getRes = await apiCall('/api/orders');
+  const getRes = await apiCall('/api/orders', 'GET', null, authHeaders);
   if (getRes.status !== 200) {
     console.error('Failed to fetch orders:', getRes.status);
     process.exit(1);
   }
   
   const orders = getRes.body;
-  const targetOrder = orders.find(o => o.id === 'FT97565' || o.id === 'FF73030');
+  const targetOrder = orders.find(o => o.id === 'FT97565' || o.id === 'FF73030' || o.id === 'FT81439');
   if (!targetOrder) {
     console.error('Target order not found in orders database. Place an order on the storefront first.');
     process.exit(1);
@@ -63,15 +84,15 @@ async function runTests() {
   const progressRes = await apiCall('/api/orders/update', 'POST', {
     id: targetOrder.id,
     updates: { status: 'Waiting for Partner' }
-  });
+  }, authHeaders);
   console.log('Update Status Response:', progressRes.status, progressRes.body);
 
   // 3. Verify security backend filtering before assignment
   console.log('\nStep 3: Verifying that neither partner sees the unassigned order in their dispatches...');
-  const rahulBefore = await apiCall('/api/delivery/orders', 'GET', null, { 'x-partner-id': 'DP-001' });
-  const amanBefore = await apiCall('/api/delivery/orders', 'GET', null, { 'x-partner-id': 'DP-002' });
-  console.log(`Rahul (DP-001) dispatches count: ${rahulBefore.body.length}`);
-  console.log(`Aman (DP-002) dispatches count: ${amanBefore.body.length}`);
+  const rahulBefore = await apiCall('/api/delivery/orders', 'GET', null, { ...authHeaders, 'x-partner-id': 'DP-001' });
+  const amanBefore = await apiCall('/api/delivery/orders', 'GET', null, { ...authHeaders, 'x-partner-id': 'DP-002' });
+  console.log(`Rahul (DP-001) dispatches count: ${rahulBefore.body?.length}`);
+  console.log(`Aman (DP-002) dispatches count: ${amanBefore.body?.length}`);
 
   // 4. Assign the order to compatible partner Rahul (DP-001)
   console.log('\nStep 4: Assigning order to Rahul (DP-001) Nawabganj...');
@@ -83,16 +104,16 @@ async function runTests() {
       status: 'Assigned',
       assignedAt: new Date().toISOString()
     }
-  });
+  }, authHeaders);
   console.log('Assignment response:', assignRes.status, assignRes.body);
 
   // 5. Verify security backend filtering after assignment
   console.log('\nStep 5: Verifying partner-based security isolation (x-partner-id routing)...');
-  const rahulAfter = await apiCall('/api/delivery/orders', 'GET', null, { 'x-partner-id': 'DP-001' });
-  const amanAfter = await apiCall('/api/delivery/orders', 'GET', null, { 'x-partner-id': 'DP-002' });
+  const rahulAfter = await apiCall('/api/delivery/orders', 'GET', null, { ...authHeaders, 'x-partner-id': 'DP-001' });
+  const amanAfter = await apiCall('/api/delivery/orders', 'GET', null, { ...authHeaders, 'x-partner-id': 'DP-002' });
   
-  const rahulHasOrder = rahulAfter.body.some(o => o.id === targetOrder.id);
-  const amanHasOrder = amanAfter.body.some(o => o.id === targetOrder.id);
+  const rahulHasOrder = rahulAfter.body?.some(o => o.id === targetOrder.id);
+  const amanHasOrder = amanAfter.body?.some(o => o.id === targetOrder.id);
   
   console.log(`- Rahul (DP-001) sees order in dispatches: ${rahulHasOrder ? '✅ YES' : '❌ NO'}`);
   console.log(`- Aman (DP-002) sees order in dispatches: ${amanHasOrder ? '❌ YES (Security Breach)' : '✅ NO (Isolated)'}`);
@@ -103,18 +124,34 @@ async function runTests() {
   }
 
   // 6. Step status transitions: Assigned -> Accepted -> Picked Up -> Out for Delivery -> Delivered
-  const states = ['Accepted', 'Picked Up', 'Out for Delivery', 'Delivered'];
-  for (const nextState of states) {
-    console.log(`\nStep 6: Progressing delivery status to '${nextState}'...`);
+  // Note: For 'Picked Up', we must provide verification fields to satisfy server constraints
+  const states = [
+    { status: 'Accepted' },
+    { 
+      status: 'Picked Up', 
+      verifiedItemIds: targetOrder.items.map(item => item.productId),
+      boxSealVerified: true 
+    },
+    { status: 'Out for Delivery' },
+    { status: 'Delivered' }
+  ];
+  
+  for (const nextStateObj of states) {
+    console.log(`\nStep 6: Progressing delivery status to '${nextStateObj.status}'...`);
     const updateRes = await apiCall('/api/orders/update', 'POST', {
       id: targetOrder.id,
-      updates: { status: nextState }
-    });
+      updates: nextStateObj
+    }, authHeaders);
+    
+    if (updateRes.status !== 200) {
+      console.error(`Failed to update to status ${nextStateObj.status}:`, updateRes.status, updateRes.body);
+      process.exit(1);
+    }
     
     // Fetch to verify database persistence
-    const checkRes = await apiCall('/api/orders');
+    const checkRes = await apiCall('/api/orders', 'GET', null, authHeaders);
     const checked = checkRes.body.find(o => o.id === targetOrder.id);
-    console.log(`- Persisted status in DB: ${checked.status === nextState ? '✅ Match' : '❌ Mismatch'}`);
+    console.log(`- Persisted status in DB: ${checked.status === nextStateObj.status ? '✅ Match' : '❌ Mismatch'}`);
   }
 
   console.log('\n=== LOGISTICS FLOW COMPLETED & VERIFIED SUCCESSFULLY ===');

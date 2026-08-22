@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, CheckCircle2, ChevronRight, RefreshCw, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Truck, MapPin, Clock, CheckCircle2, ChevronRight, RefreshCw, ShoppingBag, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import { useOrders, Order } from '../../../context/OrderContext';
@@ -21,28 +21,81 @@ const STATUS_PROGRESSION: Order['status'][] = [
 export default function OrderTrackingPage() {
   const params = useParams();
   const router = useRouter();
-  const { getOrderById, updateOrderStatus } = useOrders();
   const { showToast } = useToast();
 
   const orderId = params.id as string;
-  const [order, setOrder] = useState<Order | undefined>(undefined);
+  const [order, setOrder] = useState<any>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Sync state with Context
-  useEffect(() => {
-    const found = getOrderById(orderId);
-    if (found) {
-      setOrder(found);
+  const fetchOrder = async () => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setOrder(data);
+        setError(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to load order tracking details.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Connection to server failed.');
+    } finally {
+      setLoading(false);
     }
-  }, [orderId, getOrderById]);
+  };
 
-  if (!order) {
+  useEffect(() => {
+    fetchOrder();
+    const interval = setInterval(fetchOrder, 3000);
+    return () => clearInterval(interval);
+  }, [orderId]);
+
+  const handleRegenerateOtp = async () => {
+    if (!order) return;
+    try {
+      const res = await fetch('/api/orders/regenerate-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.id })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOrder((prev: any) => prev ? { ...prev, deliveryOtp: data.deliveryOtp } : prev);
+        showToast('A new delivery OTP has been generated.', 'success');
+      } else {
+        showToast(data.error || 'Failed to regenerate OTP.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error regenerating OTP.', 'error');
+    }
+  };
+
+  if (loading && !order) {
     return (
       <>
         <Header />
-        <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-8 text-center">
+        <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
           <Clock className="h-12 w-12 text-brand-burgundy mb-4 animate-spin" />
           <h2 className="text-xl font-bold font-serif">Locating Package...</h2>
           <p className="text-xs text-zinc-400 mt-1">Fetching details for Order ID #{orderId}</p>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (error && !order) {
+    return (
+      <>
+        <Header />
+        <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+          <AlertCircle className="h-12 w-12 text-red-650 mb-4 animate-bounce" />
+          <h2 className="text-xl font-bold font-serif text-zinc-800">Access Denied / Order Not Found</h2>
+          <p className="text-xs text-zinc-500 mt-1 max-w-xs mx-auto">{error}</p>
           <button
             onClick={() => router.push('/account')}
             className="mt-6 px-6 py-2.5 rounded-full bg-brand-burgundy text-white text-xs font-bold uppercase tracking-wider"
@@ -55,25 +108,50 @@ export default function OrderTrackingPage() {
     );
   }
 
-  // Developer simulation helper
-  const handleSimulateNextStep = () => {
-    const currentIndex = STATUS_PROGRESSION.indexOf(order.status);
-    if (currentIndex > -1 && currentIndex < STATUS_PROGRESSION.length - 1) {
-      const nextStatus = STATUS_PROGRESSION[currentIndex + 1];
-      updateOrderStatus(order.id, nextStatus);
-      showToast(`Simulating status change: ${nextStatus}`, 'info');
-    } else {
-      showToast('Order is already fully delivered.', 'success');
-    }
+  const mapActualStatusToStep = (actualStatus: string): string => {
+    if (['Pending'].includes(actualStatus)) return 'Pending';
+    if (['Confirmed'].includes(actualStatus)) return 'Confirmed';
+    if (['Preparing', 'Packed', 'Ready for Delivery'].includes(actualStatus)) return 'Preparing';
+    if (['Waiting for Partner', 'Assigned', 'Accepted'].includes(actualStatus)) return 'Assigned';
+    if (['Picked Up'].includes(actualStatus)) return 'Picked Up';
+    if (['Out for Delivery'].includes(actualStatus)) return 'Out for Delivery';
+    if (['Delivered'].includes(actualStatus)) return 'Delivered';
+    return 'Pending';
   };
 
-  const getStepStatus = (stepName: Order['status']) => {
-    const currentIndex = STATUS_PROGRESSION.indexOf(order.status);
-    const stepIndex = STATUS_PROGRESSION.indexOf(stepName);
+  const getStepStatus = (stepName: string) => {
+    const steps = ['Pending', 'Confirmed', 'Preparing', 'Assigned', 'Picked Up', 'Out for Delivery', 'Delivered'];
+    const currentStep = mapActualStatusToStep(order.status);
+    const currentIndex = steps.indexOf(currentStep);
+    const stepIndex = steps.indexOf(stepName);
 
     if (stepIndex < currentIndex) return 'completed';
     if (stepIndex === currentIndex) return 'active';
     return 'pending';
+  };
+
+  const getStepCompletedTime = (stepName: string) => {
+    if (!order.statusHistory) return '';
+    
+    const statusMapping: Record<string, string[]> = {
+      'Pending': ['Pending'],
+      'Confirmed': ['Confirmed'],
+      'Preparing': ['Preparing', 'Packed', 'Ready for Delivery'],
+      'Assigned': ['Waiting for Partner', 'Assigned', 'Accepted'],
+      'Picked Up': ['Picked Up'],
+      'Out for Delivery': ['Out for Delivery'],
+      'Delivered': ['Delivered']
+    };
+    
+    const statuses = statusMapping[stepName] || [stepName];
+    const match = [...order.statusHistory].reverse().find(
+      (h: any) => statuses.includes(h.newStatus)
+    );
+    
+    if (match) {
+      return new Date(match.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return '';
   };
 
   return (
@@ -94,17 +172,6 @@ export default function OrderTrackingPage() {
               </h1>
               <p className="text-xs text-zinc-500">Order ID: <span className="font-extrabold text-brand-burgundy">#{order.id}</span></p>
             </div>
-
-            {/* Developer Fast Forward button */}
-            {order.status !== 'Delivered' && (
-              <button
-                onClick={handleSimulateNextStep}
-                className="flex items-center gap-1 px-4 py-2 bg-brand-gold text-zinc-900 hover:bg-brand-gold-light text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow"
-              >
-                <RefreshCw className="h-4 w-4 animate-spin-slow" />
-                Fast-Forward Status
-              </button>
-            )}
           </div>
 
           {/* Core Tracking Grid */}
@@ -137,13 +204,14 @@ export default function OrderTrackingPage() {
                 {/* Visual Line connector */}
                 <div className="absolute left-[29px] top-4 bottom-4 w-0.5 bg-zinc-100" />
                 
-                {STATUS_PROGRESSION.map((step) => {
+                {['Pending', 'Confirmed', 'Preparing', 'Assigned', 'Picked Up', 'Out for Delivery', 'Delivered'].map((step) => {
                   const status = getStepStatus(step);
+                  const completedTime = getStepCompletedTime(step);
                   return (
-                    <div key={step} className="flex gap-6 items-start relative z-10 text-xs">
+                    <div key={step} className="flex gap-6 items-start relative z-10 text-xs text-left">
                       
                       {/* Circle Indicator */}
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold border transition-all ${
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold border transition-all shrink-0 ${
                         status === 'completed'
                           ? 'bg-emerald-500 border-emerald-500 text-white'
                           : status === 'active'
@@ -154,22 +222,28 @@ export default function OrderTrackingPage() {
                       </div>
                       
                       {/* Step info text */}
-                      <div className="pt-1.5">
-                        <h4 className={`font-bold ${
-                          status === 'active' 
-                            ? 'text-brand-burgundy text-sm' 
-                            : status === 'completed' 
-                            ? 'text-zinc-800' 
-                            : 'text-zinc-400'
-                        }`}>
-                          {step === 'Pending' && 'Order Received'}
-                          {step === 'Confirmed' && 'Store Confirmed'}
-                          {step === 'Preparing' && 'Kitchen Chef Preparing'}
-                          {step === 'Packed' && 'Handcrafted Box Packed'}
-                          {step === 'Out for Delivery' && 'Runner Out for Delivery 🚀'}
-                          {step === 'Delivered' && 'Delivered to Doorstep 🎉'}
-                        </h4>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">
+                      <div className="pt-1.5 flex-grow">
+                        <div className="flex justify-between items-center">
+                          <h4 className={`font-bold ${
+                            status === 'active' 
+                              ? 'text-brand-burgundy text-sm' 
+                              : status === 'completed' 
+                              ? 'text-zinc-800' 
+                              : 'text-zinc-400'
+                          }`}>
+                            {step === 'Pending' && 'Order Placed'}
+                            {step === 'Confirmed' && 'Store Confirmed'}
+                            {step === 'Preparing' && 'Kitchen Preparing'}
+                            {step === 'Assigned' && 'Partner Assigned'}
+                            {step === 'Picked Up' && 'Picked Up from Hub'}
+                            {step === 'Out for Delivery' && 'Out for Delivery 🚀'}
+                            {step === 'Delivered' && 'Delivered to Doorstep 🎉'}
+                          </h4>
+                          {completedTime && (
+                            <span className="text-[10px] text-zinc-400 font-mono font-bold">{completedTime}</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mt-0.5 font-medium">
                           {status === 'completed' && 'Completed step'}
                           {status === 'active' && 'Active - our runner is handling this step'}
                           {status === 'pending' && 'Awaiting previous step completion'}
@@ -186,6 +260,60 @@ export default function OrderTrackingPage() {
             {/* Right Column: Address and Order review */}
             <div className="md:col-span-5 space-y-6">
               
+              {/* Delivery OTP Verification Panel */}
+              <div className="bg-white border border-zinc-100 rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="text-xs font-serif font-extrabold text-zinc-800 flex items-center gap-1.5 border-b pb-2.5">
+                  <ShieldCheck className="h-4 w-4 text-brand-burgundy" /> Delivery Verification
+                </h3>
+                
+                {order.status === 'Delivered' ? (
+                  <div className="text-center p-4 bg-green-50 border border-green-100 rounded-2xl space-y-2">
+                    <span className="text-xs font-bold text-green-700 flex items-center justify-center gap-1">
+                      ✓ DELIVERY VERIFIED
+                    </span>
+                    <p className="text-[10px] text-green-600 font-medium">
+                      Your order has been delivered successfully.
+                    </p>
+                    {order.delivery_completed_at && (
+                      <p className="text-[9px] text-zinc-400">
+                        Delivered at {new Date(order.delivery_completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {['Out for Delivery'].includes(order.status) ? (
+                      <div className="text-center space-y-3">
+                        <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-1">
+                          <span className="text-[9px] text-zinc-400 font-black uppercase tracking-widest block">YOUR DELIVERY OTP</span>
+                          <span className="text-2xl font-mono font-black text-brand-burgundy tracking-widest block">
+                            {order.deliveryOtp || '******'}
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-amber-700 leading-normal font-bold">
+                          ⚠️ Share this OTP with the delivery partner only after receiving your order.
+                        </p>
+                        <button
+                          onClick={handleRegenerateOtp}
+                          className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-[9px] font-bold uppercase rounded-lg text-zinc-650 transition-all font-sans"
+                        >
+                          Regenerate OTP
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center p-4 bg-zinc-50 border rounded-2xl">
+                        <span className="text-2xl font-mono font-black text-zinc-300 tracking-widest block">
+                          ******
+                        </span>
+                        <p className="text-[9px] text-zinc-450 leading-normal mt-2 font-medium">
+                          OTP will become available when the runner is Out for Delivery.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Delivery Address */}
               <div className="bg-white border border-zinc-100 rounded-3xl p-6 shadow-sm space-y-3 text-xs leading-relaxed">
                 <h3 className="text-xs font-serif font-extrabold text-zinc-800 flex items-center gap-1.5 border-b pb-2.5">
@@ -210,7 +338,7 @@ export default function OrderTrackingPage() {
                 </h3>
                 
                 <div className="divide-y divide-zinc-50">
-                  {order.items.map((item, idx) => (
+                  {order.items.map((item: any, idx: number) => (
                     <div key={idx} className="py-2.5 flex items-center justify-between text-xs gap-3">
                       <div className="min-w-0">
                         <p className="font-bold truncate text-zinc-800">{item.name}</p>

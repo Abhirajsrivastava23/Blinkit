@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { validateRole } from '../../../../data/auth';
@@ -22,11 +24,14 @@ export async function GET(request: Request) {
     }
 
     const orders = db.readTable<any>('orders') || [];
-    
-    // Filter orders assigned to this partner
     const filtered = orders.filter((o: any) => o.assignedPartnerId === partnerId);
+
+    const sanitized = filtered.map((o: any) => {
+      const { deliveryOtp, ...rest } = o;
+      return rest;
+    });
     
-    return NextResponse.json(filtered);
+    return NextResponse.json(sanitized);
   } catch (err) {
     console.error('Error fetching delivery orders:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

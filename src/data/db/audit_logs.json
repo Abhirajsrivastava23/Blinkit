@@ -1,5 +1,41 @@
 [
   {
+    "id": "log-1787395035217",
+    "adminUser": "superadmin@fatafat.com",
+    "action": "Overrode Delivery Verification for Order #FT-TEST-8734",
+    "dateTime": "2026-08-22T10:37:15.217Z",
+    "product": "FT-TEST-8734",
+    "previousValue": "Pending",
+    "newValue": "Delivered"
+  },
+  {
+    "id": "log-1787393680545",
+    "adminUser": "Admin Console",
+    "action": "Deleted Partner",
+    "dateTime": "2026-08-22T10:14:40.545Z",
+    "product": "Automation Test Rider",
+    "previousValue": "ID: DP-TEST-99",
+    "newValue": "Removed from database"
+  },
+  {
+    "id": "log-1787393679971",
+    "adminUser": "Delivery Partner",
+    "action": "Reported Stock Issue",
+    "dateTime": "2026-08-22T10:14:39.971Z",
+    "product": "Chocolate Truffle Cake",
+    "previousValue": "Order: undefined",
+    "newValue": "Reason: Product damaged"
+  },
+  {
+    "id": "log-1787393679176",
+    "adminUser": "Admin Console",
+    "action": "Created Partner",
+    "dateTime": "2026-08-22T10:14:39.176Z",
+    "product": "Automation Test Rider",
+    "previousValue": "ID: DP-TEST-99",
+    "newValue": "Location: Nawabganj, Unnao"
+  },
+  {
     "id": "log-1787340422914",
     "adminUser": "Admin Console",
     "action": "Created Partner",

@@ -57,19 +57,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const storedUser = localStorage.getItem('fatafat_user');
     const storedAddresses = localStorage.getItem('fatafat_addresses');
     
+    let activeClientUser: User;
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      activeClientUser = JSON.parse(storedUser);
+      setUser(activeClientUser);
     } else {
       // Default guest user
-      const guest: User = { 
+      activeClientUser = { 
         phone: '9876543210', 
         name: 'Premium Guest', 
         email: 'guest@fatafat.com',
         wellnessAccessStatus: 'NOT_REQUESTED'
       };
-      setUser(guest);
-      localStorage.setItem('fatafat_user', JSON.stringify(guest));
+      setUser(activeClientUser);
+      localStorage.setItem('fatafat_user', JSON.stringify(activeClientUser));
     }
+
+    // Establish secure session on the backend
+    fetch('/api/auth/customer-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: activeClientUser.email,
+        phone: activeClientUser.phone,
+        name: activeClientUser.name
+      })
+    }).catch(err => console.error('Failed to sync guest session:', err));
 
     if (storedAddresses) {
       setSavedAddresses(JSON.parse(storedAddresses));
@@ -105,50 +118,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginWithPhone = async (phone: string) => {
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        const newUser: User = { 
-          phone, 
-          name: 'Valued Client', 
-          email: `client.${phone.slice(-4)}@fatafat.com`,
-          wellnessAccessStatus: 'NOT_REQUESTED'
-        };
-        setUser(newUser);
-        localStorage.setItem('fatafat_user', JSON.stringify(newUser));
-        resolve();
-      }, 1000);
-    });
+    const newUser: User = { 
+      phone, 
+      name: 'Valued Client', 
+      email: `client.${phone.slice(-4)}@fatafat.com`,
+      wellnessAccessStatus: 'NOT_REQUESTED'
+    };
+
+    try {
+      await fetch('/api/auth/customer-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newUser.email,
+          phone: newUser.phone,
+          name: newUser.name
+        })
+      });
+    } catch (e) {
+      console.error('Error syncing customer phone session:', e);
+    }
+
+    setUser(newUser);
+    localStorage.setItem('fatafat_user', JSON.stringify(newUser));
   };
 
   const loginWithGoogle = async (googleUser: { googleProviderId: string; email: string; name: string; profileImage?: string }) => {
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        const storedUserKey = `fatafat_user_${googleUser.email}`;
-        const storedUser = localStorage.getItem(storedUserKey);
-        let finalUser: User;
-        
-        if (storedUser) {
-          finalUser = JSON.parse(storedUser);
-          finalUser.lastLoginAt = new Date().toISOString();
-        } else {
-          finalUser = {
-            phone: '99999' + Math.floor(1000 + Math.random() * 9000),
-            name: googleUser.name,
-            email: googleUser.email,
-            googleProviderId: googleUser.googleProviderId,
-            profileImage: googleUser.profileImage || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=60',
-            wellnessAccessStatus: 'NOT_REQUESTED',
-            createdAt: new Date().toISOString(),
-            lastLoginAt: new Date().toISOString()
-          };
-        }
-        
-        setUser(finalUser);
-        localStorage.setItem('fatafat_user', JSON.stringify(finalUser));
-        localStorage.setItem(storedUserKey, JSON.stringify(finalUser));
-        resolve();
-      }, 800);
-    });
+    const storedUserKey = `fatafat_user_${googleUser.email}`;
+    const storedUser = localStorage.getItem(storedUserKey);
+    let finalUser: User;
+    
+    if (storedUser) {
+      finalUser = JSON.parse(storedUser);
+      finalUser.lastLoginAt = new Date().toISOString();
+    } else {
+      finalUser = {
+        phone: '99999' + Math.floor(1000 + Math.random() * 9000),
+        name: googleUser.name,
+        email: googleUser.email,
+        googleProviderId: googleUser.googleProviderId,
+        profileImage: googleUser.profileImage || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=60',
+        wellnessAccessStatus: 'NOT_REQUESTED',
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+    }
+
+    try {
+      await fetch('/api/auth/customer-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: finalUser.email,
+          phone: finalUser.phone,
+          name: finalUser.name
+        })
+      });
+    } catch (e) {
+      console.error('Error syncing customer Google session:', e);
+    }
+    
+    setUser(finalUser);
+    localStorage.setItem('fatafat_user', JSON.stringify(finalUser));
+    localStorage.setItem(storedUserKey, JSON.stringify(finalUser));
   };
 
   const updateWellnessStatus = (status: User['wellnessAccessStatus'], details?: Partial<User>) => {

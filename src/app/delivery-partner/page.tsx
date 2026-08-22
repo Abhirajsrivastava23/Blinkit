@@ -36,6 +36,7 @@ export default function DeliveryPartnerPage() {
   // Pickup checklist states
   const [checklistItems, setChecklistItems] = useState<Record<string, boolean>>({});
   const [checklistHubVerified, setChecklistHubVerified] = useState(false);
+  const [isConfirmingPickup, setIsConfirmingPickup] = useState(false);
 
   // Inventory Issues states
   const [invSearch, setInvSearch] = useState('');
@@ -134,6 +135,7 @@ export default function DeliveryPartnerPage() {
   const todayEarnings = completedOrders.length * 125;
 
   // Initialize item checklist when active order changes
+  const activeOrderId = activeOrder?.id;
   useEffect(() => {
     if (activeOrder) {
       const itemsMap: Record<string, boolean> = {};
@@ -146,8 +148,11 @@ export default function DeliveryPartnerPage() {
       setOtpError('');
       setArrivedNotify(false);
       setShowFailForm(false);
+    } else {
+      setChecklistItems({});
+      setChecklistHubVerified(false);
     }
-  }, [activeOrder]);
+  }, [activeOrderId]);
 
   const toggleChecklistItem = (productId: string) => {
     setChecklistItems(prev => ({
@@ -161,16 +166,69 @@ export default function DeliveryPartnerPage() {
     checklistHubVerified;
 
   // Step Status actions
-  const handleConfirmPickup = () => {
+  const handleConfirmPickup = async () => {
     if (!activeOrder) return;
-    updateOrderStatus(activeOrder.id, 'Picked Up');
-    showToast(`Order #${activeOrder.id} verified and picked up from hub.`, 'success');
+    setIsConfirmingPickup(true);
+
+    try {
+      const verifiedItemIds = Object.keys(checklistItems).filter(
+        (productId) => checklistItems[productId]
+      );
+
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeOrder.id,
+          updates: {
+            status: 'Picked Up',
+            verifiedItemIds,
+            boxSealVerified: checklistHubVerified
+          }
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        // Update local context
+        updateOrderStatus(activeOrder.id, 'Picked Up');
+        showToast(`Order #${activeOrder.id} verified and picked up from hub.`, 'success');
+      } else {
+        showToast(data.error || 'Failed to confirm pickup.', 'error');
+      }
+    } catch (err) {
+      console.error('Error confirming pickup:', err);
+      showToast('Unable to confirm pickup. Please try again.', 'error');
+    } finally {
+      setIsConfirmingPickup(false);
+    }
   };
 
-  const handleStartTransit = () => {
+  const handleStartTransit = async () => {
     if (!activeOrder) return;
-    updateOrderStatus(activeOrder.id, 'Out for Delivery');
-    showToast(`Order #${activeOrder.id} transit initiated.`, 'success');
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeOrder.id,
+          updates: {
+            status: 'Out for Delivery'
+          }
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        updateOrderStatus(activeOrder.id, 'Out for Delivery');
+        showToast(`Order #${activeOrder.id} transit initiated.`, 'success');
+      } else {
+        showToast(data.error || 'Failed to initiate transit.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error initiating transit.', 'error');
+    }
   };
 
   const handleArrived = () => {
@@ -178,14 +236,40 @@ export default function DeliveryPartnerPage() {
     showToast('Notification sent: Arrived at destination.', 'success');
   };
 
-  const handleCompleteDelivery = () => {
+  const handleCompleteDelivery = async () => {
     if (!activeOrder) return;
-    if (otpCode !== '1234') {
-      setOtpError('Invalid OTP code. Enter 1234 to verify.');
+    if (otpCode.length !== 6) {
+      setOtpError('Please enter a valid 6-digit OTP.');
       return;
     }
-    updateOrderStatus(activeOrder.id, 'Delivered');
-    showToast(`Order #${activeOrder.id} delivered successfully!`, 'success');
+    
+    setOtpError('');
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeOrder.id,
+          updates: {
+            status: 'Delivered',
+            otpCode: otpCode
+          }
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        updateOrderStatus(activeOrder.id, 'Delivered');
+        showToast(`Order #${activeOrder.id} delivered successfully!`, 'success');
+        setOtpCode('');
+      } else {
+        setOtpError(data.error || 'Invalid OTP code.');
+        showToast(data.error || 'Failed to complete delivery.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      setOtpError('Network connection failure.');
+      showToast('Error completing delivery.', 'error');
+    }
   };
 
   const handleFailDelivery = () => {
@@ -549,15 +633,23 @@ export default function DeliveryPartnerPage() {
                     </div>
 
                     <button
-                      disabled={!isChecklistComplete}
+                      disabled={!isChecklistComplete || isConfirmingPickup}
                       onClick={handleConfirmPickup}
                       className={`w-full py-3.5 rounded-xl font-serif font-bold text-[10px] uppercase tracking-wider shadow transition-all flex items-center justify-center gap-1.5 ${
-                        isChecklistComplete 
+                        isChecklistComplete && !isConfirmingPickup
                           ? 'bg-brand-burgundy text-white hover:bg-brand-burgundy-dark hover:scale-101' 
                           : 'bg-zinc-150/40 text-zinc-400 border cursor-not-allowed'
                       }`}
                     >
-                      <Check className="h-4 w-4" /> Confirm & Verify Pickup
+                      {isConfirmingPickup ? (
+                        <>
+                          <RotateCw className="h-4 w-4 animate-spin" /> Confirming Pickup...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4" /> Confirm & Verify Pickup
+                        </>
+                      )}
                     </button>
                   </div>
                 )}
@@ -634,22 +726,22 @@ export default function DeliveryPartnerPage() {
 
                           {/* OTP inputs */}
                           <div className="space-y-1.5">
-                            <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-450 block">Enter 4-Digit Delivery OTP</label>
+                            <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-450 block">Enter 6-Digit Delivery OTP</label>
                             <div className="flex gap-2 items-center">
                               <input
                                 type="text"
-                                maxLength={4}
-                                placeholder="e.g. 1234"
+                                maxLength={6}
+                                placeholder="e.g. 482731"
                                 value={otpCode}
                                 onChange={(e) => {
                                   setOtpCode(e.target.value);
                                   setOtpError('');
                                 }}
-                                className="p-3 border rounded-xl font-mono text-center tracking-[0.5em] text-xs font-black w-28 bg-white focus:outline-none focus:border-brand-burgundy text-zinc-800"
+                                className="p-3 border rounded-xl font-mono text-center tracking-[0.2em] text-xs font-black w-36 bg-white focus:outline-none focus:border-brand-burgundy text-zinc-800"
                               />
-                              <span className="text-[9px] text-zinc-400 font-medium">OTP is shared with customer (Use 1234)</span>
+                              <span className="text-[9px] text-zinc-400 font-medium font-sans">Ask customer for the OTP on their tracking page</span>
                             </div>
-                            {otpError && <p className="text-[9px] text-red-600 font-bold">{otpError}</p>}
+                            {otpError && <p className="text-[9px] text-red-650 font-sans font-bold">{otpError}</p>}
                           </div>
 
                           <div className="flex gap-3">
