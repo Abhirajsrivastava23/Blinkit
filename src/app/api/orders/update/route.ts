@@ -163,8 +163,31 @@ export async function POST(request: Request) {
           'Delivered'
         );
       }
+    } else if (session.role === 'customer') {
+      // Customer can only cancel their own order, and only if it's currently 'Pending'
+      const isOwner = (targetOrder.customerId && targetOrder.customerId.toLowerCase() === session.userId.toLowerCase()) ||
+                      (targetOrder.customerEmail && targetOrder.customerEmail.toLowerCase() === session.email.toLowerCase()) ||
+                      (targetOrder.customerId && targetOrder.customerId.toLowerCase() === session.email.toLowerCase());
+      if (!isOwner) {
+        return NextResponse.json({ error: 'Forbidden: You cannot modify orders belonging to other accounts.' }, { status: 403 });
+      }
+      
+      const allowedKeys = ['status'];
+      const updateKeys = Object.keys(updates);
+      const isKeysAllowed = updateKeys.every(k => allowedKeys.includes(k));
+      if (!isKeysAllowed) {
+        return NextResponse.json({ error: 'Forbidden: Customers can only modify order status field.' }, { status: 403 });
+      }
+
+      if (updates.status !== 'Cancelled') {
+        return NextResponse.json({ error: 'Forbidden: Customers can only transition order to Cancelled.' }, { status: 403 });
+      }
+
+      if (targetOrder.status !== 'Pending') {
+        return NextResponse.json({ error: 'Forbidden: Orders can only be cancelled while status is Pending.' }, { status: 400 });
+      }
     } else {
-      // Non-partner/non-admin users cannot update order statuses via this endpoint
+      // Non-partner/non-admin/non-customer users cannot update order statuses via this endpoint
       return NextResponse.json({ error: 'Forbidden: Unauthorized role' }, { status: 403 });
     }
 

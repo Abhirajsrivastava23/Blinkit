@@ -29,10 +29,13 @@ export async function GET(request: Request) {
 
     if (session.role === 'customer') {
       // Filter orders owned by this customer and mask deliveryOtp if not Out for Delivery or Delivered
-      const filtered = list.filter((o: any) => 
-        o.customerId.toLowerCase() === session.email.toLowerCase() ||
-        o.customerId.toLowerCase() === session.userId.toLowerCase()
-      );
+      const filtered = list.filter((o: any) => {
+        const cId = o.customerId ? o.customerId.toLowerCase() : '';
+        const cEmail = o.customerEmail ? o.customerEmail.toLowerCase() : '';
+        const sId = session.userId ? session.userId.toLowerCase() : '';
+        const sEmail = session.email ? session.email.toLowerCase() : '';
+        return (cId === sId || cId === sEmail || cEmail === sEmail);
+      });
       const sanitized = filtered.map((o: any) => {
         if (o.status !== 'Out for Delivery' && o.status !== 'Delivered') {
           return { ...o, deliveryOtp: '******' };
