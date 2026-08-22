@@ -271,5 +271,75 @@
     "email": "rider@fatafat.com",
     "role": "delivery_partner",
     "expiresAt": "2026-08-29T10:50:51.678Z"
+  },
+  {
+    "sessionId": "sess-032b1b0a43795623a2540717b3b28380",
+    "userId": "9876543210",
+    "email": "guest@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:16:54.992Z"
+  },
+  {
+    "sessionId": "sess-a5908a444eb941d87cabae64e23b3561",
+    "userId": "9876543210",
+    "email": "guest@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:16:55.044Z"
+  },
+  {
+    "sessionId": "sess-fb73843c7f3e9b97c68de8313083ba6d",
+    "userId": "u-7978",
+    "email": "krishnamdwivedi17@gmail.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:17:13.510Z"
+  },
+  {
+    "sessionId": "sess-6c6757a8909da8d0c5f2e4867c67913f",
+    "userId": "9876543210",
+    "email": "guest@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:20:51.928Z"
+  },
+  {
+    "sessionId": "sess-c94c2b8ba9ec952779b4bdcb188d4625",
+    "userId": "9876543210",
+    "email": "guest@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:20:52.278Z"
+  },
+  {
+    "sessionId": "sess-160388c86261c716e3d1d385c865362c",
+    "userId": "9876541234",
+    "email": "krishnamdwivedi17@gmail.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:23:03.465Z"
+  },
+  {
+    "sessionId": "sess-b255411cb983e75f8d625beb00991a9f",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T14:23:06.281Z"
+  },
+  {
+    "sessionId": "sess-3b8b462a196ed433ad49bd94be4cf398",
+    "userId": "superadmin@fatafat.com",
+    "email": "superadmin@fatafat.com",
+    "role": "admin",
+    "expiresAt": "2026-08-29T14:32:03.706Z"
+  },
+  {
+    "sessionId": "sess-4e794703951ed1ce0a78f0680e9d5e82",
+    "userId": "9876543210",
+    "email": "guest@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:34:35.843Z"
+  },
+  {
+    "sessionId": "sess-49458d055d7f6a24981e88bc20624496",
+    "userId": "9876543210",
+    "email": "guest@fatafat.com",
+    "role": "customer",
+    "expiresAt": "2026-08-29T14:34:35.988Z"
   }
 ]

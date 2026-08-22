@@ -26,6 +26,7 @@ export interface OrderAddress {
 export interface Order {
   id: string;
   customerId: string;
+  customerEmail?: string;
   items: OrderItem[];
   subtotal: number;
   deliveryFee: number;

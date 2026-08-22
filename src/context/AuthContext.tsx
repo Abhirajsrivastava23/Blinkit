@@ -30,6 +30,8 @@ export interface User {
   deliveryPartnerId?: string;
   locationId?: string;
   locationName?: string;
+  dob?: string;
+  gender?: string;
 }
 
 interface AuthContextType {
@@ -43,6 +45,7 @@ interface AuthContextType {
   savedAddresses: Address[];
   addAddress: (address: Omit<Address, 'id'>) => void;
   removeAddress: (id: string) => void;
+  updateProfile: (details: Partial<User>) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -79,9 +82,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   const list = await listRes.json();
                   const matched = list.find((u: any) => u.email.toLowerCase() === meData.user.email.toLowerCase());
                   if (matched) {
+                    authedUser.name = matched.name || authedUser.name;
+                    authedUser.phone = matched.phone || authedUser.phone;
                     authedUser.wellnessAccessStatus = matched.wellnessAccessStatus || 'NOT_REQUESTED';
                     authedUser.googleProviderId = matched.googleProviderId || authedUser.googleProviderId;
                     authedUser.profileImage = matched.profileImage || '';
+                    authedUser.dob = matched.dob || '';
+                    authedUser.gender = matched.gender || '';
+                    if (matched.addresses && Array.isArray(matched.addresses)) {
+                      setSavedAddresses(matched.addresses);
+                      localStorage.setItem('fatafat_addresses', JSON.stringify(matched.addresses));
+                    }
                   }
                 }
               } catch (e) {
@@ -275,7 +286,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('fatafat_user', JSON.stringify(guestUser));
   };
 
-  const addAddress = (address: Omit<Address, 'id'>) => {
+  const updateProfile = async (details: Partial<User>): Promise<boolean> => {
+    if (!user || user.email === 'guest@fatafat.com') return false;
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(details)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          const updatedUser: User = {
+            ...user,
+            name: data.user.name,
+            phone: data.user.phone,
+            dob: data.user.dob,
+            gender: data.user.gender,
+            profileImage: data.user.profileImage
+          };
+          setUser(updatedUser);
+          localStorage.setItem('fatafat_user', JSON.stringify(updatedUser));
+          if (user.email) {
+            localStorage.setItem(`fatafat_user_${user.email}`, JSON.stringify(updatedUser));
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error('Error updating profile:', e);
+    }
+    return false;
+  };
+
+  const addAddress = async (address: Omit<Address, 'id'>) => {
     const newAddress: Address = {
       ...address,
       id: `addr-${Date.now()}`
@@ -283,12 +327,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = [...savedAddresses, newAddress];
     setSavedAddresses(updated);
     localStorage.setItem('fatafat_addresses', JSON.stringify(updated));
+
+    if (user && user.email !== 'guest@fatafat.com') {
+      try {
+        await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses: updated })
+        });
+      } catch (e) {
+        console.error('Error syncing added address:', e);
+      }
+    }
   };
 
-  const removeAddress = (id: string) => {
+  const removeAddress = async (id: string) => {
     const updated = savedAddresses.filter(addr => addr.id !== id);
     setSavedAddresses(updated);
     localStorage.setItem('fatafat_addresses', updated.length > 0 ? JSON.stringify(updated) : '[]');
+
+    if (user && user.email !== 'guest@fatafat.com') {
+      try {
+        await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses: updated })
+        });
+      } catch (e) {
+        console.error('Error syncing removed address:', e);
+      }
+    }
   };
 
   return (
@@ -302,7 +370,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       savedAddresses,
       addAddress,
-      removeAddress
+      removeAddress,
+      updateProfile
     }}>
       {children}
     </AuthContext.Provider>

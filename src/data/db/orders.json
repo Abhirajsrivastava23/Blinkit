@@ -1,5 +1,63 @@
 [
   {
+    "id": "FT50350",
+    "customerId": "u-7978",
+    "items": [
+      {
+        "productId": "cake-4",
+        "name": "Belgian Chocolate Cake",
+        "price": 899,
+        "quantity": 1,
+        "image": "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=600&auto=format&fit=crop&q=80",
+        "selectedSize": "0.5 KG",
+        "selectedType": "Eggless"
+      }
+    ],
+    "subtotal": 899,
+    "deliveryFee": 0,
+    "discount": 0,
+    "total": 899,
+    "address": {
+      "id": "addr-1",
+      "name": "Aman Sharma",
+      "mobile": "9876543210",
+      "house": "Penthouse B, 14th Floor",
+      "street": "Skylark Residences, Sector 45",
+      "area": "Golf Course Road",
+      "city": "Gurugram",
+      "pincode": "122003",
+      "landmark": "Opposite DLF Club"
+    },
+    "status": "Assigned",
+    "deliveryOption": "ASAP",
+    "eta": "35 mins",
+    "createdAt": "2026-08-22T14:19:30.797Z",
+    "deliveryLocationId": "nawabganj-unnao",
+    "deliveryLocationName": "Nawabganj, Unnao",
+    "deliveryOtp": "389260",
+    "otpFailedAttempts": 0,
+    "otpExpiresAt": "2026-08-23T14:19:30.836Z",
+    "statusHistory": [
+      {
+        "previousStatus": null,
+        "newStatus": "Pending",
+        "changedByUserId": "u-7978",
+        "changedByRole": "customer",
+        "timestamp": "2026-08-22T14:19:30.836Z"
+      },
+      {
+        "previousStatus": "Pending",
+        "newStatus": "Assigned",
+        "changedByUserId": "superadmin@fatafat.com",
+        "changedByRole": "admin",
+        "timestamp": "2026-08-22T14:32:14.697Z"
+      }
+    ],
+    "assignedPartnerId": "DP-001",
+    "assignedPartnerName": "Rahul",
+    "assignedAt": "2026-08-22T14:32:14.574Z"
+  },
+  {
     "id": "FT-TEST-4390",
     "customerId": "client.1234@fatafat.com",
     "items": [

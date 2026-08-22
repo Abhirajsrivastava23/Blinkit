@@ -1,28 +1,28 @@
 [
   {
     "email": "superadmin@fatafat.com",
-    "passwordHash": "c0b846f7da7c994571eda20b8eb47b4447f9b48114eb25323f54e5bf03e3e32c",
+    "passwordHash": "c2ead3d68944b308fc75b556ba73e6546d9b9cc7f30737ff362a55f9dad013d1",
     "name": "FATAFAT Ops Admin",
     "phone": "9999999990",
     "role": "admin"
   },
   {
     "email": "admin@fatafat.com",
-    "passwordHash": "c0b846f7da7c994571eda20b8eb47b4447f9b48114eb25323f54e5bf03e3e32c",
+    "passwordHash": "c2ead3d68944b308fc75b556ba73e6546d9b9cc7f30737ff362a55f9dad013d1",
     "name": "FATAFAT Ops Admin",
     "phone": "9999999991",
     "role": "admin"
   },
   {
     "email": "manager@fatafat.com",
-    "passwordHash": "c0b846f7da7c994571eda20b8eb47b4447f9b48114eb25323f54e5bf03e3e32c",
+    "passwordHash": "c2ead3d68944b308fc75b556ba73e6546d9b9cc7f30737ff362a55f9dad013d1",
     "name": "FATAFAT Inv Manager",
     "phone": "9999999992",
     "role": "admin"
   },
   {
     "email": "admin@fatafat.local",
-    "passwordHash": "c0b846f7da7c994571eda20b8eb47b4447f9b48114eb25323f54e5bf03e3e32c",
+    "passwordHash": "c2ead3d68944b308fc75b556ba73e6546d9b9cc7f30737ff362a55f9dad013d1",
     "name": "Local Dev Admin",
     "phone": "9999999993",
     "role": "admin"

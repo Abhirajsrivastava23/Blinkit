@@ -4,22 +4,28 @@ import React from 'react';
 import Link from 'next/link';
 import { ShoppingBag, Truck } from 'lucide-react';
 import { useOrders } from '../../../context/OrderContext';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function AccountOrdersPage() {
   const { orders } = useOrders();
-  const [currentUserEmail, setCurrentUserEmail] = React.useState('guest@fatafat.com');
+  const { user } = useAuth();
 
-  React.useEffect(() => {
-    const stored = localStorage.getItem('fatafat_user');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setCurrentUserEmail(parsed.email || parsed.phone || 'guest@fatafat.com');
-      } catch (e) {}
+  const customerOrders = orders.filter(o => {
+    if (!user) return false;
+    if (user.email && o.customerEmail && o.customerEmail.toLowerCase() === user.email.toLowerCase()) {
+      return true;
     }
-  }, []);
-
-  const customerOrders = orders.filter(o => o.customerId === currentUserEmail);
+    if (user.email && o.customerId && o.customerId.toLowerCase() === user.email.toLowerCase()) {
+      return true;
+    }
+    if (user.phone && o.customerId && o.customerId.toLowerCase() === user.phone.toLowerCase()) {
+      return true;
+    }
+    if (user.googleProviderId && o.customerId && o.customerId.toLowerCase() === user.googleProviderId.toLowerCase()) {
+      return true;
+    }
+    return false;
+  });
 
   return (
     <div className="space-y-6">
