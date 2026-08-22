@@ -58,30 +58,38 @@ interface OrderContextType {
   updateOrderDetails: (orderId: string, updates: Partial<Order>) => void;
   getOrderById: (orderId: string) => Order | undefined;
   refreshOrders: () => Promise<void>;
+  isLoading: boolean;
+  error: string | null;
+  statusCode: number | null;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusCode, setStatusCode] = useState<number | null>(null);
 
   // Load orders from server and fallback to localStorage
   const refreshOrders = async () => {
     try {
       const res = await fetch('/api/orders');
+      setStatusCode(res.status);
       if (res.ok) {
         const data = await res.json();
         setOrders(data);
+        setError(null);
         localStorage.setItem('fatafat_orders', JSON.stringify(data));
-        return;
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.error || `HTTP Error ${res.status}`);
       }
     } catch (e) {
-      console.warn('Fallback to local storage due to API error:', e);
-    }
-    
-    const stored = localStorage.getItem('fatafat_orders');
-    if (stored) {
-      setOrders(JSON.parse(stored));
+      console.error('Error refreshing orders:', e);
+      setError('Failed to fetch orders from server.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -190,7 +198,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <OrderContext.Provider value={{ orders, placeOrder, updateOrderStatus, updateOrderDetails, getOrderById, refreshOrders }}>
+    <OrderContext.Provider value={{ orders, placeOrder, updateOrderStatus, updateOrderDetails, getOrderById, refreshOrders, isLoading, error, statusCode }}>
       {children}
     </OrderContext.Provider>
   );
