@@ -117,8 +117,14 @@ export async function GET(request: Request) {
       const session = createSession(customer.userId, customer.email, 'customer');
 
       // 5. Set session cookie and redirect to intended destination
-      const redirectUrl = new URL(callback, `${protocol}://${host}`);
-      const response = NextResponse.redirect(redirectUrl);
+      // Using an HTML meta refresh response to prevent Vercel edge routes from stripping headers during redirects
+      const response = new NextResponse(
+        `<html><head><meta http-equiv="refresh" content="0;url=${encodeURI(callback)}" /></head><body><script>window.location.href="${callback}";</script></body></html>`,
+        {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' }
+        }
+      );
 
       response.cookies.set('fatafat_session_token', session.sessionId, {
         httpOnly: true,
