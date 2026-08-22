@@ -29,7 +29,10 @@ export async function GET(request: Request) {
 
     if (session.role === 'customer') {
       // Filter orders owned by this customer and mask deliveryOtp if not Out for Delivery or Delivered
-      const filtered = list.filter((o: any) => o.customerId.toLowerCase() === session.email.toLowerCase());
+      const filtered = list.filter((o: any) => 
+        o.customerId.toLowerCase() === session.email.toLowerCase() ||
+        o.customerId.toLowerCase() === session.userId.toLowerCase()
+      );
       const sanitized = filtered.map((o: any) => {
         if (o.status !== 'Out for Delivery' && o.status !== 'Delivered') {
           return { ...o, deliveryOtp: '******' };
@@ -81,18 +84,26 @@ export async function POST(request: Request) {
         ...body
       };
     } else {
+      // Server-side order creation must require an authenticated customer session
+      if (session.role !== 'customer') {
+        return NextResponse.json({ error: 'Only authenticated customers can place orders.' }, { status: 403 });
+      }
+
       // Securely generate OTP on the server for new orders
       const deliveryOtp = Math.floor(100000 + Math.random() * 900000).toString();
       body.deliveryOtp = deliveryOtp;
       body.otpFailedAttempts = 0;
       body.otpExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
       
+      // Force customerId to be the server-side session userId (never trust client)
+      body.customerId = session.userId;
+
       // Initialize status history
       body.statusHistory = [{
         previousStatus: null,
         newStatus: 'Pending',
-        changedByUserId: session.email || body.customerId,
-        changedByRole: session.role || 'customer',
+        changedByUserId: session.userId,
+        changedByRole: 'customer',
         timestamp: new Date().toISOString()
       }];
       

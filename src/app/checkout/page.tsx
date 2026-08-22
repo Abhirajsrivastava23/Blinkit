@@ -13,7 +13,7 @@ import { useToast } from '../../components/Toast';
 export default function CheckoutPage() {
   const router = useRouter();
   const { cartItems, subtotal, deliveryFee, discountAmount, total, clearCart } = useCart();
-  const { user, savedAddresses, addAddress } = useAuth();
+  const { user, savedAddresses, addAddress, isLoggedIn } = useAuth();
   const { placeOrder } = useOrders();
   const { showToast } = useToast();
 
@@ -33,8 +33,13 @@ export default function CheckoutPage() {
   // Step 3: Payment states
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'NetBanking' | 'COD'>('UPI');
 
-  // Redirect if cart is empty
+  // Redirect if not logged in or cart is empty
   useEffect(() => {
+    if (!isLoggedIn) {
+      showToast('Please sign in to proceed to checkout.', 'error');
+      router.push('/login?callback=/checkout');
+      return;
+    }
     if (cartItems.length === 0 && currentStep !== 5) {
       showToast('Your cart is empty. Add products to checkout.', 'info');
       router.push('/');
@@ -42,7 +47,7 @@ export default function CheckoutPage() {
     if (savedAddresses.length > 0 && !selectedAddressId) {
       setSelectedAddressId(savedAddresses[0].id);
     }
-  }, [cartItems, savedAddresses]);
+  }, [isLoggedIn, cartItems, savedAddresses, router]);
 
   const handleNextStep = () => {
     if (currentStep === 1) {

@@ -1,192 +1,97 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ShieldCheck, Phone, CheckCircle2, UserCheck, KeyRound, Truck } from 'lucide-react';
+import React, { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import { useAuth } from '../../context/AuthContext';
-import { useToast } from '../../components/Toast';
+import { ShieldCheck } from 'lucide-react';
+
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const callback = searchParams.get('callback') || '/';
+  const error = searchParams.get('error');
+
+  const handleGoogleLogin = () => {
+    window.location.href = `/api/auth/google-login?callback=${encodeURIComponent(callback)}`;
+  };
+
+  return (
+    <div className="bg-white border border-zinc-150 rounded-3xl p-8 shadow-xl space-y-8 text-center relative overflow-hidden">
+      {/* Top decorative gradient bar */}
+      <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-brand-burgundy via-brand-coral to-brand-gold" />
+
+      {/* Brand Logo Header */}
+      <div className="space-y-3 pt-4">
+        <div className="inline-flex items-center select-none font-sans font-black tracking-tighter text-3xl">
+          <span className="text-brand-burgundy">FATA</span>
+          <span className="ml-1 px-2 py-0.5 rounded-xl text-white font-black text-[0.85em] uppercase leading-none bg-brand-coral shadow-sm">
+            FAT
+          </span>
+        </div>
+        <div className="space-y-1">
+          <h1 className="text-xl font-serif font-black text-zinc-900 tracking-tight">Sign in to continue</h1>
+          <p className="text-[11px] text-zinc-450 font-medium max-w-xs mx-auto leading-relaxed">
+            Create your FATAFAT account or sign in securely with Google.
+          </p>
+        </div>
+      </div>
+
+      {/* Error messaging */}
+      {error && (
+        <div className="p-3.5 rounded-2xl bg-red-50 border border-red-100 text-left space-y-1 text-red-700">
+          <p className="text-xs font-bold">Authentication failed</p>
+          <p className="text-[10px] text-red-500 font-medium leading-normal">
+            {error === 'access_denied' && 'Access request cancelled.'}
+            {error === 'token_exchange_failed' && 'OAuth connection error. Please try again.'}
+            {error === 'missing_config' && 'Google Authentication is currently offline. Contact Support.'}
+            {error !== 'access_denied' && error !== 'token_exchange_failed' && error !== 'missing_config' && 'An error occurred during authentication.'}
+          </p>
+        </div>
+      )}
+
+      {/* Official Google-style Continue with Google CTA */}
+      <div className="py-2">
+        <button
+          onClick={handleGoogleLogin}
+          className="w-full flex items-center justify-center gap-3.5 bg-white border border-zinc-350 hover:border-zinc-450 hover:bg-zinc-50 active:bg-zinc-100 text-zinc-700 font-sans font-bold text-xs py-3.5 px-6 rounded-full transition-all shadow-sm hover:shadow-md hover:scale-[1.01] cursor-pointer"
+        >
+          {/* Official Google icon vector */}
+          <svg className="h-4.5 w-4.5 shrink-0" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+
+      {/* Secure Notice */}
+      <div className="flex items-center justify-center gap-2 p-4 bg-zinc-50 border border-zinc-150/50 rounded-2xl text-[10px] text-zinc-500 font-medium">
+        <ShieldCheck className="h-4.5 w-4.5 text-brand-burgundy shrink-0" />
+        <span className="leading-snug text-left">
+          Your credentials are encrypted. FATAFAT does not access or store your Google password.
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { loginWithPhone } = useAuth();
-  const { showToast } = useToast();
-
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [loading, setLoading] = useState(false);
-
-  const handlePhoneSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (phone.length !== 10 || isNaN(Number(phone))) {
-      showToast('Please enter a valid 10-digit mobile number.', 'error');
-      return;
-    }
-    
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep('otp');
-      showToast('OTP sent! Use 1234 to log in.', 'info');
-    }, 800);
-  };
-
-  const handleOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp !== '1234') {
-      showToast('Invalid OTP. Please enter 1234 for simulation.', 'error');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await loginWithPhone(phone);
-      showToast('Logged in successfully!', 'success');
-      router.push('/account');
-    } catch (err) {
-      showToast('Authentication failed.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGuestLogin = () => {
-    setLoading(true);
-    setTimeout(() => {
-      showToast('Logged in as Guest Client.', 'success');
-      router.push('/');
-    }, 500);
-  };
-
-  const handleDeliveryPartnerLogin = () => {
-    setLoading(true);
-    setTimeout(() => {
-      const partner = { phone: '9999999999', name: 'FATAFAT Rider', email: 'rider@fatafat.com' };
-      localStorage.setItem('fatafat_user', JSON.stringify(partner));
-      showToast('Logged in as Delivery Partner.', 'success');
-      router.push('/delivery-partner');
-    }, 500);
-  };
-
   return (
     <>
       <Header />
 
-      <main className="flex-1 bg-[#FAF9F6] py-16 flex items-center justify-center">
+      <main className="flex-1 bg-[#FAF9F6] py-20 flex items-center justify-center">
         <div className="mx-auto max-w-md w-full px-4">
-          <div className="bg-white border border-zinc-100 rounded-3xl p-8 shadow-sm space-y-6">
-            
-            {/* Header info */}
-            <div className="text-center space-y-1.5">
-              <h1 className="text-2xl font-serif font-extrabold text-[#1A1A1A]">
-                Welcome to FATAFAT
-              </h1>
-              <p className="text-xs text-zinc-500">
-                Sign in to manage orders, track deliveries, and save addresses.
-              </p>
+          <Suspense fallback={
+            <div className="p-8 text-center bg-white border border-zinc-100 rounded-3xl animate-pulse">
+              <div className="h-6 w-24 bg-zinc-200 mx-auto rounded mb-4" />
+              <div className="h-10 w-full bg-zinc-100 rounded-full" />
             </div>
-
-            {step === 'phone' ? (
-              /* Phone Input Form */
-              <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="loginPhone" className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                    Mobile Number
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-3 text-xs font-bold text-zinc-400">+91</span>
-                    <input
-                      type="tel"
-                      id="loginPhone"
-                      maxLength={10}
-                      placeholder="Enter 10-digit number"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full pl-12 pr-4 py-2.5 border border-zinc-200 rounded-xl text-xs focus:outline-none focus:border-brand-burgundy/40 focus:ring-1 focus:ring-brand-burgundy"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 rounded-full bg-brand-burgundy hover:bg-brand-burgundy-dark disabled:bg-zinc-300 text-white font-serif font-bold text-xs tracking-wider uppercase transition-all shadow-md"
-                >
-                  {loading ? 'Sending OTP...' : 'Send OTP'}
-                </button>
-              </form>
-            ) : (
-              /* OTP Input Form */
-              <form onSubmit={handleOtpSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="loginOtp" className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                    Enter OTP (Use 1234)
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="absolute left-4 top-3 h-4 w-4 text-zinc-400" />
-                    <input
-                      type="password"
-                      id="loginOtp"
-                      maxLength={4}
-                      placeholder="Enter 4-digit code"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      className="w-full pl-12 pr-4 py-2.5 border border-zinc-200 rounded-xl text-xs focus:outline-none focus:border-brand-burgundy/40 focus:ring-1 focus:ring-brand-burgundy"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center text-[10px]">
-                  <span className="text-zinc-500">Didn&apos;t receive code?</span>
-                  <button type="button" onClick={() => setStep('phone')} className="text-brand-burgundy font-bold underline">
-                    Change Mobile
-                  </button>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 rounded-full bg-brand-burgundy hover:bg-brand-burgundy-dark disabled:bg-zinc-300 text-white font-serif font-bold text-xs tracking-wider uppercase transition-all shadow-md"
-                >
-                  {loading ? 'Verifying...' : 'Verify & Log In'}
-                </button>
-              </form>
-            )}
-
-            {/* Divider */}
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-zinc-100"></div>
-              <span className="flex-shrink mx-3 text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Or</span>
-              <div className="flex-grow border-t border-zinc-100"></div>
-            </div>
-
-            {/* Guest Login button */}
-            <button
-              onClick={handleGuestLogin}
-              className="w-full py-3 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
-            >
-              <UserCheck className="h-4 w-4 text-zinc-500" />
-              Continue as Guest
-            </button>
-
-            {/* Delivery Partner Demo Login button */}
-            <button
-              onClick={handleDeliveryPartnerLogin}
-              className="w-full py-3 rounded-full border border-brand-coral hover:bg-brand-blush text-brand-burgundy text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <Truck className="h-4 w-4 text-brand-burgundy" />
-              Delivery Partner Demo Login
-            </button>
-
-            {/* Security Notice */}
-            <div className="flex items-center justify-center gap-1.5 p-3 rounded-xl bg-zinc-50 border border-zinc-100 text-[10px] text-zinc-500">
-              <ShieldCheck className="h-4 w-4 text-brand-burgundy shrink-0" />
-              <span>We do not share your contact details. OTP validation is secure.</span>
-            </div>
-
-          </div>
+          }>
+            <LoginContent />
+          </Suspense>
         </div>
       </main>
 

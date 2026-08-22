@@ -52,38 +52,101 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user session and addresses from localStorage on mount
+  // Load user session and addresses on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('fatafat_user');
+    const initAuth = async () => {
+      try {
+        // Query the server for active session
+        const meRes = await fetch('/api/auth/me');
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.authenticated && meData.user && meData.user.role === 'customer') {
+            // Update client context with active authenticated customer details
+            const authedUser: User = {
+              phone: meData.user.phone || '9876543210',
+              name: meData.user.name || 'Valued Client',
+              email: meData.user.email,
+              googleProviderId: meData.user.phone, // phone maps to customerId
+              role: meData.user.role,
+              wellnessAccessStatus: 'NOT_REQUESTED'
+            };
+
+            // Sync wellness status from users list
+            if (meData.user.email) {
+              try {
+                const listRes = await fetch('/api/users/list');
+                if (listRes.ok) {
+                  const list = await listRes.json();
+                  const matched = list.find((u: any) => u.email.toLowerCase() === meData.user.email.toLowerCase());
+                  if (matched) {
+                    authedUser.wellnessAccessStatus = matched.wellnessAccessStatus || 'NOT_REQUESTED';
+                    authedUser.googleProviderId = matched.googleProviderId || authedUser.googleProviderId;
+                    authedUser.profileImage = matched.profileImage || '';
+                  }
+                }
+              } catch (e) {
+                console.error('Failed to fetch wellness status in init:', e);
+              }
+            }
+
+            setUser(authedUser);
+            localStorage.setItem('fatafat_user', JSON.stringify(authedUser));
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to initialize session from server:', err);
+      }
+
+      // Guest fallback if no active authenticated server session exists
+      const storedUser = localStorage.getItem('fatafat_user');
+      let activeClientUser: User;
+
+      if (storedUser) {
+        activeClientUser = JSON.parse(storedUser);
+        if (activeClientUser.email && activeClientUser.email !== 'guest@fatafat.com') {
+          activeClientUser = { 
+            phone: '9876543210', 
+            name: 'Premium Guest', 
+            email: 'guest@fatafat.com',
+            wellnessAccessStatus: 'NOT_REQUESTED'
+          };
+          localStorage.setItem('fatafat_user', JSON.stringify(activeClientUser));
+        }
+        setUser(activeClientUser);
+      } else {
+        activeClientUser = { 
+          phone: '9876543210', 
+          name: 'Premium Guest', 
+          email: 'guest@fatafat.com',
+          wellnessAccessStatus: 'NOT_REQUESTED'
+        };
+        setUser(activeClientUser);
+        localStorage.setItem('fatafat_user', JSON.stringify(activeClientUser));
+      }
+
+      // Synchronise guest session to server cookie
+      try {
+        await fetch('/api/auth/customer-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: activeClientUser.email,
+            phone: activeClientUser.phone,
+            name: activeClientUser.name
+          })
+        });
+      } catch (err) {
+        console.error('Failed to sync guest session:', err);
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
+
+    // Load addresses
     const storedAddresses = localStorage.getItem('fatafat_addresses');
-    
-    let activeClientUser: User;
-    if (storedUser) {
-      activeClientUser = JSON.parse(storedUser);
-      setUser(activeClientUser);
-    } else {
-      // Default guest user
-      activeClientUser = { 
-        phone: '9876543210', 
-        name: 'Premium Guest', 
-        email: 'guest@fatafat.com',
-        wellnessAccessStatus: 'NOT_REQUESTED'
-      };
-      setUser(activeClientUser);
-      localStorage.setItem('fatafat_user', JSON.stringify(activeClientUser));
-    }
-
-    // Establish secure session on the backend
-    fetch('/api/auth/customer-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: activeClientUser.email,
-        phone: activeClientUser.phone,
-        name: activeClientUser.name
-      })
-    }).catch(err => console.error('Failed to sync guest session:', err));
-
     if (storedAddresses) {
       setSavedAddresses(JSON.parse(storedAddresses));
     } else {
@@ -114,7 +177,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSavedAddresses(defaultAddresses);
       localStorage.setItem('fatafat_addresses', JSON.stringify(defaultAddresses));
     }
-    setIsLoading(false);
   }, []);
 
   const loginWithPhone = async (phone: string) => {
@@ -197,9 +259,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('fatafat_user');
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Failed to logout server session:', e);
+    }
+    const guestUser: User = { 
+      phone: '9876543210', 
+      name: 'Premium Guest', 
+      email: 'guest@fatafat.com',
+      wellnessAccessStatus: 'NOT_REQUESTED'
+    };
+    setUser(guestUser);
+    localStorage.setItem('fatafat_user', JSON.stringify(guestUser));
   };
 
   const addAddress = (address: Omit<Address, 'id'>) => {
@@ -215,13 +288,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const removeAddress = (id: string) => {
     const updated = savedAddresses.filter(addr => addr.id !== id);
     setSavedAddresses(updated);
-    localStorage.setItem('fatafat_addresses', JSON.stringify(updated));
+    localStorage.setItem('fatafat_addresses', updated.length > 0 ? JSON.stringify(updated) : '[]');
   };
 
   return (
     <AuthContext.Provider value={{
       user,
-      isLoggedIn: !!user,
+      isLoggedIn: !!user && user.email !== 'guest@fatafat.com',
       isLoading,
       loginWithPhone,
       loginWithGoogle,

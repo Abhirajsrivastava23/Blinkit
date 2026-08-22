@@ -23,7 +23,10 @@ export async function POST(request: Request) {
     }
 
     const order = orders[idx];
-    if (order.customerId.toLowerCase() !== session.email.toLowerCase()) {
+    if (
+      order.customerId.toLowerCase() !== session.email.toLowerCase() &&
+      order.customerId.toLowerCase() !== session.userId.toLowerCase()
+    ) {
       return NextResponse.json({ error: 'Forbidden: You do not own this order.' }, { status: 403 });
     }
 

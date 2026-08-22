@@ -26,11 +26,13 @@ export default function Header() {
   
   const { cartItems } = useCart();
   const { wishlist } = useWishlist();
-  const { savedAddresses } = useAuth();
+  const { savedAddresses, user, isLoggedIn, logout } = useAuth();
   const { showToast } = useToast();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
   
   // Location States
   const [selectedLocation, setSelectedLocation] = useState('Nawabganj, Unnao');
@@ -52,11 +54,14 @@ export default function Header() {
     setSelectedLocation(loc);
   }, []);
 
-  // Close search suggestions on click outside
+  // Close search suggestions and profile dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsSearchFocused(false);
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -264,16 +269,81 @@ export default function Header() {
             {/* 3. Action Links & Shopping Buttons */}
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               
-              {/* Profile link */}
-              <Link
-                href="/account/profile"
-                className={`p-2 rounded-xl transition-colors hidden sm:block ${
-                  isWellness ? 'hover:bg-wellness-card text-wellness-text' : 'hover:bg-zinc-50 text-zinc-700'
-                }`}
-                title="Profile Account"
-              >
-                <User className="h-4.5 w-4.5 stroke-[1.5]" />
-              </Link>
+              {/* Profile Link or Dropdown */}
+              {isLoggedIn && user ? (
+                <div className="relative" ref={profileDropdownRef}>
+                  <button
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                    className={`p-2 rounded-xl transition-colors hidden sm:flex items-center gap-1.5 ${
+                      isWellness ? 'hover:bg-wellness-card text-wellness-text' : 'hover:bg-zinc-50 text-zinc-700'
+                    } cursor-pointer`}
+                    title="Profile Account"
+                  >
+                    <User className="h-4.5 w-4.5 stroke-[1.5]" />
+                    <span className="text-[10px] font-extrabold max-w-[80px] truncate hidden lg:inline">{user.name || 'Account'}</span>
+                    <ChevronDown className="h-3 w-3 opacity-60 hidden lg:inline" />
+                  </button>
+                  
+                  {isProfileDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white border border-zinc-200/80 rounded-2xl p-2 shadow-xl z-50 text-left font-sans text-xs">
+                      <div className="px-3 py-2 border-b border-zinc-50 mb-1">
+                        <p className="font-extrabold text-zinc-800 truncate">{user.name}</p>
+                        <p className="text-[9px] text-zinc-400 truncate">{user.email}</p>
+                      </div>
+                      <Link
+                        href="/account/orders"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                        className="flex w-full items-center px-3 py-1.5 rounded-xl text-zinc-700 hover:bg-zinc-50 transition-colors font-bold"
+                      >
+                        My Orders
+                      </Link>
+                      <Link
+                        href="/account/profile"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                        className="flex w-full items-center px-3 py-1.5 rounded-xl text-zinc-700 hover:bg-zinc-50 transition-colors font-bold"
+                      >
+                        Account
+                      </Link>
+                      <Link
+                        href="/account/wishlist"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                        className="flex w-full items-center px-3 py-1.5 rounded-xl text-zinc-700 hover:bg-zinc-50 transition-colors font-bold"
+                      >
+                        Wishlist
+                      </Link>
+                      <Link
+                        href="/account/addresses"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                        className="flex w-full items-center px-3 py-1.5 rounded-xl text-zinc-700 hover:bg-zinc-50 transition-colors font-bold"
+                      >
+                        Addresses
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          logout();
+                          showToast('Logged out successfully', 'success');
+                          router.push('/');
+                        }}
+                        className="flex w-full items-center px-3 py-1.5 rounded-xl text-red-650 hover:bg-red-50 transition-colors font-bold text-left cursor-pointer"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className={`px-4.5 py-2 border rounded-full text-xs font-bold transition-all hidden sm:inline-block ${
+                    isWellness
+                      ? 'border-wellness-bronze/35 text-wellness-bronze hover:bg-wellness-bronze/10'
+                      : 'border-brand-burgundy/25 text-brand-burgundy hover:bg-brand-blush'
+                  }`}
+                >
+                  Sign in
+                </Link>
+              )}
               
               {/* Wishlist Link */}
               <Link
@@ -454,28 +524,44 @@ export default function Header() {
 
               {/* User Account / Admin for mobile */}
               <div className="flex gap-4 pt-3 border-t border-zinc-200/5">
-                <Link
-                  href="/account/profile"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs border font-medium ${
-                    isWellness 
-                      ? 'border-zinc-800 text-wellness-text' 
-                      : 'border-zinc-200 text-zinc-700'
-                  }`}
-                >
-                  <User className="h-4 w-4" /> Account
-                </Link>
-                <Link
-                  href="/admin"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border border-transparent text-white ${
-                    isWellness 
-                      ? 'bg-wellness-bronze hover:bg-wellness-bronze-dark' 
-                      : 'bg-brand-burgundy hover:bg-brand-burgundy-dark'
-                  }`}
-                >
-                  Admin Portal
-                </Link>
+                {isLoggedIn ? (
+                  <>
+                    <Link
+                      href="/account/profile"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs border font-medium ${
+                        isWellness 
+                          ? 'border-zinc-800 text-wellness-text' 
+                          : 'border-zinc-200 text-zinc-700'
+                      }`}
+                    >
+                      <User className="h-4 w-4" /> Account
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        logout();
+                        showToast('Logged out successfully', 'success');
+                        router.push('/');
+                      }}
+                      className="flex-1 py-2.5 rounded-xl text-xs border border-transparent text-white bg-red-650 hover:bg-red-750 font-bold cursor-pointer"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs border font-bold ${
+                      isWellness 
+                        ? 'border-wellness-bronze/40 text-wellness-bronze hover:bg-wellness-bronze/10' 
+                        : 'border-brand-burgundy/25 text-brand-burgundy hover:bg-brand-blush'
+                    }`}
+                  >
+                    Sign in
+                  </Link>
+                )}
               </div>
             </nav>
           </div>

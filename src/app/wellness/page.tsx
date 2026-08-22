@@ -274,61 +274,13 @@ export default function WellnessPage() {
 
           <button
             onClick={() => {
-              setGoogleEmail('');
-              setGoogleName('');
-              setShowGoogleModal(true);
+              window.location.href = '/login?callback=/wellness';
             }}
-            className="w-full py-3.5 bg-[#6B1D2F] hover:bg-[#8F3A44] text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow transition-all hover:scale-102 flex items-center justify-center gap-2 text-[10px]"
+            className="w-full py-3.5 bg-[#6B1D2F] hover:bg-[#8F3A44] text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow transition-all hover:scale-102 flex items-center justify-center gap-2 text-[10px] cursor-pointer"
           >
             <Globe className="h-4.5 w-4.5" /> Continue with Google
           </button>
         </div>
-
-        {/* Google OAuth Simulation Modal popup */}
-        {showGoogleModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-            <form onSubmit={handleGoogleSubmit} className="bg-white text-zinc-800 rounded-3xl p-6 w-full max-w-xs space-y-4 text-left border">
-              <div className="flex justify-between items-center border-b pb-2">
-                <span className="font-extrabold text-[10px] text-zinc-500 uppercase tracking-widest flex items-center gap-1">
-                  <Globe className="h-4 w-4 text-blue-600" /> Google Authentication
-                </span>
-                <button type="button" onClick={() => setShowGoogleModal(false)} className="text-zinc-400 hover:text-zinc-700">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-450 block">Name</label>
-                <input
-                  type="text"
-                  placeholder="Jane Doe"
-                  value={googleName}
-                  onChange={(e) => setGoogleName(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl focus:outline-none focus:border-brand-burgundy font-medium text-xs text-zinc-800"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-450 block">Google Email</label>
-                <input
-                  type="email"
-                  placeholder="jane@gmail.com"
-                  value={googleEmail}
-                  onChange={(e) => setGoogleEmail(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl focus:outline-none focus:border-brand-burgundy font-medium text-xs text-zinc-800"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmittingGoogle}
-                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold uppercase tracking-wider text-[10px]"
-              >
-                {isSubmittingGoogle ? 'Verifying OAuth Token...' : 'Authorize Session'}
-              </button>
-            </form>
-          </div>
-        )}
       </div>
     );
   }

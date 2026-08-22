@@ -8,9 +8,11 @@ import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CartPage() {
   const router = useRouter();
+  const { isLoggedIn } = useAuth();
   const {
     cartItems,
     updateQuantity,
@@ -247,7 +249,13 @@ export default function CartPage() {
                   </div>
 
                   <button
-                    onClick={() => router.push('/checkout')}
+                    onClick={() => {
+                      if (!isLoggedIn) {
+                        router.push('/login?callback=/checkout');
+                      } else {
+                        router.push('/checkout');
+                      }
+                    }}
                     className="w-full py-3.5 rounded-full bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-serif font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 shadow"
                   >
                     Proceed to Checkout <ArrowRight className="h-4 w-4" />

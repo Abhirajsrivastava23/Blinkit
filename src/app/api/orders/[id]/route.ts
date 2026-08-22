@@ -30,7 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const { deliveryOtp, ...rest } = order;
       return NextResponse.json(rest);
     } else if (session.role === 'customer') {
-      if (order.customerId.toLowerCase() !== session.email.toLowerCase()) {
+      if (
+        order.customerId.toLowerCase() !== session.email.toLowerCase() &&
+        order.customerId.toLowerCase() !== session.userId.toLowerCase()
+      ) {
         return NextResponse.json({ error: 'Forbidden: You do not own this order.' }, { status: 403 });
       }
       // Sanitise: mask deliveryOtp if not Out for Delivery or later
