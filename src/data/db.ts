@@ -67,8 +67,13 @@ if (connectionString) {
       _pgPool?: Pool;
     };
     if (!globalWithPg._pgPool) {
+      const parsedUrl = new URL(connectionString);
       globalWithPg._pgPool = new Pool({
-        connectionString,
+        user: decodeURIComponent(parsedUrl.username || ''),
+        password: decodeURIComponent(parsedUrl.password || ''),
+        host: parsedUrl.hostname,
+        port: parseInt(parsedUrl.port || '5432', 10),
+        database: parsedUrl.pathname.substring(1),
         connectionTimeoutMillis: 5000,
         idleTimeoutMillis: 10000,
         max: 10,
