@@ -100,20 +100,26 @@ if (!isProduction) {
 const uri = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
 let client: MongoClient | null = null;
 let clientPromise: Promise<MongoClient> | null = null;
+let mongoInitError = '';
 
 if (uri) {
-  if (process.env.NODE_ENV === 'development') {
-    const globalWithMongo = global as typeof globalThis & {
-      _mongoClientPromise?: Promise<MongoClient>;
-    };
-    if (!globalWithMongo._mongoClientPromise) {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      const globalWithMongo = global as typeof globalThis & {
+        _mongoClientPromise?: Promise<MongoClient>;
+      };
+      if (!globalWithMongo._mongoClientPromise) {
+        client = new MongoClient(uri);
+        globalWithMongo._mongoClientPromise = client.connect();
+      }
+      clientPromise = globalWithMongo._mongoClientPromise;
+    } else {
       client = new MongoClient(uri);
-      globalWithMongo._mongoClientPromise = client.connect();
+      clientPromise = client.connect();
     }
-    clientPromise = globalWithMongo._mongoClientPromise;
-  } else {
-    client = new MongoClient(uri);
-    clientPromise = client.connect();
+  } catch (err: any) {
+    console.error('Failed to initialize MongoClient:', err);
+    mongoInitError = err.message || String(err);
   }
 }
 
@@ -211,6 +217,9 @@ async function ensureMongoSeeded(mongoDb: Db) {
 // Database helper functions (asynchronous wrapper)
 export const db = {
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    if (mongoInitError) {
+      return { ok: false, error: `MongoClient initialization failed: ${mongoInitError}` };
+    }
     try {
       const mongoDb = await getMongoDb();
       if (!mongoDb) {
