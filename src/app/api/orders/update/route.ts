@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order id and updates are required' }, { status: 400 });
     }
 
-    const orders = db.readTable<any>('orders') || [];
+    const orders = await db.readTable<any>('orders') || [];
     const idx = orders.findIndex((o: any) => o.id === id);
     
     if (idx === -1) {
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         if (clientOtp !== targetOrder.deliveryOtp) {
           // Increment failed attempts and save immediately
           orders[idx].otpFailedAttempts = failedAttempts + 1;
-          db.writeTable('orders', orders);
+          await db.writeTable('orders', orders);
           return NextResponse.json({ 
             error: 'Incorrect OTP. Please ask the customer to confirm the delivery OTP.' 
           }, { status: 400 });
@@ -213,7 +213,7 @@ export async function POST(request: Request) {
       ...updates
     };
     
-    db.writeTable('orders', orders);
+    await db.writeTable('orders', orders);
     return NextResponse.json({ success: true, order: orders[idx] });
   } catch (err) {
     console.error('Error updating order on server:', err);

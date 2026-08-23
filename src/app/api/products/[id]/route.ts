@@ -5,7 +5,7 @@ import { Product } from '../../../../data/mockData';
 export async function GET(request: Request, context: any) {
   try {
     const { id } = await context.params;
-    const products = db.readTable<Product>('products');
+    const products = await db.readTable<Product>('products');
     const product = products.find(p => p.id === id || p.name.toLowerCase().replace(/ /g, '-') === id);
 
     if (!product) {
@@ -15,7 +15,7 @@ export async function GET(request: Request, context: any) {
     // Server-side security check for Wellness 18+ Access
     if (product.category === 'wellness') {
       const userEmail = request.headers.get('x-user-email') || '';
-      const users = db.readTable<any>('users') || [];
+      const users = await db.readTable<any>('users') || [];
       const userObj = users.find((u: any) => u.email === userEmail);
       
       if (!userObj || userObj.wellnessAccessStatus !== 'APPROVED') {
@@ -37,7 +37,7 @@ export async function PATCH(request: Request, context: any) {
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const products = db.readTable<Product>('products');
+    const products = await db.readTable<Product>('products');
     const idx = products.findIndex(p => p.id === id || p.name.toLowerCase().replace(/ /g, '-') === id);
 
     if (idx === -1) {
@@ -81,7 +81,7 @@ export async function PATCH(request: Request, context: any) {
     };
 
     products[idx] = updatedProduct;
-    db.writeTable('products', products);
+    await db.writeTable('products', products);
 
     // Write audit log entry
     if (auditLogs.length > 0) {
@@ -98,7 +98,7 @@ export async function PATCH(request: Request, context: any) {
 export async function DELETE(request: Request, context: any) {
   try {
     const { id } = await context.params;
-    const products = db.readTable<Product>('products');
+    const products = await db.readTable<Product>('products');
     const idx = products.findIndex(p => p.id === id || p.name.toLowerCase().replace(/ /g, '-') === id);
 
     if (idx === -1) {
@@ -114,7 +114,7 @@ export async function DELETE(request: Request, context: any) {
     // We will splice it out to keep the mock lists clean.
     const deletedName = productToDelete.name;
     products.splice(idx, 1);
-    db.writeTable('products', products);
+    await db.writeTable('products', products);
 
     // Audit Log
     db.logActivity('Admin Console', 'Deleted Product', deletedName, 'Active SKU', 'Removed from database');

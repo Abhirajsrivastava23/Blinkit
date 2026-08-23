@@ -11,7 +11,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized session' }, { status: 403 });
     }
 
-    const list = db.readTable<any>('orders') || [];
+    const list = await db.readTable<any>('orders') || [];
 
     if (session.role === 'admin') {
       return NextResponse.json(list);
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const orders = db.readTable<any>('orders') || [];
+    const orders = await db.readTable<any>('orders') || [];
     
     // Check if order already exists
     const idx = orders.findIndex((o: any) => o.id === body.id);
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       orders.unshift(body);
     }
     
-    db.writeTable('orders', orders);
+    await db.writeTable('orders', orders);
     return NextResponse.json(body);
   } catch (err) {
     console.error('Error saving order:', err);

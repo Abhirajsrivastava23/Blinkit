@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'partnerId is required.' }, { status: 400 });
     }
 
-    const orders = db.readTable<any>('orders') || [];
+    const orders = await db.readTable<any>('orders') || [];
     const filtered = orders.filter((o: any) => o.assignedPartnerId === partnerId);
 
     const sanitized = filtered.map((o: any) => {

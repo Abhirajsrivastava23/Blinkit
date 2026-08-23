@@ -10,7 +10,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Admin permission required' }, { status: 403 });
     }
 
-    const partners = db.readTable<any>('partners') || [];
+    const partners = await db.readTable<any>('partners') || [];
     // Secure passwords by omitting them from responses
     const safePartners = partners.map(({ passwordHash, ...rest }) => rest);
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ID, Name, and Email are required fields.' }, { status: 400 });
     }
 
-    const partners = db.readTable<any>('partners') || [];
+    const partners = await db.readTable<any>('partners') || [];
     const idx = partners.findIndex(p => p.id.toLowerCase() === id.toLowerCase());
 
     let savedPartner: any;
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       db.logActivity('Admin Console', 'Created Partner', name, `ID: ${id}`, `Location: ${savedPartner.locationName}`);
     }
 
-    db.writeTable('partners', partners);
+    await db.writeTable('partners', partners);
 
     // Return the safe partner detail without password hash
     const { passwordHash, ...safeResponse } = savedPartner;
@@ -121,7 +121,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Partner ID is required.' }, { status: 400 });
     }
 
-    const partners = db.readTable<any>('partners') || [];
+    const partners = await db.readTable<any>('partners') || [];
     const idx = partners.findIndex(p => p.id.toLowerCase() === partnerId.toLowerCase());
 
     if (idx === -1) {
@@ -130,7 +130,7 @@ export async function DELETE(request: Request) {
 
     const removedName = partners[idx].name;
     partners.splice(idx, 1);
-    db.writeTable('partners', partners);
+    await db.writeTable('partners', partners);
 
     db.logActivity('Admin Console', 'Deleted Partner', removedName, `ID: ${partnerId}`, 'Removed from database');
 

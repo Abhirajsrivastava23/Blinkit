@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Create session for customer
-    const session = createSession(phone || email || 'guest', email || 'guest@fatafat.com', 'customer');
+    const session = await createSession(phone || email || 'guest', email || 'guest@fatafat.com', 'customer');
 
     const response = NextResponse.json({
       success: true,

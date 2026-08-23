@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const users = db.readTable<any>('users') || [];
+    const users = await db.readTable<any>('users') || [];
     const customerIdx = users.findIndex(
       (u: any) => u.userId === session.userId || u.email.toLowerCase() === session.email.toLowerCase()
     );
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     if (body.profileImage !== undefined) customer.profileImage = body.profileImage;
     if (body.addresses !== undefined) customer.addresses = body.addresses;
 
-    db.writeTable('users', users);
+    await db.writeTable('users', users);
 
     return NextResponse.json({
       success: true,

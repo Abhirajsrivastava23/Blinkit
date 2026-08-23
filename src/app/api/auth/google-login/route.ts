@@ -85,7 +85,7 @@ export async function GET(request: Request) {
       }
 
       // 3. Resolve or create customer account record
-      const users = db.readTable<any>('users') || [];
+      const users = await db.readTable<any>('users') || [];
       let customer = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() || u.googleProviderId === sub);
 
       const now = new Date().toISOString();
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
           customer.profileImage = picture;
         }
         customer.lastLoginAt = now;
-        db.writeTable('users', users);
+        await db.writeTable('users', users);
       } else {
         customer = {
           userId: 'u-' + Math.floor(1000 + Math.random() * 9000),
@@ -110,11 +110,11 @@ export async function GET(request: Request) {
           wellnessAccessStatus: 'NOT_REQUESTED'
         };
         users.push(customer);
-        db.writeTable('users', users);
+        await db.writeTable('users', users);
       }
 
       // 4. Issue customer session
-      const session = createSession(customer.userId, customer.email, 'customer');
+      const session = await createSession(customer.userId, customer.email, 'customer');
 
       // 5. Set session cookie and redirect to intended destination
       // Using an HTML meta refresh response to prevent Vercel edge routes from stripping headers during redirects

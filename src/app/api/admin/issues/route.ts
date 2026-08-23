@@ -9,7 +9,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Admin permission required' }, { status: 403 });
     }
 
-    const issues = db.readTable<any>('inventoryIssues') || [];
+    const issues = await db.readTable<any>('inventoryIssues') || [];
     return NextResponse.json(issues);
   } catch (err) {
     console.error('Error listing inventory issues:', err);

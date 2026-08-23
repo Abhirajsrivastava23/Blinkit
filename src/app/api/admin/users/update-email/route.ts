@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email address format.' }, { status: 400 });
     }
 
-    const users = db.readTable<any>('users') || [];
+    const users = await db.readTable<any>('users') || [];
     const customerIdx = users.findIndex((u: any) => u.userId === userId);
 
     if (customerIdx === -1) {
@@ -38,10 +38,10 @@ export async function POST(request: Request) {
       (u: any) => u.email.toLowerCase() === newEmail.toLowerCase() && u.userId !== userId
     );
 
-    const admins = db.readTable<any>('admin') || [];
+    const admins = await db.readTable<any>('admin') || [];
     const emailInUseByAdmin = admins.some((a: any) => a.email.toLowerCase() === newEmail.toLowerCase());
 
-    const partners = db.readTable<any>('partners') || [];
+    const partners = await db.readTable<any>('partners') || [];
     const emailInUseByPartner = partners.some((p: any) => p.email.toLowerCase() === newEmail.toLowerCase());
 
     if (emailInUseByCustomer || emailInUseByAdmin || emailInUseByPartner) {
@@ -50,10 +50,10 @@ export async function POST(request: Request) {
 
     // Update customer email
     customer.email = newEmail.toLowerCase().trim();
-    db.writeTable('users', users);
+    await db.writeTable('users', users);
 
     // Cascade to orders.json to ensure data consistency
-    const orders = db.readTable<any>('orders') || [];
+    const orders = await db.readTable<any>('orders') || [];
     let ordersUpdated = false;
     for (const order of orders) {
       if (order.customerId && order.customerId.toLowerCase() === oldEmail.toLowerCase()) {
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       }
     }
     if (ordersUpdated) {
-      db.writeTable('orders', orders);
+      await db.writeTable('orders', orders);
     }
 
     return NextResponse.json({

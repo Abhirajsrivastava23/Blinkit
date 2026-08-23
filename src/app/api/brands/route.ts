@@ -3,7 +3,7 @@ import { db } from '../../../data/db';
 
 export async function GET() {
   try {
-    const brands = db.readTable('brands');
+    const brands = await db.readTable('brands');
     return NextResponse.json(brands);
   } catch (error) {
     console.error('Error fetching brands:', error);

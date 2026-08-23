@@ -3,7 +3,7 @@ import { db } from '../../../data/db';
 
 export async function GET() {
   try {
-    const categories = db.readTable('categories');
+    const categories = await db.readTable('categories');
     return NextResponse.json(categories);
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing category name or slug.' }, { status: 400 });
     }
 
-    const categories = db.readTable<any>('categories');
+    const categories = await db.readTable<any>('categories');
     const isExists = categories.some(c => c.slug === slug);
     if (isExists) {
       return NextResponse.json({ error: 'Category slug must be unique.' }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     };
 
     categories.push(newCategory);
-    db.writeTable('categories', categories);
+    await db.writeTable('categories', categories);
 
     db.logActivity('Admin Console', 'Added Category', name, 'N/A', `Slug: ${slug}`);
 

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     }
 
     if (session.role === 'admin') {
-      const admins = db.readTable<any>('admin') || [];
+      const admins = await db.readTable<any>('admin') || [];
       const adminObj = admins.find(a => a.email.toLowerCase() === session.email.toLowerCase());
       if (!adminObj) {
         return NextResponse.json({ authenticated: false, error: 'Admin record not found' }, { status: 401 });
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     }
 
     if (session.role === 'delivery_partner') {
-      const partners = db.readTable<any>('partners') || [];
+      const partners = await db.readTable<any>('partners') || [];
       const partnerObj = partners.find(p => p.id === session.userId);
       if (!partnerObj) {
         return NextResponse.json({ authenticated: false, error: 'Delivery partner record not found' }, { status: 401 });

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email and wellnessAccessStatus are required' }, { status: 400 });
     }
 
-    const users = db.readTable<any>('users') || [];
+    const users = await db.readTable<any>('users') || [];
     const idx = users.findIndex((u: any) => u.email === email);
     
     if (idx === -1) {
@@ -30,10 +30,10 @@ export async function POST(request: Request) {
     }
     
     users[idx] = user;
-    db.writeTable('users', users);
+    await db.writeTable('users', users);
 
     // Save event to central audit table
-    const auditLogs = db.readTable<any>('auditLogs') || [];
+    const auditLogs = await db.readTable<any>('auditLogs') || [];
     
     let actionLabel = 'Wellness access requested';
     if (wellnessAccessStatus === 'APPROVED') actionLabel = 'Wellness access approved';
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     };
     
     auditLogs.push(auditEvent);
-    db.writeTable('auditLogs', auditLogs);
+    await db.writeTable('auditLogs', auditLogs);
 
     return NextResponse.json({ success: true, user });
   } catch (err) {

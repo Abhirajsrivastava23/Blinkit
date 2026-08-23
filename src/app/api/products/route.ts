@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const isWellnessReq = wellness === 'true' || category === 'wellness';
     if (isWellnessReq) {
       const userEmail = request.headers.get('x-user-email') || '';
-      const users = db.readTable<any>('users') || [];
+      const users = await db.readTable<any>('users') || [];
       const userObj = users.find((u: any) => u.email === userEmail);
       
       if (!userObj || userObj.wellnessAccessStatus !== 'APPROVED') {
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       }
     }
 
-    let products = db.readTable<Product>('products');
+    let products = await db.readTable<Product>('products');
 
     // Filter by store category (Wellness vs normal store)
     if (wellness === 'true') {
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing mandatory fields: name, price, category, or image.' }, { status: 400 });
     }
 
-    const products = db.readTable<Product>('products');
+    const products = await db.readTable<Product>('products');
     
     // Auto-generate safe slug and SKU
     const slug = name.toLowerCase().trim().replace(/ /g, '-').replace(/[^\w-]+/g, '');
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
     };
 
     products.push(newProduct);
-    db.writeTable('products', products);
+    await db.writeTable('products', products);
 
     // Audit Log
     db.logActivity('Admin Console', 'Added Product', name, 'N/A', `SKU: ${generatedSku}, Price: ₹${price}`);

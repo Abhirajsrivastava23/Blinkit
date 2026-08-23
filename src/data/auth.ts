@@ -17,8 +17,8 @@ export function hashPassword(password: string): string {
 }
 
 // 2. Create session token and store it
-export function createSession(userId: string, email: string, role: string): Session {
-  const sessions = db.readTable<Session>('sessions') || [];
+export async function createSession(userId: string, email: string, role: string): Promise<Session> {
+  const sessions = await db.readTable<Session>('sessions') || [];
   const sessionId = 'sess-' + crypto.randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
@@ -31,7 +31,7 @@ export function createSession(userId: string, email: string, role: string): Sess
   };
 
   sessions.push(newSession);
-  db.writeTable('sessions', sessions);
+  await db.writeTable('sessions', sessions);
   return newSession;
 }
 
@@ -59,14 +59,14 @@ export async function getSession(request?: Request): Promise<Session | null> {
 
   if (!token) return null;
 
-  const sessions = db.readTable<Session>('sessions') || [];
+  const sessions = await db.readTable<Session>('sessions') || [];
   const session = sessions.find(s => s.sessionId === token);
   if (!session) return null;
 
   // Validate expiration
   if (new Date(session.expiresAt) < new Date()) {
     // Delete expired session
-    db.writeTable('sessions', sessions.filter(s => s.sessionId !== token));
+    await db.writeTable('sessions', sessions.filter(s => s.sessionId !== token));
     return null;
   }
 
@@ -74,9 +74,9 @@ export async function getSession(request?: Request): Promise<Session | null> {
 }
 
 // 4. Delete session (Logout)
-export function deleteSession(sessionId: string): void {
-  const sessions = db.readTable<Session>('sessions') || [];
-  db.writeTable('sessions', sessions.filter(s => s.sessionId !== sessionId));
+export async function deleteSession(sessionId: string): Promise<void> {
+  const sessions = await db.readTable<Session>('sessions') || [];
+  await db.writeTable('sessions', sessions.filter(s => s.sessionId !== sessionId));
 }
 
 // 5. Endpoint guard helper to check required roles

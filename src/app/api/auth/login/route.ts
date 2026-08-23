@@ -24,11 +24,11 @@ export async function POST(request: Request) {
     const hashedInput = hashPassword(password);
 
     // 1. Check Admin Account (only one admin configuration exists in admin.json)
-    const admins = db.readTable<any>('admin') || [];
+    const admins = await db.readTable<any>('admin') || [];
     const adminObj = admins.find(a => a.email.toLowerCase() === emailOrId.toLowerCase().trim());
     if (adminObj) {
       if (adminObj.passwordHash === hashedInput) {
-        const session = createSession(adminObj.email, adminObj.email, 'admin');
+        const session = await createSession(adminObj.email, adminObj.email, 'admin');
         const response = NextResponse.json({
           success: true,
           user: {
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Check Delivery Partner Accounts
-    const partners = db.readTable<any>('partners') || [];
+    const partners = await db.readTable<any>('partners') || [];
     const partnerObj = partners.find(
       p => p.id.toLowerCase() === emailOrId.toLowerCase().trim() ||
            p.email.toLowerCase() === emailOrId.toLowerCase().trim()
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       }
 
       if (partnerObj.passwordHash === hashedInput) {
-        const session = createSession(partnerObj.id, partnerObj.email, 'delivery_partner');
+        const session = await createSession(partnerObj.id, partnerObj.email, 'delivery_partner');
         const response = NextResponse.json({
           success: true,
           user: {

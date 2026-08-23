@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     // Security: Prevent partner impersonation by overriding partnerId with the verified session userId
     const partnerId = session.role === 'admin' ? (body.partnerId || 'admin') : session.userId;
 
-    const reports = db.readTable<any>('inventoryIssues') || [];
+    const reports = await db.readTable<any>('inventoryIssues') || [];
     const newReport = {
       id: 'iss-' + Math.floor(100000 + Math.random() * 900000),
       productId,
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     };
 
     reports.unshift(newReport);
-    db.writeTable('inventoryIssues', reports);
+    await db.writeTable('inventoryIssues', reports);
     db.logActivity('Delivery Partner', 'Reported Stock Issue', productName, `Order: ${orderId}`, `Reason: ${reason}`);
 
     return NextResponse.json({ success: true, report: newReport });

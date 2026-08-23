@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const orders = db.readTable<any>('orders') || [];
+    const orders = await db.readTable<any>('orders') || [];
     const idx = orders.findIndex((o: any) => o.id === id);
     if (idx === -1) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       action: 'Regenerated OTP'
     });
 
-    db.writeTable('orders', orders);
+    await db.writeTable('orders', orders);
 
     return NextResponse.json({ success: true, deliveryOtp: newOtp });
   } catch (err) {

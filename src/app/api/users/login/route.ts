@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const users = db.readTable<any>('users') || [];
+    const users = await db.readTable<any>('users') || [];
     const idx = users.findIndex((u: any) => u.email === email);
     
     let finalUser: any;
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       users.push(finalUser);
     }
     
-    db.writeTable('users', users);
+    await db.writeTable('users', users);
     return NextResponse.json(finalUser);
   } catch (err) {
     console.error('Error logging in user:', err);

@@ -3,7 +3,7 @@ import { db } from '../../../data/db';
 
 export async function GET() {
   try {
-    const config = db.readHomepage();
+    const config = await db.readHomepage();
     return NextResponse.json(config);
   } catch (err) {
     console.error(err);
@@ -14,7 +14,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const current = db.readHomepage();
+    const current = await db.readHomepage();
     const updated = {
       ...current,
       ...body,
@@ -23,7 +23,7 @@ export async function PATCH(req: Request) {
         ...(body.sectionsVisibility || {})
       }
     };
-    db.writeHomepage(updated);
+    await db.writeHomepage(updated);
     db.logActivity('Admin', 'Homepage Redesign Update', 'Storefront Layout Configuration', JSON.stringify(current), JSON.stringify(updated));
     return NextResponse.json(updated);
   } catch (err) {

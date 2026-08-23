@@ -5,7 +5,7 @@ export async function PATCH(request: Request, context: any) {
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const categories = db.readTable<any>('categories');
+    const categories = await db.readTable<any>('categories');
     const idx = categories.findIndex(c => c.id === id);
 
     if (idx === -1) {
@@ -19,7 +19,7 @@ export async function PATCH(request: Request, context: any) {
     };
 
     categories[idx] = updated;
-    db.writeTable('categories', categories);
+    await db.writeTable('categories', categories);
 
     db.logActivity('Admin Console', 'Updated Category', prev.name, `Status: ${prev.status}`, `Status: ${updated.status}`);
 
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, context: any) {
 export async function DELETE(request: Request, context: any) {
   try {
     const { id } = await context.params;
-    const categories = db.readTable<any>('categories');
+    const categories = await db.readTable<any>('categories');
     const idx = categories.findIndex(c => c.id === id);
 
     if (idx === -1) {
@@ -42,7 +42,7 @@ export async function DELETE(request: Request, context: any) {
 
     const name = categories[idx].name;
     categories.splice(idx, 1);
-    db.writeTable('categories', categories);
+    await db.writeTable('categories', categories);
 
     db.logActivity('Admin Console', 'Deleted Category', name, 'Active Category', 'Removed');
 
