@@ -5,6 +5,7 @@ import { createSession } from '../../../../data/auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
+  let step = 'init';
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
 
     const showDiagnostics = searchParams.get('diagnostics') === 'true';
 
+    step = 'check-config';
     // Secure environment diagnostics check (boolean checks and partial suffix to prevent secret leakage)
     if (!clientId || !clientSecret || !authSecret || showDiagnostics) {
       console.error('Google authentication configuration check.');
@@ -46,6 +48,7 @@ export async function GET(request: Request) {
       }
 
       // 1. Exchange authorization code for token
+      step = 'exchange-code';
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,6 +71,7 @@ export async function GET(request: Request) {
       const { access_token } = tokenData;
 
       // 2. Fetch user profile from Google userinfo endpoint
+      step = 'fetch-userinfo';
       const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${access_token}` }
       });
@@ -85,12 +89,14 @@ export async function GET(request: Request) {
       }
 
       // 3. Resolve or create customer account record
+      step = 'db-read-users';
       const users = await db.readTable<any>('users') || [];
       let customer = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() || u.googleProviderId === sub);
 
       const now = new Date().toISOString();
 
       if (customer) {
+        step = 'db-update-user';
         customer.googleProviderId = sub;
         customer.name = name || customer.name;
         if (picture) {
@@ -99,6 +105,7 @@ export async function GET(request: Request) {
         customer.lastLoginAt = now;
         await db.writeTable('users', users);
       } else {
+        step = 'db-create-user';
         customer = {
           userId: 'u-' + Math.floor(1000 + Math.random() * 9000),
           googleProviderId: sub,
@@ -114,10 +121,11 @@ export async function GET(request: Request) {
       }
 
       // 4. Issue customer session
+      step = 'create-session';
       const session = await createSession(customer.userId, customer.email, 'customer');
 
       // 5. Set session cookie and redirect to intended destination
-      // Using an HTML meta refresh response to prevent Vercel edge routes from stripping headers during redirects
+      step = 'create-cookie';
       const response = new NextResponse(
         `<html><head><meta http-equiv="refresh" content="0;url=${encodeURI(callback)}" /></head><body><script>window.location.href="${callback}";</script></body></html>`,
         {
@@ -138,6 +146,7 @@ export async function GET(request: Request) {
     }
 
     // B. Initiate Authorization flow
+    step = 'initiate-auth-flow';
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${encodeURIComponent(clientId)}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
@@ -148,8 +157,13 @@ export async function GET(request: Request) {
       `&prompt=select_account`;
 
     return NextResponse.redirect(googleAuthUrl);
-  } catch (err) {
-    console.error('Error handling Google login Route:', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  } catch (err: any) {
+    console.error(`Error handling Google login Route at step [${step}]:`, err);
+    return NextResponse.json({
+      error: 'Server error',
+      message: err.message || String(err),
+      step,
+      stack: err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : undefined
+    }, { status: 500 });
   }
 }
