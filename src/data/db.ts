@@ -97,11 +97,11 @@ if (!isProduction) {
 }
 
 // MongoDB connection setup
-const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
+const uri = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
 let client: MongoClient | null = null;
 let clientPromise: Promise<MongoClient> | null = null;
 
-if (uri && uri.startsWith('mongodb')) {
+if (uri) {
   if (process.env.NODE_ENV === 'development') {
     const globalWithMongo = global as typeof globalThis & {
       _mongoClientPromise?: Promise<MongoClient>;

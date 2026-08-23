@@ -38,6 +38,8 @@ export async function GET(request: Request) {
           environment: process.env['NODE_ENV'] || 'unknown',
           calculatedRedirectUri: redirectUri,
           mongodbUriExists: !!(process.env.MONGODB_URI || process.env.DATABASE_URL),
+          mongodbUriLength: (process.env.MONGODB_URI || process.env.DATABASE_URL || '').length,
+          mongodbUriStart: (process.env.MONGODB_URI || process.env.DATABASE_URL || '').substring(0, 15),
           mongodbDbExists: !!process.env.MONGODB_DB,
           mongodbConnectOk: testDb.ok,
           mongodbConnectError: testDb.error
