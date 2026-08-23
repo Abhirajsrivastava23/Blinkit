@@ -110,12 +110,18 @@ if (uri) {
         _mongoClientPromise?: Promise<MongoClient>;
       };
       if (!globalWithMongo._mongoClientPromise) {
-        client = new MongoClient(uri);
+        client = new MongoClient(uri, {
+          serverSelectionTimeoutMS: 5000,
+          connectTimeoutMS: 5000
+        });
         globalWithMongo._mongoClientPromise = client.connect();
       }
       clientPromise = globalWithMongo._mongoClientPromise;
     } else {
-      client = new MongoClient(uri);
+      client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000
+      });
       clientPromise = client.connect();
     }
   } catch (err: any) {
