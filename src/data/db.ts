@@ -34,13 +34,15 @@ export interface PartnerRecord {
   isOnline: boolean;
 }
 
-// Local filesystem fallback configuration
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
+// Local filesystem fallback configuration (development only)
 const SEED_DIR = path.join(process.cwd(), 'src/data/db');
-const DB_DIR = process.env.NODE_ENV === 'production' || process.env.VERCEL
+const DB_DIR = isProduction
   ? '/tmp/fatafat_db'
   : SEED_DIR;
 
-if (!fs.existsSync(DB_DIR)) {
+if (!isProduction && !fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
@@ -86,11 +88,13 @@ function ensureFileExists(key: keyof typeof PATHS) {
   }
 }
 
-// Ensure local fallback files exist
-ensureFileExists('admin');
-ensureFileExists('partners');
-ensureFileExists('sessions');
-ensureFileExists('inventoryIssues');
+// Ensure local fallback files exist in development only
+if (!isProduction) {
+  ensureFileExists('admin');
+  ensureFileExists('partners');
+  ensureFileExists('sessions');
+  ensureFileExists('inventoryIssues');
+}
 
 // MongoDB connection setup
 const uri = process.env.MONGODB_URI || process.env.DATABASE_URL;
@@ -224,6 +228,10 @@ export const db = {
       }
     }
 
+    if (isProduction) {
+      throw new Error(`Database connection failed in production mode for reading table: ${key}`);
+    }
+
     // Local JSON DB fallback
     try {
       const filePath = PATHS[key];
@@ -253,6 +261,10 @@ export const db = {
         console.error(`MongoDB error writing table ${key}:`, err);
         return false;
       }
+    }
+
+    if (isProduction) {
+      throw new Error(`Database connection failed in production mode for writing table: ${key}`);
     }
 
     // Local JSON DB fallback
@@ -285,6 +297,10 @@ export const db = {
       }
     }
 
+    if (isProduction) {
+      throw new Error(`Database connection failed in production mode for reading homepage config`);
+    }
+
     // Local JSON DB fallback
     try {
       if (!fs.existsSync(PATHS.homepage)) return {};
@@ -313,6 +329,10 @@ export const db = {
         console.error('MongoDB error writing homepage config:', err);
         return false;
       }
+    }
+
+    if (isProduction) {
+      throw new Error(`Database connection failed in production mode for writing homepage config`);
     }
 
     // Local JSON DB fallback
@@ -346,6 +366,11 @@ export const db = {
       } catch (err) {
         console.error('MongoDB error logging activity:', err);
       }
+    }
+
+    if (isProduction) {
+      console.error('Database connection failed in production mode for logging activity');
+      return;
     }
 
     // Local JSON DB fallback
