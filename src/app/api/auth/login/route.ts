@@ -97,8 +97,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error in auth login endpoint:', err);
-    return NextResponse.json({ error: 'Server error', message: err.message || String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
