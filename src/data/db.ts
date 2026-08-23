@@ -123,13 +123,16 @@ if (uri) {
   }
 }
 
+let mongoConnectError = '';
+
 async function getMongoDb(): Promise<Db | null> {
   if (!clientPromise) return null;
   try {
     const connectedClient = await clientPromise;
     return connectedClient.db(process.env.MONGODB_DB || 'fatafat');
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to connect to MongoDB:', err);
+    mongoConnectError = err.message || String(err);
     return null;
   }
 }
@@ -223,7 +226,7 @@ export const db = {
     try {
       const mongoDb = await getMongoDb();
       if (!mongoDb) {
-        return { ok: false, error: 'MongoClient is not configured or connection URI is missing' };
+        return { ok: false, error: mongoConnectError || 'MongoClient is not configured or connection URI is missing' };
       }
       await mongoDb.collection('users').countDocuments();
       return { ok: true };
