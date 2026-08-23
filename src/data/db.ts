@@ -71,13 +71,16 @@ if (connectionString) {
         connectionString,
         connectionTimeoutMillis: 5000,
         idleTimeoutMillis: 10000,
-        max: 10
+        max: 10,
+        ssl: {
+          rejectUnauthorized: false
+        }
       });
     }
     pool = globalWithPg._pgPool;
-  } catch (err: any) {
+  } catch (err) {
     console.error('Failed to initialize PostgreSQL pool:', err);
-    dbInitError = err.message || String(err);
+    dbInitError = err instanceof Error ? err.message : String(err);
   }
 } else {
   dbInitError = 'PostgreSQL connection URL (POSTGRES_URL/DATABASE_URL) is missing';
