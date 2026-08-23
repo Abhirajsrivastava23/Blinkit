@@ -1,8 +1,7 @@
-// Redeploy trigger: 2026-08-23
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { MongoClient, Db } from 'mongodb';
+import { Pool } from 'pg';
 
 export interface AuditLogRecord {
   id: string;
@@ -35,31 +34,8 @@ export interface PartnerRecord {
   isOnline: boolean;
 }
 
-const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
-
-// Local filesystem fallback configuration (development only)
+// Local filesystem seeding configuration (seeding source only)
 const SEED_DIR = path.join(process.cwd(), 'src/data/db');
-const DB_DIR = isProduction
-  ? '/tmp/fatafat_db'
-  : SEED_DIR;
-
-if (!isProduction && !fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
-}
-
-const PATHS = {
-  products: path.join(DB_DIR, 'products.json'),
-  categories: path.join(DB_DIR, 'categories.json'),
-  brands: path.join(DB_DIR, 'brands.json'),
-  auditLogs: path.join(DB_DIR, 'audit_logs.json'),
-  homepage: path.join(DB_DIR, 'homepage.json'),
-  users: path.join(DB_DIR, 'users.json'),
-  orders: path.join(DB_DIR, 'orders.json'),
-  admin: path.join(DB_DIR, 'admin.json'),
-  partners: path.join(DB_DIR, 'partners.json'),
-  sessions: path.join(DB_DIR, 'sessions.json'),
-  inventoryIssues: path.join(DB_DIR, 'inventory_issues.json')
-};
 
 const FILE_NAMES: Record<string, string> = {
   products: 'products.json',
@@ -75,96 +51,275 @@ const FILE_NAMES: Record<string, string> = {
   inventoryIssues: 'inventory_issues.json'
 };
 
-function ensureFileExists(key: keyof typeof PATHS) {
-  const filePath = PATHS[key];
-  if (!fs.existsSync(filePath)) {
-    const seedPath = path.join(SEED_DIR, FILE_NAMES[key]);
-    if (fs.existsSync(seedPath)) {
-      try {
-        fs.copyFileSync(seedPath, filePath);
-      } catch (err) {
-        console.error(`Failed to copy seed file for ${key}:`, err);
-      }
-    }
-  }
-}
+// PostgreSQL pool connection caching for Serverless envs
+const connectionString = (
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL ||
+  ''
+).trim();
 
-// Ensure local fallback files exist in development only
-if (!isProduction) {
-  ensureFileExists('admin');
-  ensureFileExists('partners');
-  ensureFileExists('sessions');
-  ensureFileExists('inventoryIssues');
-}
+let pool: Pool | null = null;
+let dbInitError = '';
 
-// MongoDB connection setup
-const uri = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
-let client: MongoClient | null = null;
-let clientPromise: Promise<MongoClient> | null = null;
-let mongoInitError = '';
-
-if (uri) {
+if (connectionString) {
   try {
-    if (process.env.NODE_ENV === 'development') {
-      const globalWithMongo = global as typeof globalThis & {
-        _mongoClientPromise?: Promise<MongoClient>;
-      };
-      if (!globalWithMongo._mongoClientPromise) {
-        client = new MongoClient(uri, {
-          serverSelectionTimeoutMS: 5000,
-          connectTimeoutMS: 5000
-        });
-        globalWithMongo._mongoClientPromise = client.connect();
-      }
-      clientPromise = globalWithMongo._mongoClientPromise;
-    } else {
-      client = new MongoClient(uri, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000
+    const globalWithPg = global as typeof globalThis & {
+      _pgPool?: Pool;
+    };
+    if (!globalWithPg._pgPool) {
+      globalWithPg._pgPool = new Pool({
+        connectionString,
+        connectionTimeoutMillis: 5000,
+        idleTimeoutMillis: 10000,
+        max: 10
       });
-      clientPromise = client.connect();
     }
+    pool = globalWithPg._pgPool;
   } catch (err: any) {
-    console.error('Failed to initialize MongoClient:', err);
-    mongoInitError = err.message || String(err);
+    console.error('Failed to initialize PostgreSQL pool:', err);
+    dbInitError = err.message || String(err);
   }
+} else {
+  dbInitError = 'PostgreSQL connection URL (POSTGRES_URL/DATABASE_URL) is missing';
 }
 
-let mongoConnectError = '';
+let isSchemaCreated = false;
+let isSchemaCreating = false;
 
-async function getMongoDb(): Promise<Db | null> {
-  if (!clientPromise) return null;
+async function ensureSchema(p: Pool) {
+  if (isSchemaCreated || isSchemaCreating) return;
+  isSchemaCreating = true;
+  const client = await p.connect();
   try {
-    const connectedClient = await clientPromise;
-    return connectedClient.db(process.env.MONGODB_DB || 'fatafat');
-  } catch (err: any) {
-    console.error('Failed to connect to MongoDB:', err);
-    mongoConnectError = err.message || String(err);
-    return null;
+    await client.query('BEGIN');
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255),
+        image VARCHAR(255),
+        "itemCount" INTEGER DEFAULT 0
+      );
+    `);
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS brands (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255),
+        logo VARCHAR(255),
+        "itemCount" INTEGER DEFAULT 0
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        price NUMERIC NOT NULL,
+        "originalPrice" NUMERIC,
+        image VARCHAR(255),
+        category VARCHAR(255) NOT NULL,
+        brand VARCHAR(255),
+        rating NUMERIC DEFAULT 0,
+        reviews INTEGER DEFAULT 0,
+        stock INTEGER DEFAULT 0,
+        unit VARCHAR(50),
+        "isWellness" BOOLEAN DEFAULT FALSE,
+        "wellnessAgeVerifyRequired" BOOLEAN DEFAULT FALSE,
+        tags JSONB
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        "userId" VARCHAR(255) PRIMARY KEY,
+        "googleProviderId" VARCHAR(255),
+        name VARCHAR(255),
+        email VARCHAR(255) UNIQUE,
+        "profileImage" VARCHAR(255),
+        "createdAt" VARCHAR(255),
+        "lastLoginAt" VARCHAR(255),
+        "wellnessAccessStatus" VARCHAR(255),
+        "wellnessRequestId" VARCHAR(255),
+        "wellnessApprovedAt" VARCHAR(255),
+        "wellnessApprovedBy" VARCHAR(255),
+        phone VARCHAR(255),
+        dob VARCHAR(255),
+        gender VARCHAR(255),
+        addresses JSONB
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        "sessionId" VARCHAR(255) PRIMARY KEY,
+        "userId" VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        role VARCHAR(255) NOT NULL,
+        "expiresAt" VARCHAR(255) NOT NULL
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin (
+        email VARCHAR(255) PRIMARY KEY,
+        "passwordHash" VARCHAR(255) NOT NULL,
+        name VARCHAR(255),
+        phone VARCHAR(255),
+        role VARCHAR(50) DEFAULT 'admin'
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS partners (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(255),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        "passwordHash" VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'delivery_partner',
+        "locationId" VARCHAR(255),
+        "locationName" VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'Active',
+        "isOnline" BOOLEAN DEFAULT FALSE
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS config (
+        key VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "inventoryIssues" (
+        id VARCHAR(255) PRIMARY KEY,
+        "productId" VARCHAR(255) NOT NULL,
+        "productName" VARCHAR(255),
+        issue VARCHAR(255),
+        status VARCHAR(255),
+        "createdAt" VARCHAR(255)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "auditLogs" (
+        id VARCHAR(255) PRIMARY KEY,
+        "adminUser" VARCHAR(255),
+        action VARCHAR(255),
+        "dateTime" VARCHAR(255),
+        product VARCHAR(255),
+        "previousValue" TEXT,
+        "newValue" TEXT
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id VARCHAR(255) PRIMARY KEY,
+        "customerId" VARCHAR(255) NOT NULL,
+        items JSONB NOT NULL,
+        subtotal NUMERIC NOT NULL,
+        "deliveryFee" NUMERIC DEFAULT 0,
+        discount NUMERIC DEFAULT 0,
+        total NUMERIC NOT NULL,
+        address JSONB NOT NULL,
+        status VARCHAR(255) NOT NULL,
+        "deliveryOption" VARCHAR(255),
+        eta VARCHAR(255),
+        "createdAt" VARCHAR(255) NOT NULL,
+        "deliveryLocationId" VARCHAR(255),
+        "deliveryLocationName" VARCHAR(255),
+        "deliveryOtp" VARCHAR(255),
+        "otpFailedAttempts" INTEGER DEFAULT 0,
+        "otpExpiresAt" VARCHAR(255),
+        "statusHistory" JSONB,
+        "assignedPartnerId" VARCHAR(255),
+        "assignedPartnerName" VARCHAR(255),
+        "assignedAt" VARCHAR(255)
+      );
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders("customerId")');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_assigned_partner_id ON orders("assignedPartnerId")');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions("userId")');
+
+    await client.query('COMMIT');
+    isSchemaCreated = true;
+    console.log('PostgreSQL schema and indexes initialized.');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Failed to initialize PostgreSQL schema:', err);
+    throw err;
+  } finally {
+    client.release();
+    isSchemaCreating = false;
   }
 }
 
-// Seeding tracker for MongoDB
+async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
+  const keys = Object.keys(item);
+  const cols = keys.map(k => {
+    if (k === 'itemCount' || k === 'originalPrice' || k === 'isWellness' || 
+        k === 'wellnessAgeVerifyRequired' || k === 'userId' || k === 'googleProviderId' || 
+        k === 'profileImage' || k === 'createdAt' || k === 'lastLoginAt' || 
+        k === 'wellnessAccessStatus' || k === 'wellnessRequestId' || 
+        k === 'wellnessApprovedAt' || k === 'wellnessApprovedBy' || 
+        k === 'sessionId' || k === 'expiresAt' || k === 'passwordHash' || 
+        k === 'locationId' || k === 'locationName' || k === 'isOnline' || 
+        k === 'productId' || k === 'productName' || k === 'adminUser' || 
+        k === 'dateTime' || k === 'previousValue' || k === 'newValue' || 
+        k === 'customerId' || k === 'deliveryFee' || k === 'deliveryOption' || 
+        k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
+        k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
+        k === 'statusHistory' || k === 'assignedPartnerId' || 
+        k === 'assignedPartnerName' || k === 'assignedAt') {
+      return `"${k}"`;
+    }
+    return k;
+  }).join(', ');
+  
+  const vals = keys.map((_, i) => `$${i + 1}`).join(', ');
+  const queryText = `INSERT INTO "${table}" (${cols}) VALUES (${vals}) ON CONFLICT DO NOTHING`;
+  
+  const queryVals = keys.map(k => {
+    const v = item[k];
+    if (v && typeof v === 'object') {
+      return JSON.stringify(v);
+    }
+    return v;
+  });
+  
+  await p.query(queryText, queryVals);
+}
+
 let isSeeding = false;
 let isSeeded = false;
 
-const getRuntimeSalt = () => process.env['AUTH_SECRET'] || 'fatafat_salt';
-
-async function ensureMongoSeeded(mongoDb: Db) {
+async function ensureSeeded(p: Pool) {
   if (isSeeded || isSeeding) return;
   isSeeding = true;
   try {
-    const salt = getRuntimeSalt();
+    const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
     const hash = crypto.createHash('sha256').update('admin123' + salt).digest('hex');
     const riderHash = crypto.createHash('sha256').update('rider123' + salt).digest('hex');
 
-    for (const key of Object.keys(PATHS) as Array<keyof typeof PATHS>) {
-      const collection = mongoDb.collection(key);
-      const count = await collection.countDocuments();
+    const tableKeys: Array<'products' | 'categories' | 'brands' | 'admin' | 'partners' | 'users' | 'orders' | 'inventoryIssues' | 'auditLogs' | 'sessions'> = [
+      'admin', 'partners', 'categories', 'brands', 'products', 'users', 'orders', 'inventoryIssues', 'auditLogs', 'sessions'
+    ];
+
+    for (const key of tableKeys) {
+      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
+      const countRes = await p.query(`SELECT COUNT(*) FROM "${tableName}"`);
+      const count = parseInt(countRes.rows[0].count, 10);
+      
       if (count === 0) {
-        let seedData: any[] = [];
-        
-        // Custom seeding rules for admin/partners hashes with active salts
+        let seedData: unknown[] = [];
         if (key === 'admin') {
           seedData = [
             { email: 'superadmin@fatafat.com', passwordHash: hash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
@@ -179,7 +334,6 @@ async function ensureMongoSeeded(mongoDb: Db) {
             { id: 'DP-003', name: 'Rider Local', phone: '7777777777', email: 'rider@fatafat.local', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true }
           ];
         } else {
-          // Read from seed JSON files
           const seedFilePath = path.join(SEED_DIR, FILE_NAMES[key]);
           if (fs.existsSync(seedFilePath)) {
             const content = fs.readFileSync(seedFilePath, 'utf8');
@@ -187,30 +341,31 @@ async function ensureMongoSeeded(mongoDb: Db) {
           }
         }
 
-        // Filter out any mock/test orders
         if (key === 'orders' && Array.isArray(seedData)) {
-          seedData = seedData.filter((o: any) => o && o.id && !o.id.startsWith('FT-TEST-'));
+          seedData = seedData.filter((o) => {
+            const ord = o as Record<string, unknown>;
+            return !!(ord && ord.id && typeof ord.id === 'string' && !ord.id.startsWith('FT-TEST-'));
+          });
         }
 
         if (Array.isArray(seedData) && seedData.length > 0) {
-          await collection.insertMany(seedData);
-          console.log(`Seeded MongoDB collection "${key}" successfully.`);
+          for (const item of seedData) {
+            await insertRow(p, tableName, item as Record<string, unknown>);
+          }
+          console.log(`Seeded PostgreSQL table "${tableName}" successfully.`);
         }
       }
     }
 
-    // Seed homepage config
-    const configCol = mongoDb.collection('config');
-    const homepageDoc = await configCol.findOne({ key: 'homepage' });
-    if (!homepageDoc) {
+    const configCount = await p.query("SELECT COUNT(*) FROM config WHERE key = 'homepage'");
+    if (parseInt(configCount.rows[0].count, 10) === 0) {
       const seedFilePath = path.join(SEED_DIR, 'homepage.json');
       if (fs.existsSync(seedFilePath)) {
         const content = fs.readFileSync(seedFilePath, 'utf8');
         const data = JSON.parse(content);
-        await configCol.updateOne(
-          { key: 'homepage' },
-          { $set: { ...data } },
-          { upsert: true }
+        await p.query(
+          'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
+          ['homepage', JSON.stringify(data)]
         );
         console.log('Seeded homepage config successfully.');
       }
@@ -218,205 +373,184 @@ async function ensureMongoSeeded(mongoDb: Db) {
 
     isSeeded = true;
   } catch (err) {
-    console.error('Failed to seed MongoDB:', err);
+    console.error('Failed to seed PostgreSQL:', err);
   } finally {
     isSeeding = false;
   }
 }
 
-// Database helper functions (asynchronous wrapper)
 export const db = {
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
-    if (mongoInitError) {
-      return { ok: false, error: `MongoClient initialization failed: ${mongoInitError}` };
+    if (dbInitError) {
+      return { ok: false, error: dbInitError };
+    }
+    if (!pool) {
+      return { ok: false, error: 'PostgreSQL connection pool is not configured' };
     }
     try {
-      const mongoDb = await getMongoDb();
-      if (!mongoDb) {
-        return { ok: false, error: mongoConnectError || 'MongoClient is not configured or connection URI is missing' };
+      const res = await pool.query('SELECT NOW()');
+      if (res.rows.length > 0) {
+        return { ok: true };
       }
-      await mongoDb.collection('users').countDocuments();
-      return { ok: true };
-    } catch (err: any) {
-      return { ok: false, error: err.message || String(err) };
-    }
-  },
-
-  // Read any table (supports MongoDB with filesystem fallback)
-  async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues'): Promise<T[]> {
-    const mongoDb = await getMongoDb();
-    if (mongoDb) {
-      await ensureMongoSeeded(mongoDb);
-      try {
-        const collection = mongoDb.collection(key);
-        const docs = await collection.find({}).toArray();
-        return docs.map(d => {
-          const { _id, ...rest } = d;
-          return rest;
-        }) as unknown as T[];
-      } catch (err) {
-        console.error(`MongoDB error reading table ${key}:`, err);
-        throw err;
-      }
-    }
-
-    if (isProduction) {
-      throw new Error(`Database connection failed in production mode for reading table: ${key}`);
-    }
-
-    // Local JSON DB fallback
-    try {
-      const filePath = PATHS[key];
-      if (!fs.existsSync(filePath)) return [];
-      const content = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(content);
+      return { ok: false, error: 'Query executed but returned no results' };
     } catch (err) {
-      console.error(`Error reading database table ${key}:`, err);
-      return [];
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   },
 
-  // Write any table (supports MongoDB with filesystem fallback)
-  async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues', data: T[]): Promise<boolean> {
-    const mongoDb = await getMongoDb();
-    if (mongoDb) {
-      await ensureMongoSeeded(mongoDb);
-      try {
-        const collection = mongoDb.collection(key);
-        await collection.deleteMany({});
-        if (data.length > 0) {
-          const docs = data.map(item => ({ ...item }));
-          await collection.insertMany(docs as any);
-        }
-        return true;
-      } catch (err) {
-        console.error(`MongoDB error writing table ${key}:`, err);
-        return false;
-      }
+  async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues'): Promise<T[]> {
+    if (!pool) {
+      throw new Error(`Database connection URL is missing. Failed to read table ${key}`);
     }
-
-    if (isProduction) {
-      throw new Error(`Database connection failed in production mode for writing table: ${key}`);
-    }
-
-    // Local JSON DB fallback
+    await ensureSchema(pool);
+    await ensureSeeded(pool);
+    
     try {
-      const filePath = PATHS[key];
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
+      const res = await pool.query(`SELECT * FROM "${tableName}"`);
+      
+      return res.rows.map(row => {
+        const parsed: Record<string, unknown> = {};
+        for (const col of Object.keys(row)) {
+          const val = row[col];
+          if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address') {
+            if (typeof val === 'string') {
+              try {
+                parsed[col] = JSON.parse(val);
+              } catch {
+                parsed[col] = val;
+              }
+            } else {
+              parsed[col] = val;
+            }
+          } else {
+            parsed[col] = val;
+          }
+        }
+        return parsed;
+      }) as unknown as T[];
+    } catch (err) {
+      console.error(`PostgreSQL error reading table ${key}:`, err);
+      throw err;
+    }
+  },
+
+  async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues', data: T[]): Promise<boolean> {
+    if (!pool) {
+      throw new Error(`Database connection URL is missing. Failed to write table ${key}`);
+    }
+    await ensureSchema(pool);
+    await ensureSeeded(pool);
+    
+    const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM "${tableName}"`);
+      
+      for (const item of data) {
+        const record = item as Record<string, unknown>;
+        const keys = Object.keys(record);
+        if (keys.length === 0) continue;
+        
+        const cols = keys.map(k => {
+          if (k === 'itemCount' || k === 'originalPrice' || k === 'isWellness' || 
+              k === 'wellnessAgeVerifyRequired' || k === 'userId' || k === 'googleProviderId' || 
+              k === 'profileImage' || k === 'createdAt' || k === 'lastLoginAt' || 
+              k === 'wellnessAccessStatus' || k === 'wellnessRequestId' || 
+              k === 'wellnessApprovedAt' || k === 'wellnessApprovedBy' || 
+              k === 'sessionId' || k === 'expiresAt' || k === 'passwordHash' || 
+              k === 'locationId' || k === 'locationName' || k === 'isOnline' || 
+              k === 'productId' || k === 'productName' || k === 'adminUser' || 
+              k === 'dateTime' || k === 'previousValue' || k === 'newValue' || 
+              k === 'customerId' || k === 'deliveryFee' || k === 'deliveryOption' || 
+              k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
+              k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
+              k === 'statusHistory' || k === 'assignedPartnerId' || 
+              k === 'assignedPartnerName' || k === 'assignedAt') {
+            return `"${k}"`;
+          }
+          return k;
+        }).join(', ');
+        
+        const vals = keys.map((_, i) => `$${i + 1}`).join(', ');
+        const queryText = `INSERT INTO "${tableName}" (${cols}) VALUES (${vals})`;
+        
+        const queryVals = keys.map(k => {
+          const v = record[k];
+          if (v && typeof v === 'object') {
+            return JSON.stringify(v);
+          }
+          return v;
+        });
+        
+        await client.query(queryText, queryVals);
+      }
+      
+      await client.query('COMMIT');
       return true;
     } catch (err) {
-      console.error(`Error writing database table ${key}:`, err);
+      await client.query('ROLLBACK');
+      console.error(`PostgreSQL error writing table ${key}:`, err);
       return false;
+    } finally {
+      client.release();
     }
   },
 
-  // Read Homepage config
   async readHomepage(): Promise<Record<string, unknown>> {
-    const mongoDb = await getMongoDb();
-    if (mongoDb) {
-      await ensureMongoSeeded(mongoDb);
-      try {
-        const collection = mongoDb.collection('config');
-        const doc = await collection.findOne({ key: 'homepage' });
-        if (doc) {
-          const { _id, key, ...config } = doc;
-          return config;
-        }
-        return {};
-      } catch (err) {
-        console.error('MongoDB error reading homepage config:', err);
-        return {};
-      }
-    }
-
-    if (isProduction) {
-      throw new Error(`Database connection failed in production mode for reading homepage config`);
-    }
-
-    // Local JSON DB fallback
+    if (!pool) return {};
+    await ensureSchema(pool);
+    await ensureSeeded(pool);
     try {
-      if (!fs.existsSync(PATHS.homepage)) return {};
-      const content = fs.readFileSync(PATHS.homepage, 'utf8');
-      return JSON.parse(content);
+      const res = await pool.query("SELECT data FROM config WHERE key = 'homepage'");
+      if (res.rows.length > 0) {
+        const val = res.rows[0].data;
+        if (typeof val === 'string') {
+          return JSON.parse(val);
+        }
+        return val || {};
+      }
+      return {};
     } catch (err) {
-      console.error('Error reading homepage config:', err);
+      console.error('PostgreSQL error reading homepage config:', err);
       return {};
     }
   },
 
-  // Write Homepage config
   async writeHomepage(data: Record<string, unknown>): Promise<boolean> {
-    const mongoDb = await getMongoDb();
-    if (mongoDb) {
-      await ensureMongoSeeded(mongoDb);
-      try {
-        const collection = mongoDb.collection('config');
-        await collection.updateOne(
-          { key: 'homepage' },
-          { $set: { ...data } },
-          { upsert: true }
-        );
-        return true;
-      } catch (err) {
-        console.error('MongoDB error writing homepage config:', err);
-        return false;
-      }
-    }
-
-    if (isProduction) {
-      throw new Error(`Database connection failed in production mode for writing homepage config`);
-    }
-
-    // Local JSON DB fallback
+    if (!pool) return false;
+    await ensureSchema(pool);
+    await ensureSeeded(pool);
     try {
-      fs.writeFileSync(PATHS.homepage, JSON.stringify(data, null, 2), 'utf8');
+      await pool.query(
+        'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
+        ['homepage', JSON.stringify(data)]
+      );
       return true;
     } catch (err) {
-      console.error('Error writing homepage config:', err);
+      console.error('PostgreSQL error writing homepage config:', err);
       return false;
     }
   },
 
-  // Create an audit log entry
   async logActivity(adminUser: string, action: string, product: string, previousValue: string, newValue: string) {
-    const mongoDb = await getMongoDb();
-    if (mongoDb) {
-      await ensureMongoSeeded(mongoDb);
-      try {
-        const collection = mongoDb.collection('auditLogs');
-        const newLog = {
-          id: `log-${Date.now()}`,
-          adminUser,
-          action,
-          dateTime: new Date().toISOString(),
-          product,
-          previousValue,
-          newValue
-        };
-        await collection.insertOne(newLog);
-        return;
-      } catch (err) {
-        console.error('MongoDB error logging activity:', err);
-      }
+    if (!pool) return;
+    await ensureSchema(pool);
+    await ensureSeeded(pool);
+    try {
+      const newLog = {
+        id: `log-${Date.now()}`,
+        adminUser,
+        action,
+        dateTime: new Date().toISOString(),
+        product,
+        previousValue,
+        newValue
+      };
+      await insertRow(pool, 'auditLogs', newLog);
+    } catch (err) {
+      console.error('PostgreSQL error logging activity:', err);
     }
-
-    if (isProduction) {
-      console.error('Database connection failed in production mode for logging activity');
-      return;
-    }
-
-    // Local JSON DB fallback
-    const logs = await this.readTable<AuditLogRecord>('auditLogs');
-    const newLog: AuditLogRecord = {
-      id: `log-${Date.now()}`,
-      adminUser,
-      action,
-      dateTime: new Date().toISOString(),
-      product,
-      previousValue,
-      newValue
-    };
-    logs.unshift(newLog);
-    await this.writeTable('auditLogs', logs.slice(0, 100));
   }
 };

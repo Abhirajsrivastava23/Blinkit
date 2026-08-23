@@ -5,22 +5,25 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const startTime = Date.now();
     const testDb = await db.testConnection();
+    const latency = Date.now() - startTime;
+    
     return NextResponse.json({
-      mongodbConfigured: !!(process.env.MONGODB_URI || process.env.DATABASE_URL),
-      databaseName: process.env.MONGODB_DB || 'fatafat',
+      databaseProvider: 'Supabase PostgreSQL',
+      connectionStatus: testDb.ok ? 'connected' : 'failed',
       connectionSuccessful: testDb.ok,
       serverEnvironment: process.env.NODE_ENV || 'production',
-      failureStage: testDb.ok ? null : (process.env.MONGODB_URI ? 'connect' : 'configuration'),
+      latency: `${latency}ms`,
       error: testDb.ok ? null : testDb.error
     });
   } catch (err: any) {
     return NextResponse.json({
-      mongodbConfigured: !!(process.env.MONGODB_URI || process.env.DATABASE_URL),
-      databaseName: process.env.MONGODB_DB || 'fatafat',
+      databaseProvider: 'Supabase PostgreSQL',
+      connectionStatus: 'failed',
       connectionSuccessful: false,
       serverEnvironment: process.env.NODE_ENV || 'production',
-      failureStage: 'execution',
+      latency: 'unknown',
       error: err.message || String(err)
     }, { status: 500 });
   }

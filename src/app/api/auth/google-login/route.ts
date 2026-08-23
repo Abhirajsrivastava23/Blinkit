@@ -37,15 +37,11 @@ export async function GET(request: Request) {
           googleClientIdLastSix: clientId && clientId.length >= 6 ? clientId.slice(-6) : '',
           environment: process.env['NODE_ENV'] || 'unknown',
           calculatedRedirectUri: redirectUri,
-          mongodbUriExists: !!process.env.MONGODB_URI,
-          mongodbUriLength: (process.env.MONGODB_URI || '').length,
-          mongodbUriStart: (process.env.MONGODB_URI || '').substring(0, 20),
-          databaseUrlExists: !!process.env.DATABASE_URL,
-          databaseUrlLength: (process.env.DATABASE_URL || '').length,
-          databaseUrlStart: (process.env.DATABASE_URL || '').substring(0, 20),
-          mongodbDbExists: !!process.env.MONGODB_DB,
-          mongodbConnectOk: testDb.ok,
-          mongodbConnectError: testDb.error
+          postgresUrlExists: !!(process.env.POSTGRES_URL || process.env.DATABASE_URL),
+          postgresUrlLength: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').length,
+          postgresUrlStart: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').substring(0, 20),
+          postgresConnectOk: testDb.ok,
+          postgresConnectError: testDb.error
         }
       }, { status: (!clientId || !clientSecret || !authSecret || !testDb.ok) ? 500 : 200 });
     }
