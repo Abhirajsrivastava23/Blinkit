@@ -1,3 +1,4 @@
+// Redeploy trigger: 2026-08-23
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
