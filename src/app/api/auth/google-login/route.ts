@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     // Secure environment diagnostics check (boolean checks and partial suffix to prevent secret leakage)
     if (!clientId || !clientSecret || !authSecret || showDiagnostics) {
       console.error('Google authentication configuration check.');
+      const testDb = await db.testConnection();
       return NextResponse.json({
         error: (!clientId || !clientSecret || !authSecret) ? 'Google authentication is misconfigured.' : 'Diagnostics requested.',
         diagnostics: {
@@ -35,9 +36,13 @@ export async function GET(request: Request) {
           googleClientIdLength: clientId ? clientId.length : 0,
           googleClientIdLastSix: clientId && clientId.length >= 6 ? clientId.slice(-6) : '',
           environment: process.env['NODE_ENV'] || 'unknown',
-          calculatedRedirectUri: redirectUri
+          calculatedRedirectUri: redirectUri,
+          mongodbUriExists: !!(process.env.MONGODB_URI || process.env.DATABASE_URL),
+          mongodbDbExists: !!process.env.MONGODB_DB,
+          mongodbConnectOk: testDb.ok,
+          mongodbConnectError: testDb.error
         }
-      }, { status: (!clientId || !clientSecret || !authSecret) ? 500 : 200 });
+      }, { status: (!clientId || !clientSecret || !authSecret || !testDb.ok) ? 500 : 200 });
     }
 
     // A. Handle OAuth Callback from Google

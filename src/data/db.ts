@@ -210,6 +210,19 @@ async function ensureMongoSeeded(mongoDb: Db) {
 
 // Database helper functions (asynchronous wrapper)
 export const db = {
+  async testConnection(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const mongoDb = await getMongoDb();
+      if (!mongoDb) {
+        return { ok: false, error: 'MongoClient is not configured or connection URI is missing' };
+      }
+      await mongoDb.collection('users').countDocuments();
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  },
+
   // Read any table (supports MongoDB with filesystem fallback)
   async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues'): Promise<T[]> {
     const mongoDb = await getMongoDb();
