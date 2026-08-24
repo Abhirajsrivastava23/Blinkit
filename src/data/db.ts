@@ -85,8 +85,24 @@ if (connectionString) {
   dbInitError = 'PostgreSQL connection URL (POSTGRES_URL/DATABASE_URL) is missing';
 }
 
+const ALLOWED_COLUMNS: Record<string, string[]> = {
+  categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
+  brands: ['id', 'name', 'slug', 'description', 'status', 'website', 'logo', 'itemCount'],
+  products: ['id', 'name', 'description', 'price', 'originalPrice', 'image', 'category', 'brand', 'rating', 'reviews', 'stock', 'unit', 'isWellness', 'wellnessAgeVerifyRequired', 'tags'],
+  users: ['userId', 'googleProviderId', 'name', 'email', 'profileImage', 'createdAt', 'lastLoginAt', 'wellnessAccessStatus', 'wellnessRequestId', 'wellnessApprovedAt', 'wellnessApprovedBy', 'phone', 'dob', 'gender', 'addresses'],
+  sessions: ['sessionId', 'userId', 'email', 'role', 'expiresAt'],
+  admin: ['email', 'passwordHash', 'name', 'phone', 'role'],
+  partners: ['id', 'name', 'phone', 'email', 'passwordHash', 'role', 'locationId', 'locationName', 'status', 'isOnline'],
+  config: ['key', 'data'],
+  inventoryIssues: ['id', 'productId', 'productName', 'issue', 'status', 'createdAt'],
+  auditLogs: ['id', 'adminUser', 'action', 'dateTime', 'product', 'previousValue', 'newValue'],
+  orders: ['id', 'customerId', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'address', 'status', 'deliveryOption', 'eta', 'createdAt', 'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt', 'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt']
+};
+
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
-  const keys = Object.keys(item);
+  const allowed = ALLOWED_COLUMNS[table];
+  const keys = Object.keys(item).filter(k => !allowed || allowed.includes(k));
+  if (keys.length === 0) return;
   const cols = keys.map(k => {
     if (k === 'itemCount' || k === 'originalPrice' || k === 'isWellness' || 
         k === 'wellnessAgeVerifyRequired' || k === 'userId' || k === 'googleProviderId' || 
@@ -123,8 +139,10 @@ async function insertRow(p: Pool, table: string, item: Record<string, unknown>) 
 
 async function bulkInsert(client: PoolClient, table: string, items: Record<string, unknown>[]) {
   if (items.length === 0) return;
+  const allowed = ALLOWED_COLUMNS[table];
   for (const item of items) {
-    const keys = Object.keys(item);
+    const keys = Object.keys(item).filter(k => !allowed || allowed.includes(k));
+    if (keys.length === 0) continue;
     const cols = keys.map(k => {
       if (k === 'itemCount' || k === 'originalPrice' || k === 'isWellness' || 
           k === 'wellnessAgeVerifyRequired' || k === 'userId' || k === 'googleProviderId' || 
@@ -226,7 +244,8 @@ export const db = {
       
       for (const item of data) {
         const record = item as Record<string, unknown>;
-        const keys = Object.keys(record);
+        const allowed = ALLOWED_COLUMNS[key];
+        const keys = Object.keys(record).filter(k => !allowed || allowed.includes(k));
         if (keys.length === 0) continue;
         
         const cols = keys.map(k => {
@@ -344,20 +363,30 @@ export const db = {
           id VARCHAR(255) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           slug VARCHAR(255),
+          description TEXT,
+          status VARCHAR(50),
           image VARCHAR(255),
           "itemCount" INTEGER DEFAULT 0
         );
       `);
+      await client.query('ALTER TABLE categories ADD COLUMN IF NOT EXISTS description TEXT');
+      await client.query('ALTER TABLE categories ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
       
       await client.query(`
         CREATE TABLE IF NOT EXISTS brands (
           id VARCHAR(255) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           slug VARCHAR(255),
+          description TEXT,
+          status VARCHAR(50),
+          website VARCHAR(255),
           logo VARCHAR(255),
           "itemCount" INTEGER DEFAULT 0
         );
       `);
+      await client.query('ALTER TABLE brands ADD COLUMN IF NOT EXISTS description TEXT');
+      await client.query('ALTER TABLE brands ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
+      await client.query('ALTER TABLE brands ADD COLUMN IF NOT EXISTS website VARCHAR(255)');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS products (
