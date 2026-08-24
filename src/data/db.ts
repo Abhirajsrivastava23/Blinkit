@@ -1,7 +1,16 @@
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
+
+import productsJson from './db/products.json';
+import categoriesJson from './db/categories.json';
+import brandsJson from './db/brands.json';
+import homepageJson from './db/homepage.json';
+import inventoryIssuesJson from './db/inventory_issues.json';
+import auditLogsJson from './db/audit_logs.json';
+import ordersJson from './db/orders.json';
+import sessionsJson from './db/sessions.json';
+import usersJson from './db/users.json';
+
 
 export interface AuditLogRecord {
   id: string;
@@ -34,22 +43,7 @@ export interface PartnerRecord {
   isOnline: boolean;
 }
 
-// Local filesystem seeding configuration (seeding source only)
-const SEED_DIR = path.join(process.cwd(), 'src/data/db');
 
-const FILE_NAMES: Record<string, string> = {
-  products: 'products.json',
-  categories: 'categories.json',
-  brands: 'brands.json',
-  auditLogs: 'audit_logs.json',
-  homepage: 'homepage.json',
-  users: 'users.json',
-  orders: 'orders.json',
-  admin: 'admin.json',
-  partners: 'partners.json',
-  sessions: 'sessions.json',
-  inventoryIssues: 'inventory_issues.json'
-};
 
 // PostgreSQL pool connection caching for Serverless envs
 const connectionString = (
@@ -91,185 +85,6 @@ if (connectionString) {
   dbInitError = 'PostgreSQL connection URL (POSTGRES_URL/DATABASE_URL) is missing';
 }
 
-let isSchemaCreated = false;
-let isSchemaCreating = false;
-
-async function ensureSchema(p: Pool) {
-  if (isSchemaCreated || isSchemaCreating) return;
-  isSchemaCreating = true;
-  const client = await p.connect();
-  try {
-    await client.query('BEGIN');
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS categories (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        slug VARCHAR(255),
-        image VARCHAR(255),
-        "itemCount" INTEGER DEFAULT 0
-      );
-    `);
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS brands (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        slug VARCHAR(255),
-        logo VARCHAR(255),
-        "itemCount" INTEGER DEFAULT 0
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS products (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        price NUMERIC NOT NULL,
-        "originalPrice" NUMERIC,
-        image VARCHAR(255),
-        category VARCHAR(255) NOT NULL,
-        brand VARCHAR(255),
-        rating NUMERIC DEFAULT 0,
-        reviews INTEGER DEFAULT 0,
-        stock INTEGER DEFAULT 0,
-        unit VARCHAR(50),
-        "isWellness" BOOLEAN DEFAULT FALSE,
-        "wellnessAgeVerifyRequired" BOOLEAN DEFAULT FALSE,
-        tags JSONB
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        "userId" VARCHAR(255) PRIMARY KEY,
-        "googleProviderId" VARCHAR(255),
-        name VARCHAR(255),
-        email VARCHAR(255) UNIQUE,
-        "profileImage" VARCHAR(255),
-        "createdAt" VARCHAR(255),
-        "lastLoginAt" VARCHAR(255),
-        "wellnessAccessStatus" VARCHAR(255),
-        "wellnessRequestId" VARCHAR(255),
-        "wellnessApprovedAt" VARCHAR(255),
-        "wellnessApprovedBy" VARCHAR(255),
-        phone VARCHAR(255),
-        dob VARCHAR(255),
-        gender VARCHAR(255),
-        addresses JSONB
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        "sessionId" VARCHAR(255) PRIMARY KEY,
-        "userId" VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        role VARCHAR(255) NOT NULL,
-        "expiresAt" VARCHAR(255) NOT NULL
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS admin (
-        email VARCHAR(255) PRIMARY KEY,
-        "passwordHash" VARCHAR(255) NOT NULL,
-        name VARCHAR(255),
-        phone VARCHAR(255),
-        role VARCHAR(50) DEFAULT 'admin'
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS partners (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        phone VARCHAR(255),
-        email VARCHAR(255) UNIQUE NOT NULL,
-        "passwordHash" VARCHAR(255) NOT NULL,
-        role VARCHAR(50) DEFAULT 'delivery_partner',
-        "locationId" VARCHAR(255),
-        "locationName" VARCHAR(255),
-        status VARCHAR(50) DEFAULT 'Active',
-        "isOnline" BOOLEAN DEFAULT FALSE
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS config (
-        key VARCHAR(255) PRIMARY KEY,
-        data JSONB NOT NULL
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS "inventoryIssues" (
-        id VARCHAR(255) PRIMARY KEY,
-        "productId" VARCHAR(255) NOT NULL,
-        "productName" VARCHAR(255),
-        issue VARCHAR(255),
-        status VARCHAR(255),
-        "createdAt" VARCHAR(255)
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS "auditLogs" (
-        id VARCHAR(255) PRIMARY KEY,
-        "adminUser" VARCHAR(255),
-        action VARCHAR(255),
-        "dateTime" VARCHAR(255),
-        product VARCHAR(255),
-        "previousValue" TEXT,
-        "newValue" TEXT
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS orders (
-        id VARCHAR(255) PRIMARY KEY,
-        "customerId" VARCHAR(255) NOT NULL,
-        items JSONB NOT NULL,
-        subtotal NUMERIC NOT NULL,
-        "deliveryFee" NUMERIC DEFAULT 0,
-        discount NUMERIC DEFAULT 0,
-        total NUMERIC NOT NULL,
-        address JSONB NOT NULL,
-        status VARCHAR(255) NOT NULL,
-        "deliveryOption" VARCHAR(255),
-        eta VARCHAR(255),
-        "createdAt" VARCHAR(255) NOT NULL,
-        "deliveryLocationId" VARCHAR(255),
-        "deliveryLocationName" VARCHAR(255),
-        "deliveryOtp" VARCHAR(255),
-        "otpFailedAttempts" INTEGER DEFAULT 0,
-        "otpExpiresAt" VARCHAR(255),
-        "statusHistory" JSONB,
-        "assignedPartnerId" VARCHAR(255),
-        "assignedPartnerName" VARCHAR(255),
-        "assignedAt" VARCHAR(255)
-      );
-    `);
-
-    await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders("customerId")');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_orders_assigned_partner_id ON orders("assignedPartnerId")');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions("userId")');
-
-    await client.query('COMMIT');
-    isSchemaCreated = true;
-    console.log('PostgreSQL schema and indexes initialized.');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Failed to initialize PostgreSQL schema:', err);
-    throw err;
-  } finally {
-    client.release();
-    isSchemaCreating = false;
-  }
-}
-
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
   const keys = Object.keys(item);
   const cols = keys.map(k => {
@@ -306,84 +121,41 @@ async function insertRow(p: Pool, table: string, item: Record<string, unknown>) 
   await p.query(queryText, queryVals);
 }
 
-let isSeeding = false;
-let isSeeded = false;
-
-async function ensureSeeded(p: Pool) {
-  if (isSeeded || isSeeding) return;
-  isSeeding = true;
-  try {
-    const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
-    const hash = crypto.createHash('sha256').update('admin123' + salt).digest('hex');
-    const riderHash = crypto.createHash('sha256').update('rider123' + salt).digest('hex');
-
-    const tableKeys: Array<'products' | 'categories' | 'brands' | 'admin' | 'partners' | 'users' | 'orders' | 'inventoryIssues' | 'auditLogs' | 'sessions'> = [
-      'admin', 'partners', 'categories', 'brands', 'products', 'users', 'orders', 'inventoryIssues', 'auditLogs', 'sessions'
-    ];
-
-    for (const key of tableKeys) {
-      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
-      const countRes = await p.query(`SELECT COUNT(*) FROM "${tableName}"`);
-      const count = parseInt(countRes.rows[0].count, 10);
-      
-      if (count === 0) {
-        let seedData: unknown[] = [];
-        if (key === 'admin') {
-          seedData = [
-            { email: 'superadmin@fatafat.com', passwordHash: hash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
-            { email: 'admin@fatafat.com', passwordHash: hash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' },
-            { email: 'manager@fatafat.com', passwordHash: hash, name: 'FATAFAT Inv Manager', phone: '9999999992', role: 'admin' },
-            { email: 'admin@fatafat.local', passwordHash: hash, name: 'Local Dev Admin', phone: '9999999993', role: 'admin' }
-          ];
-        } else if (key === 'partners') {
-          seedData = [
-            { id: 'DP-001', name: 'Rahul', phone: '9999999999', email: 'rider@fatafat.com', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true },
-            { id: 'DP-002', name: 'Aman', phone: '8888888888', email: 'aman_rider@fatafat.com', passwordHash: riderHash, role: 'delivery_partner', locationId: 'chandigarh-university-up', locationName: 'Chandigarh University, Uttar Pradesh', status: 'Active', isOnline: false },
-            { id: 'DP-003', name: 'Rider Local', phone: '7777777777', email: 'rider@fatafat.local', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true }
-          ];
-        } else {
-          const seedFilePath = path.join(SEED_DIR, FILE_NAMES[key]);
-          if (fs.existsSync(seedFilePath)) {
-            const content = fs.readFileSync(seedFilePath, 'utf8');
-            seedData = JSON.parse(content);
-          }
-        }
-
-        if (key === 'orders' && Array.isArray(seedData)) {
-          seedData = seedData.filter((o) => {
-            const ord = o as Record<string, unknown>;
-            return !!(ord && ord.id && typeof ord.id === 'string' && !ord.id.startsWith('FT-TEST-'));
-          });
-        }
-
-        if (Array.isArray(seedData) && seedData.length > 0) {
-          for (const item of seedData) {
-            await insertRow(p, tableName, item as Record<string, unknown>);
-          }
-          console.log(`Seeded PostgreSQL table "${tableName}" successfully.`);
-        }
+async function bulkInsert(client: PoolClient, table: string, items: Record<string, unknown>[]) {
+  if (items.length === 0) return;
+  for (const item of items) {
+    const keys = Object.keys(item);
+    const cols = keys.map(k => {
+      if (k === 'itemCount' || k === 'originalPrice' || k === 'isWellness' || 
+          k === 'wellnessAgeVerifyRequired' || k === 'userId' || k === 'googleProviderId' || 
+          k === 'profileImage' || k === 'createdAt' || k === 'lastLoginAt' || 
+          k === 'wellnessAccessStatus' || k === 'wellnessRequestId' || 
+          k === 'wellnessApprovedAt' || k === 'wellnessApprovedBy' || 
+          k === 'sessionId' || k === 'expiresAt' || k === 'passwordHash' || 
+          k === 'locationId' || k === 'locationName' || k === 'isOnline' || 
+          k === 'productId' || k === 'productName' || k === 'adminUser' || 
+          k === 'dateTime' || k === 'previousValue' || k === 'newValue' || 
+          k === 'customerId' || k === 'deliveryFee' || k === 'deliveryOption' || 
+          k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
+          k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
+          k === 'statusHistory' || k === 'assignedPartnerId' || 
+          k === 'assignedPartnerName' || k === 'assignedAt') {
+        return `"${k}"`;
       }
-    }
-
-    const configCount = await p.query("SELECT COUNT(*) FROM config WHERE key = 'homepage'");
-    if (parseInt(configCount.rows[0].count, 10) === 0) {
-      const seedFilePath = path.join(SEED_DIR, 'homepage.json');
-      if (fs.existsSync(seedFilePath)) {
-        const content = fs.readFileSync(seedFilePath, 'utf8');
-        const data = JSON.parse(content);
-        await p.query(
-          'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
-          ['homepage', JSON.stringify(data)]
-        );
-        console.log('Seeded homepage config successfully.');
+      return k;
+    }).join(', ');
+    
+    const vals = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const queryText = `INSERT INTO "${table}" (${cols}) VALUES (${vals}) ON CONFLICT DO NOTHING`;
+    
+    const queryVals = keys.map(k => {
+      const v = item[k];
+      if (v && typeof v === 'object') {
+        return JSON.stringify(v);
       }
-    }
-
-    isSeeded = true;
-  } catch (err) {
-    console.error('Failed to seed PostgreSQL:', err);
-  } finally {
-    isSeeding = false;
+      return v;
+    });
+    await client.query(queryText, queryVals);
   }
 }
 
@@ -410,8 +182,6 @@ export const db = {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to read table ${key}`);
     }
-    await ensureSchema(pool);
-    await ensureSeeded(pool);
     
     try {
       const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
@@ -447,8 +217,6 @@ export const db = {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to write table ${key}`);
     }
-    await ensureSchema(pool);
-    await ensureSeeded(pool);
     
     const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
     const client = await pool.connect();
@@ -508,8 +276,6 @@ export const db = {
 
   async readHomepage(): Promise<Record<string, unknown>> {
     if (!pool) return {};
-    await ensureSchema(pool);
-    await ensureSeeded(pool);
     try {
       const res = await pool.query("SELECT data FROM config WHERE key = 'homepage'");
       if (res.rows.length > 0) {
@@ -528,8 +294,6 @@ export const db = {
 
   async writeHomepage(data: Record<string, unknown>): Promise<boolean> {
     if (!pool) return false;
-    await ensureSchema(pool);
-    await ensureSeeded(pool);
     try {
       await pool.query(
         'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
@@ -544,8 +308,6 @@ export const db = {
 
   async logActivity(adminUser: string, action: string, product: string, previousValue: string, newValue: string) {
     if (!pool) return;
-    await ensureSchema(pool);
-    await ensureSeeded(pool);
     try {
       const newLog = {
         id: `log-${Date.now()}`,
@@ -559,6 +321,240 @@ export const db = {
       await insertRow(pool, 'auditLogs', newLog);
     } catch (err) {
       console.error('PostgreSQL error logging activity:', err);
+    }
+  },
+
+  async seedDatabase(): Promise<{ success: boolean; message?: string; error?: string }> {
+    if (!pool) {
+      return { success: false, error: 'PostgreSQL connection pool is not configured' };
+    }
+    
+    const client = await pool.connect();
+    try {
+      // 1. Acquire advisory lock (session level) to prevent concurrent seeding requests
+      await client.query('SELECT pg_advisory_lock(123456)');
+      
+      console.log('Acquired database seeding lock. Starting schema initialization...');
+      
+      // 2. Create Schema
+      await client.query('BEGIN');
+      
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS categories (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255),
+          image VARCHAR(255),
+          "itemCount" INTEGER DEFAULT 0
+        );
+      `);
+      
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS brands (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255),
+          logo VARCHAR(255),
+          "itemCount" INTEGER DEFAULT 0
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS products (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          price NUMERIC NOT NULL,
+          "originalPrice" NUMERIC,
+          image VARCHAR(255),
+          category VARCHAR(255) NOT NULL,
+          brand VARCHAR(255),
+          rating NUMERIC DEFAULT 0,
+          reviews INTEGER DEFAULT 0,
+          stock INTEGER DEFAULT 0,
+          unit VARCHAR(50),
+          "isWellness" BOOLEAN DEFAULT FALSE,
+          "wellnessAgeVerifyRequired" BOOLEAN DEFAULT FALSE,
+          tags JSONB
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          "userId" VARCHAR(255) PRIMARY KEY,
+          "googleProviderId" VARCHAR(255),
+          name VARCHAR(255),
+          email VARCHAR(255) UNIQUE,
+          "profileImage" VARCHAR(255),
+          "createdAt" VARCHAR(255),
+          "lastLoginAt" VARCHAR(255),
+          "wellnessAccessStatus" VARCHAR(255),
+          "wellnessRequestId" VARCHAR(255),
+          "wellnessApprovedAt" VARCHAR(255),
+          "wellnessApprovedBy" VARCHAR(255),
+          phone VARCHAR(255),
+          dob VARCHAR(255),
+          gender VARCHAR(255),
+          addresses JSONB
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          "sessionId" VARCHAR(255) PRIMARY KEY,
+          "userId" VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          role VARCHAR(255) NOT NULL,
+          "expiresAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS admin (
+          email VARCHAR(255) PRIMARY KEY,
+          "passwordHash" VARCHAR(255) NOT NULL,
+          name VARCHAR(255),
+          phone VARCHAR(255),
+          role VARCHAR(50) DEFAULT 'admin'
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS partners (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          phone VARCHAR(255),
+          email VARCHAR(255) UNIQUE NOT NULL,
+          "passwordHash" VARCHAR(255) NOT NULL,
+          role VARCHAR(50) DEFAULT 'delivery_partner',
+          "locationId" VARCHAR(255),
+          "locationName" VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'Active',
+          "isOnline" BOOLEAN DEFAULT FALSE
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS config (
+          key VARCHAR(255) PRIMARY KEY,
+          data JSONB NOT NULL
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS "inventoryIssues" (
+          id VARCHAR(255) PRIMARY KEY,
+          "productId" VARCHAR(255) NOT NULL,
+          "productName" VARCHAR(255),
+          issue VARCHAR(255),
+          status VARCHAR(255),
+          "createdAt" VARCHAR(255)
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS "auditLogs" (
+          id VARCHAR(255) PRIMARY KEY,
+          "adminUser" VARCHAR(255),
+          action VARCHAR(255),
+          "dateTime" VARCHAR(255),
+          product VARCHAR(255),
+          "previousValue" TEXT,
+          "newValue" TEXT
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS orders (
+          id VARCHAR(255) PRIMARY KEY,
+          "customerId" VARCHAR(255) NOT NULL,
+          items JSONB NOT NULL,
+          subtotal NUMERIC NOT NULL,
+          "deliveryFee" NUMERIC DEFAULT 0,
+          discount NUMERIC DEFAULT 0,
+          total NUMERIC NOT NULL,
+          address JSONB NOT NULL,
+          status VARCHAR(255) NOT NULL,
+          "deliveryOption" VARCHAR(255),
+          eta VARCHAR(255),
+          "createdAt" VARCHAR(255) NOT NULL,
+          "deliveryLocationId" VARCHAR(255),
+          "deliveryLocationName" VARCHAR(255),
+          "deliveryOtp" VARCHAR(255),
+          "otpFailedAttempts" INTEGER DEFAULT 0,
+          "otpExpiresAt" VARCHAR(255),
+          "statusHistory" JSONB,
+          "assignedPartnerId" VARCHAR(255),
+          "assignedPartnerName" VARCHAR(255),
+          "assignedAt" VARCHAR(255)
+        );
+      `);
+
+      await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders("customerId")');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_orders_assigned_partner_id ON orders("assignedPartnerId")');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions("userId")');
+
+      await client.query('COMMIT');
+      
+      console.log('PostgreSQL schema initialized. Starting data seeding...');
+      
+      // 3. Seed Tables Idempotently (ON CONFLICT DO NOTHING)
+      const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
+      const hash = crypto.createHash('sha256').update('admin123' + salt).digest('hex');
+      const riderHash = crypto.createHash('sha256').update('rider123' + salt).digest('hex');
+      
+      // Seed Admins
+      const adminsSeed = [
+        { email: 'superadmin@fatafat.com', passwordHash: hash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
+        { email: 'admin@fatafat.com', passwordHash: hash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' },
+        { email: 'manager@fatafat.com', passwordHash: hash, name: 'FATAFAT Inv Manager', phone: '9999999992', role: 'admin' },
+        { email: 'admin@fatafat.local', passwordHash: hash, name: 'Local Dev Admin', phone: '9999999993', role: 'admin' }
+      ];
+      await bulkInsert(client, 'admin', adminsSeed);
+      
+      // Seed Partners
+      const partnersSeed = [
+        { id: 'DP-001', name: 'Rahul', phone: '9999999999', email: 'rider@fatafat.com', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true },
+        { id: 'DP-002', name: 'Aman', phone: '8888888888', email: 'aman_rider@fatafat.com', passwordHash: riderHash, role: 'delivery_partner', locationId: 'chandigarh-university-up', locationName: 'Chandigarh University, Uttar Pradesh', status: 'Active', isOnline: false },
+        { id: 'DP-003', name: 'Rider Local', phone: '7777777777', email: 'rider@fatafat.local', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true }
+      ];
+      await bulkInsert(client, 'partners', partnersSeed);
+      
+      // Seed Categories, Brands, Products, Users, Sessions, InventoryIssues, AuditLogs
+      await bulkInsert(client, 'categories', categoriesJson);
+      await bulkInsert(client, 'brands', brandsJson);
+      await bulkInsert(client, 'products', productsJson);
+      await bulkInsert(client, 'users', usersJson);
+      await bulkInsert(client, 'inventoryIssues', inventoryIssuesJson);
+      await bulkInsert(client, 'auditLogs', auditLogsJson);
+      await bulkInsert(client, 'sessions', sessionsJson);
+
+      // Seed Orders (Filter out test orders as requested)
+      const ordersSeed = ordersJson.filter((o) => {
+        const ord = o as Record<string, unknown>;
+        return !!(ord && ord.id && typeof ord.id === 'string' && !ord.id.startsWith('FT-TEST-'));
+      });
+      await bulkInsert(client, 'orders', ordersSeed);
+
+      // Seed homepage config
+      const homepageCountRes = await client.query("SELECT COUNT(*) FROM config WHERE key = 'homepage'");
+      if (parseInt(homepageCountRes.rows[0].count, 10) === 0) {
+        await client.query(
+          'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
+          ['homepage', JSON.stringify(homepageJson)]
+        );
+      }
+      
+      console.log('Database seeding completed successfully.');
+      return { success: true, message: 'Schema and seed data initialized successfully.' };
+    } catch (err: unknown) {
+      console.error('Error during database seeding:', err);
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    } finally {
+      // Release advisory lock
+      await client.query('SELECT pg_advisory_unlock(123456)');
+      client.release();
     }
   }
 };
