@@ -18,7 +18,6 @@ export function hashPassword(password: string): string {
 
 // 2. Create session token and store it
 export async function createSession(userId: string, email: string, role: string): Promise<Session> {
-  const sessions = await db.readTable<Session>('sessions') || [];
   const sessionId = 'sess-' + crypto.randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
@@ -30,8 +29,10 @@ export async function createSession(userId: string, email: string, role: string)
     expiresAt
   };
 
-  sessions.push(newSession);
-  await db.writeTable('sessions', sessions);
+  await db.query(
+    'INSERT INTO sessions ("sessionId", "userId", email, role, "expiresAt") VALUES ($1, $2, $3, $4, $5)',
+    [sessionId, userId, email, role, expiresAt]
+  );
   return newSession;
 }
 

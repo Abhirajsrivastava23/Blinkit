@@ -5,6 +5,7 @@ import { createSession } from '../../../../data/auth';
 export const dynamic = 'force-dynamic';
 
 interface UserRecord {
+  [key: string]: unknown;
   userId: string;
   googleProviderId?: string | null;
   name: string;
@@ -88,6 +89,7 @@ function getValidatedCallback(callbackParam: string | null): string {
 
 export async function GET(request: Request) {
   let step = 'init';
+  const tStart = performance.now();
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
@@ -122,19 +124,31 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(errorParam)}`, request.url));
       }
 
-      // 1. Exchange authorization code for token
+      // 1. Exchange authorization code for token with 5-second timeout
       step = 'exchange-code';
-      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code'
-        })
-      });
+      const tokenController = new AbortController();
+      const tokenTimeout = setTimeout(() => tokenController.abort(), 5000);
+      
+      let tokenRes;
+      const tExchangeStart = performance.now();
+      try {
+        tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code'
+          }),
+          signal: tokenController.signal
+        });
+      } finally {
+        clearTimeout(tokenTimeout);
+      }
+      const tExchangeEnd = performance.now();
+      console.log(`[Google OAuth] Token exchange completed in ${(tExchangeEnd - tExchangeStart).toFixed(2)}ms`);
 
       if (!tokenRes.ok) {
         console.error(`Failed to exchange Google OAuth code. Status: ${tokenRes.status}`);
@@ -144,11 +158,23 @@ export async function GET(request: Request) {
       const tokenData = await tokenRes.json();
       const { access_token } = tokenData;
 
-      // 2. Fetch user profile from Google userinfo endpoint
+      // 2. Fetch user profile from Google userinfo endpoint with 5-second timeout
       step = 'fetch-userinfo';
-      const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${access_token}` }
-      });
+      const userinfoController = new AbortController();
+      const userinfoTimeout = setTimeout(() => userinfoController.abort(), 5000);
+      
+      let userinfoRes;
+      const tUserinfoStart = performance.now();
+      try {
+        userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${access_token}` },
+          signal: userinfoController.signal
+        });
+      } finally {
+        clearTimeout(userinfoTimeout);
+      }
+      const tUserinfoEnd = performance.now();
+      console.log(`[Google OAuth] Userinfo fetch completed in ${(tUserinfoEnd - tUserinfoStart).toFixed(2)}ms`);
 
       if (!userinfoRes.ok) {
         console.error('Failed to fetch userinfo from Google');
@@ -162,11 +188,14 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL('/login?error=no_email_returned', request.url));
       }
 
-      // 3. Resolve or create customer account record
-      step = 'db-read-users';
-      const users = await db.readTable<UserRecord>('users') || [];
-      let customer = users.find((u) => u.email.toLowerCase() === email.toLowerCase() || u.googleProviderId === sub);
-
+      // 3. Resolve or create customer account record using single-row DB queries
+      step = 'db-resolve-user';
+      const tDbStart = performance.now();
+      const userRes = await db.query<UserRecord>(
+        'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR "googleProviderId" = $2 LIMIT 1',
+        [email, sub]
+      );
+      let customer = userRes.rows[0] || null;
       const now = new Date().toISOString();
 
       if (customer) {
@@ -177,7 +206,11 @@ export async function GET(request: Request) {
           customer.profileImage = picture;
         }
         customer.lastLoginAt = now;
-        await db.writeTable('users', users);
+
+        await db.query(
+          'UPDATE users SET "googleProviderId" = $1, name = $2, "profileImage" = $3, "lastLoginAt" = $4 WHERE "userId" = $5',
+          [customer.googleProviderId, customer.name, customer.profileImage || null, customer.lastLoginAt, customer.userId]
+        );
       } else {
         step = 'db-create-user';
         customer = {
@@ -190,16 +223,34 @@ export async function GET(request: Request) {
           lastLoginAt: now,
           wellnessAccessStatus: 'NOT_REQUESTED'
         };
-        users.push(customer);
-        await db.writeTable('users', users);
+
+        await db.query(
+          'INSERT INTO users ("userId", "googleProviderId", name, email, "profileImage", "createdAt", "lastLoginAt", "wellnessAccessStatus") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+          [
+            customer.userId,
+            customer.googleProviderId,
+            customer.name,
+            customer.email,
+            customer.profileImage,
+            customer.createdAt,
+            customer.lastLoginAt,
+            customer.wellnessAccessStatus
+          ]
+        );
       }
+      const tDbEnd = performance.now();
+      console.log(`[Google OAuth] Database user resolve completed in ${(tDbEnd - tDbStart).toFixed(2)}ms`);
 
       // 4. Issue customer session
       step = 'create-session';
+      const tSessionStart = performance.now();
       const session = await createSession(customer.userId, customer.email, 'customer');
+      const tSessionEnd = performance.now();
+      console.log(`[Google OAuth] Database session creation completed in ${(tSessionEnd - tSessionStart).toFixed(2)}ms`);
 
       // 5. Set session cookie and redirect to intended destination using safe HTTP 307 redirect
       step = 'create-redirect';
+      const tRedirectStart = performance.now();
       const redirectUrl = new URL(callback, request.url);
       const response = NextResponse.redirect(redirectUrl, 307);
 
@@ -216,6 +267,10 @@ export async function GET(request: Request) {
       response.headers.set('X-Frame-Options', 'DENY');
       response.headers.set('Referrer-Policy', 'no-referrer');
       response.headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
+
+      const tRedirectEnd = performance.now();
+      console.log(`[Google OAuth] Redirect generation completed in ${(tRedirectEnd - tRedirectStart).toFixed(2)}ms`);
+      console.log(`[Google OAuth] Total callback processing completed in ${(tRedirectEnd - tStart).toFixed(2)}ms`);
 
       return response;
     }

@@ -196,6 +196,35 @@ export const db = {
     }
   },
 
+  async query<T extends Record<string, unknown> = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    const res = await pool.query(text, params);
+    return {
+      rows: res.rows.map(row => {
+        const parsed: Record<string, unknown> = {};
+        for (const col of Object.keys(row)) {
+          const val = row[col];
+          if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address') {
+            if (typeof val === 'string') {
+              try {
+                parsed[col] = JSON.parse(val);
+              } catch {
+                parsed[col] = val;
+              }
+            } else {
+              parsed[col] = val;
+            }
+          } else {
+            parsed[col] = val;
+          }
+        }
+        return parsed;
+      }) as T[]
+    };
+  },
+
   async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues'): Promise<T[]> {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to read table ${key}`);
