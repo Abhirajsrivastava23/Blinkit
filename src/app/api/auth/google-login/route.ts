@@ -195,60 +195,44 @@ export async function GET(request: Request) {
         'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR "googleProviderId" = $2 LIMIT 1',
         [email, sub]
       );
-      let customer = userRes.rows[0] || null;
+      const customer = userRes.rows[0] || null;
       const tDbSelectEnd = performance.now();
       const now = new Date().toISOString();
 
+      // Optimize: Generate userId up-front and parallelize User write + Session insertion
+      const userId = customer ? customer.userId : 'u-' + Math.floor(1000 + Math.random() * 9000);
       const tDbWriteStart = performance.now();
-      if (customer) {
-        step = 'db-update-user';
-        customer.googleProviderId = sub;
-        customer.name = name || customer.name;
-        if (picture) {
-          customer.profileImage = picture;
-        }
-        customer.lastLoginAt = now;
 
-        await db.query(
-          'UPDATE users SET "googleProviderId" = $1, name = $2, "profileImage" = $3, "lastLoginAt" = $4 WHERE "userId" = $5',
-          [customer.googleProviderId, customer.name, customer.profileImage || null, customer.lastLoginAt, customer.userId]
-        );
-      } else {
-        step = 'db-create-user';
-        customer = {
-          userId: 'u-' + Math.floor(1000 + Math.random() * 9000),
-          googleProviderId: sub,
-          name: name || email.split('@')[0],
-          email: email,
-          profileImage: picture || '',
-          createdAt: now,
-          lastLoginAt: now,
-          wellnessAccessStatus: 'NOT_REQUESTED'
-        };
+      const dbWritePromise = customer
+        ? db.query(
+            'UPDATE users SET "googleProviderId" = $1, name = $2, "profileImage" = $3, "lastLoginAt" = $4 WHERE "userId" = $5',
+            [sub, name || customer.name, picture || customer.profileImage || null, now, userId]
+          )
+        : db.query(
+            'INSERT INTO users ("userId", "googleProviderId", name, email, "profileImage", "createdAt", "lastLoginAt", "wellnessAccessStatus") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+            [
+              userId,
+              sub,
+              name || email.split('@')[0],
+              email,
+              picture || '',
+              now,
+              now,
+              'NOT_REQUESTED'
+            ]
+          );
 
-        await db.query(
-          'INSERT INTO users ("userId", "googleProviderId", name, email, "profileImage", "createdAt", "lastLoginAt", "wellnessAccessStatus") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-          [
-            customer.userId,
-            customer.googleProviderId,
-            customer.name,
-            customer.email,
-            customer.profileImage,
-            customer.createdAt,
-            customer.lastLoginAt,
-            customer.wellnessAccessStatus
-          ]
-        );
-      }
-      const tDbWriteEnd = performance.now();
-      console.log(`[Google OAuth] Database user resolve completed in ${(tDbWriteEnd - tDbStart).toFixed(2)}ms (select: ${(tDbSelectEnd - tDbStart).toFixed(2)}ms, write: ${(tDbWriteEnd - tDbWriteStart).toFixed(2)}ms)`);
-
-      // 4. Issue customer session
-      step = 'create-session';
       const tSessionStart = performance.now();
-      const session = await createSession(customer.userId, customer.email, 'customer');
+      const sessionPromise = createSession(userId, email, 'customer');
+
+      // Execute both queries concurrently to save 1 RTT (round-trip database latency)
+      await Promise.all([dbWritePromise, sessionPromise]);
+      
+      const tDbWriteEnd = performance.now();
+      const session = await sessionPromise;
       const tSessionEnd = performance.now();
-      console.log(`[Google OAuth] Database session creation completed in ${(tSessionEnd - tSessionStart).toFixed(2)}ms`);
+
+      console.log(`[Google OAuth] Concurrent DB Write/Session completed in ${(tDbWriteEnd - tDbWriteStart).toFixed(2)}ms (select: ${(tDbSelectEnd - tDbStart).toFixed(2)}ms, write: ${(tDbWriteEnd - tDbWriteStart).toFixed(2)}ms, session: ${(tSessionEnd - tSessionStart).toFixed(2)}ms)`);
 
       // 5. Set session cookie and redirect to intended destination using safe HTTP 307 redirect
       step = 'create-redirect';
