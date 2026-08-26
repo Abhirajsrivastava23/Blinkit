@@ -1,6 +1,6 @@
 {
   "functions": {
-    "**/*": {
+    "api/**/*": {
       "regions": ["bom1"]
     }
   }
