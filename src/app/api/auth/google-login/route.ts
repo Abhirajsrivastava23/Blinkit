@@ -37,6 +37,10 @@ function getValidatedRedirectUri(requestUrlStr: string): string {
   const isLocalhost = origin.startsWith('http://localhost:') || origin === 'http://localhost' || origin.startsWith('http://127.0.0.1:') || origin === 'http://127.0.0.1';
 
   if (ALLOWED_ORIGINS.includes(origin) || (isDevelopment && isLocalhost)) {
+    // Normalize both custom production domains to https://fatafatapp.me
+    if (origin === 'https://fatafatapp.me' || origin === 'https://www.fatafatapp.me') {
+      return 'https://fatafatapp.me/api/auth/google-login';
+    }
     return `${origin}/api/auth/google-login`;
   }
 
@@ -100,27 +104,15 @@ export async function GET(request: Request) {
     const showDiagnostics = searchParams.get('diagnostics') === 'true';
 
     step = 'check-config';
-    // Secure environment diagnostics check (boolean checks and partial suffix to prevent secret leakage)
+    // Secure environment diagnostics check (boolean checks to prevent secret leakage)
     if (!clientId || !clientSecret || !authSecret || showDiagnostics) {
       console.error('Google authentication configuration check.');
-      const testDb = await db.testConnection();
       return NextResponse.json({
-        error: (!clientId || !clientSecret || !authSecret) ? 'Google authentication is misconfigured.' : 'Diagnostics requested.',
-        diagnostics: {
-          googleClientIdExists: !!clientId,
-          googleClientSecretExists: !!clientSecret,
-          authSecretExists: !!authSecret,
-          googleClientIdLength: clientId ? clientId.length : 0,
-          googleClientIdLastSix: clientId && clientId.length >= 6 ? clientId.slice(-6) : '',
-          environment: process.env['NODE_ENV'] || 'unknown',
-          calculatedRedirectUri: redirectUri,
-          postgresUrlExists: !!(process.env.POSTGRES_URL || process.env.DATABASE_URL),
-          postgresUrlLength: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').length,
-          postgresUrlPrefix: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').split(':')[0] || '',
-          postgresConnectOk: testDb.ok,
-          postgresConnectError: testDb.error
-        }
-      }, { status: (!clientId || !clientSecret || !authSecret || !testDb.ok) ? 500 : 200 });
+        oauthClientConfigured: !!clientId && !!clientSecret && !!authSecret,
+        redirectUriUsed: redirectUri,
+        requestOrigin: new URL(request.url).origin,
+        expectedProductionRedirectUri: 'https://fatafatapp.me/api/auth/google-login'
+      }, { status: (!clientId || !clientSecret || !authSecret) ? 500 : 200 });
     }
 
     // A. Handle OAuth Callback from Google
