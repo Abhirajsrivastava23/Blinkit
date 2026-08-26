@@ -196,8 +196,10 @@ export async function GET(request: Request) {
         [email, sub]
       );
       let customer = userRes.rows[0] || null;
+      const tDbSelectEnd = performance.now();
       const now = new Date().toISOString();
 
+      const tDbWriteStart = performance.now();
       if (customer) {
         step = 'db-update-user';
         customer.googleProviderId = sub;
@@ -238,8 +240,8 @@ export async function GET(request: Request) {
           ]
         );
       }
-      const tDbEnd = performance.now();
-      console.log(`[Google OAuth] Database user resolve completed in ${(tDbEnd - tDbStart).toFixed(2)}ms`);
+      const tDbWriteEnd = performance.now();
+      console.log(`[Google OAuth] Database user resolve completed in ${(tDbWriteEnd - tDbStart).toFixed(2)}ms (select: ${(tDbSelectEnd - tDbStart).toFixed(2)}ms, write: ${(tDbWriteEnd - tDbWriteStart).toFixed(2)}ms)`);
 
       // 4. Issue customer session
       step = 'create-session';
@@ -269,8 +271,24 @@ export async function GET(request: Request) {
       response.headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
 
       const tRedirectEnd = performance.now();
-      console.log(`[Google OAuth] Redirect generation completed in ${(tRedirectEnd - tRedirectStart).toFixed(2)}ms`);
-      console.log(`[Google OAuth] Total callback processing completed in ${(tRedirectEnd - tStart).toFixed(2)}ms`);
+      
+      const durInit = tExchangeStart - tStart;
+      const durExchange = tExchangeEnd - tExchangeStart;
+      const durUserinfo = tUserinfoEnd - tUserinfoStart;
+      const durDbSelect = tDbSelectEnd - tDbStart;
+      const durDbWrite = tDbWriteEnd - tDbWriteStart;
+      const durSession = tSessionEnd - tSessionStart;
+      const durRedirect = tRedirectEnd - tRedirectStart;
+      const durTotal = tRedirectEnd - tStart;
+
+      // Add standard Server-Timing header for browser transparency
+      response.headers.set(
+        'Server-Timing',
+        `init;dur=${durInit.toFixed(1)}, exchange;dur=${durExchange.toFixed(1)}, userinfo;dur=${durUserinfo.toFixed(1)}, db_select;dur=${durDbSelect.toFixed(1)}, db_write;dur=${durDbWrite.toFixed(1)}, session;dur=${durSession.toFixed(1)}, redirect;dur=${durRedirect.toFixed(1)}, total;dur=${durTotal.toFixed(1)}`
+      );
+
+      console.log(`[Google OAuth] Redirect generation completed in ${durRedirect.toFixed(2)}ms`);
+      console.log(`[Google OAuth] Total callback processing completed in ${durTotal.toFixed(2)}ms`);
 
       return response;
     }
