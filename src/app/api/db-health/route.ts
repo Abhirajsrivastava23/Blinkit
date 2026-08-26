@@ -25,32 +25,6 @@ export async function GET(request: Request) {
       });
     }
 
-    const connectionString = (
-      process.env.POSTGRES_URL ||
-      process.env.DATABASE_URL ||
-      ''
-    ).trim();
-
-    let host = 'unknown';
-    let port = 'unknown';
-    let envVarUsed = 'none';
-
-    if (process.env.POSTGRES_URL) {
-      envVarUsed = 'POSTGRES_URL';
-    } else if (process.env.DATABASE_URL) {
-      envVarUsed = 'DATABASE_URL';
-    }
-
-    if (connectionString) {
-      try {
-        const parsedUrl = new URL(connectionString);
-        host = parsedUrl.hostname;
-        port = parsedUrl.port || '5432';
-      } catch {
-        host = 'invalid-url';
-      }
-    }
-
     const startTime = Date.now();
     const testDb = await db.testConnection();
     const latency = Date.now() - startTime;
@@ -61,9 +35,6 @@ export async function GET(request: Request) {
       connectionSuccessful: testDb.ok,
       serverEnvironment: process.env.NODE_ENV || 'production',
       latency: `${latency}ms`,
-      envVarUsed,
-      host,
-      port,
       error: testDb.ok ? null : testDb.error
     });
   } catch (err: unknown) {
