@@ -4,17 +4,94 @@ import { createSession } from '../../../../data/auth';
 
 export const dynamic = 'force-dynamic';
 
+interface UserRecord {
+  userId: string;
+  googleProviderId?: string | null;
+  name: string;
+  email: string;
+  profileImage?: string;
+  createdAt: string;
+  lastLoginAt: string;
+  wellnessAccessStatus: string;
+  wellnessRequestId?: string | null;
+  wellnessApprovedAt?: string | null;
+  wellnessApprovedBy?: string | null;
+  phone?: string;
+  dob?: string;
+  gender?: string;
+  addresses?: unknown;
+}
+
+function getValidatedRedirectUri(requestUrlStr: string): string {
+  const url = new URL(requestUrlStr);
+  const origin = url.origin.toLowerCase();
+
+  const ALLOWED_ORIGINS = [
+    'https://fatafatapp.me',
+    'https://www.fatafatapp.me',
+    'https://fatafat-app.vercel.app'
+  ];
+
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  // Match localhost or 127.0.0.1 with any port
+  const isLocalhost = origin.startsWith('http://localhost:') || origin === 'http://localhost' || origin.startsWith('http://127.0.0.1:') || origin === 'http://127.0.0.1';
+
+  if (ALLOWED_ORIGINS.includes(origin) || (isDevelopment && isLocalhost)) {
+    return `${origin}/api/auth/google-login`;
+  }
+
+  // Security fallback to main production domain
+  return 'https://fatafatapp.me/api/auth/google-login';
+}
+
+function getValidatedCallback(callbackParam: string | null): string {
+  if (!callbackParam) {
+    return '/';
+  }
+
+  // Prevent redirect loops
+  if (callbackParam.includes('/api/auth/google-login')) {
+    return '/';
+  }
+
+  // Allow safe relative paths
+  if (callbackParam.startsWith('/') && !callbackParam.startsWith('//')) {
+    return callbackParam;
+  }
+
+  try {
+    const url = new URL(callbackParam);
+    const origin = url.origin.toLowerCase();
+
+    const ALLOWED_ORIGINS = [
+      'https://fatafatapp.me',
+      'https://www.fatafatapp.me',
+      'https://fatafat-app.vercel.app'
+    ];
+
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isLocalhost = origin.startsWith('http://localhost:') || origin === 'http://localhost' || origin.startsWith('http://127.0.0.1:') || origin === 'http://127.0.0.1';
+
+    if (ALLOWED_ORIGINS.includes(origin) || (isDevelopment && isLocalhost)) {
+      return url.pathname + url.search + url.hash;
+    }
+  } catch {
+    // Fail silently to safe fallback
+  }
+
+  return '/';
+}
+
 export async function GET(request: Request) {
   let step = 'init';
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
-    const callback = searchParams.get('state') || searchParams.get('callback') || '/';
+    const callback = getValidatedCallback(searchParams.get('state') || searchParams.get('callback') || '/');
     const errorParam = searchParams.get('error');
 
-    const host = request.headers.get('host') || 'localhost:3000';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const redirectUri = `${protocol}://${host}/api/auth/google-login`;
+    const redirectUri = getValidatedRedirectUri(request.url);
+    const isSecure = redirectUri.startsWith('https:');
 
     const clientId = process.env['GOOGLE_CLIENT_ID'];
     const clientSecret = process.env['GOOGLE_CLIENT_SECRET'];
@@ -39,7 +116,7 @@ export async function GET(request: Request) {
           calculatedRedirectUri: redirectUri,
           postgresUrlExists: !!(process.env.POSTGRES_URL || process.env.DATABASE_URL),
           postgresUrlLength: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').length,
-          postgresUrlStart: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').substring(0, 20),
+          postgresUrlPrefix: (process.env.POSTGRES_URL || process.env.DATABASE_URL || '').split(':')[0] || '',
           postgresConnectOk: testDb.ok,
           postgresConnectError: testDb.error
         }
@@ -68,8 +145,7 @@ export async function GET(request: Request) {
       });
 
       if (!tokenRes.ok) {
-        const errText = await tokenRes.text();
-        console.error('Failed to exchange Google OAuth code:', errText);
+        console.error(`Failed to exchange Google OAuth code. Status: ${tokenRes.status}`);
         return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
       }
 
@@ -87,7 +163,7 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL('/login?error=userinfo_fetch_failed', request.url));
       }
 
-      const googleUser = await userinfoRes.json();
+      const googleUser = await userinfoRes.json() as { sub: string; email: string; name?: string; picture?: string };
       const { sub, email, name, picture } = googleUser;
 
       if (!email) {
@@ -96,8 +172,8 @@ export async function GET(request: Request) {
 
       // 3. Resolve or create customer account record
       step = 'db-read-users';
-      const users = await db.readTable<any>('users') || [];
-      let customer = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() || u.googleProviderId === sub);
+      const users = await db.readTable<UserRecord>('users') || [];
+      let customer = users.find((u) => u.email.toLowerCase() === email.toLowerCase() || u.googleProviderId === sub);
 
       const now = new Date().toISOString();
 
@@ -142,7 +218,7 @@ export async function GET(request: Request) {
 
       response.cookies.set('fatafat_session_token', session.sessionId, {
         httpOnly: true,
-        secure: protocol === 'https',
+        secure: isSecure,
         sameSite: 'lax',
         path: '/',
         maxAge: 7 * 24 * 60 * 60 // 7 days
@@ -163,13 +239,14 @@ export async function GET(request: Request) {
       `&prompt=select_account`;
 
     return NextResponse.redirect(googleAuthUrl);
-  } catch (err: any) {
-    console.error(`Error handling Google login Route at step [${step}]:`, err);
+  } catch (err: unknown) {
+    const errorObject = err instanceof Error ? err : new Error(String(err));
+    console.error(`Error handling Google login Route at step [${step}]:`, errorObject);
     return NextResponse.json({
       error: 'Server error',
-      message: err.message || String(err),
+      message: errorObject.message || String(err),
       step,
-      stack: err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : undefined
+      stack: errorObject.stack ? errorObject.stack.split('\n').slice(0, 3).join(' | ') : undefined
     }, { status: 500 });
   }
 }
