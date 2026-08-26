@@ -52,8 +52,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Safely initialize savedAddresses state from localStorage to avoid inline effect warnings
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('fatafat_addresses');
+      if (cached && cached !== '[]') {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          // ignore parsing errors
+        }
+      }
+    }
+    // Return seed addresses as default
+    return [
+      {
+        id: 'addr-default-1',
+        name: 'Abhiraj Srivastava',
+        mobile: '9876543210',
+        house: 'Flat 402, Royal Palms',
+        street: 'Main Road, Sector 4',
+        area: 'Nawabganj',
+        city: 'Nawabganj, Unnao',
+        pincode: '209859',
+        landmark: 'Near Nawabganj Bird Sanctuary'
+      }
+    ];
+  });
 
   // Load user session and addresses on mount
   useEffect(() => {
@@ -69,18 +96,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               phone: meData.user.phone || '9876543210',
               name: meData.user.name || 'Valued Client',
               email: meData.user.email,
-              googleProviderId: meData.user.phone, // phone maps to customerId
+              googleProviderId: meData.user.googleProviderId || meData.user.phone,
               role: meData.user.role,
-              wellnessAccessStatus: 'NOT_REQUESTED'
+              wellnessAccessStatus: meData.user.wellnessAccessStatus || 'NOT_REQUESTED',
+              profileImage: meData.user.profileImage || '',
+              dob: meData.user.dob || '',
+              gender: meData.user.gender || ''
             };
 
-            // Sync wellness status from users list
-            if (meData.user.email) {
+            // Use pre-fetched addresses if available from /api/auth/me
+            if (meData.user.addresses && Array.isArray(meData.user.addresses)) {
+              setSavedAddresses(meData.user.addresses);
+              localStorage.setItem('fatafat_addresses', JSON.stringify(meData.user.addresses));
+            }
+
+            // Sync wellness status from users list only as fallback if not returned by me API
+            if (meData.user.email && (!meData.user.profileImage || meData.user.wellnessAccessStatus === 'NOT_REQUESTED')) {
               try {
                 const listRes = await fetch('/api/users/list');
                 if (listRes.ok) {
                   const list = await listRes.json();
-                  const matched = list.find((u: any) => u.email.toLowerCase() === meData.user.email.toLowerCase());
+                  const matched = list.find((u: { email: string }) => u.email.toLowerCase() === meData.user.email.toLowerCase());
                   if (matched) {
                     authedUser.name = matched.name || authedUser.name;
                     authedUser.phone = matched.phone || authedUser.phone;
@@ -148,46 +184,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: activeClientUser.name
           })
         });
-      } catch (err) {
-        console.error('Failed to sync guest session:', err);
+      } catch (e) {
+        console.error('Failed to sync guest session to server:', e);
       }
+
       setIsLoading(false);
     };
 
     initAuth();
-
-    // Load addresses
-    const storedAddresses = localStorage.getItem('fatafat_addresses');
-    if (storedAddresses) {
-      setSavedAddresses(JSON.parse(storedAddresses));
-    } else {
-      const defaultAddresses = [
-        {
-          id: 'addr-1',
-          name: 'Aman Sharma',
-          mobile: '9876543210',
-          house: 'Room 304, Block C',
-          street: 'Chandigarh University Campus',
-          area: 'Gharuan',
-          city: 'Chandigarh University, Uttar Pradesh',
-          pincode: '140413',
-          landmark: 'Gate 2 Entrance'
-        },
-        {
-          id: 'addr-2',
-          name: 'Rahul Gupta',
-          mobile: '9988776655',
-          house: 'Flat 12, Block B',
-          street: 'Main Market Road',
-          area: 'Nawabganj',
-          city: 'Nawabganj, Unnao',
-          pincode: '209859',
-          landmark: 'Near Nawabganj Bird Sanctuary'
-        }
-      ];
-      setSavedAddresses(defaultAddresses);
-      localStorage.setItem('fatafat_addresses', JSON.stringify(defaultAddresses));
-    }
   }, []);
 
   const loginWithPhone = async (phone: string) => {

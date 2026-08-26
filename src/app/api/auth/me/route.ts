@@ -1,8 +1,27 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { db } from '../../../../data/db';
+import { db, AdminRecord, PartnerRecord } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
+
+interface UserRecord {
+  [key: string]: unknown;
+  userId: string;
+  googleProviderId?: string | null;
+  name: string;
+  email: string;
+  profileImage?: string;
+  createdAt: string;
+  lastLoginAt: string;
+  wellnessAccessStatus: string;
+  wellnessRequestId?: string | null;
+  wellnessApprovedAt?: string | null;
+  wellnessApprovedBy?: string | null;
+  phone?: string;
+  dob?: string;
+  gender?: string;
+  addresses?: unknown;
+}
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +31,7 @@ export async function GET(request: Request) {
     }
 
     if (session.role === 'admin') {
-      const admins = await db.readTable<any>('admin') || [];
+      const admins = await db.readTable<AdminRecord>('admin') || [];
       const adminObj = admins.find(a => a.email.toLowerCase() === session.email.toLowerCase());
       if (!adminObj) {
         return NextResponse.json({ authenticated: false, error: 'Admin record not found' }, { status: 401 });
@@ -29,7 +48,7 @@ export async function GET(request: Request) {
     }
 
     if (session.role === 'delivery_partner') {
-      const partners = await db.readTable<any>('partners') || [];
+      const partners = await db.readTable<PartnerRecord>('partners') || [];
       const partnerObj = partners.find(p => p.id === session.userId);
       if (!partnerObj) {
         return NextResponse.json({ authenticated: false, error: 'Delivery partner record not found' }, { status: 401 });
@@ -51,12 +70,24 @@ export async function GET(request: Request) {
     }
 
     if (session.role === 'customer') {
+      const userRes = await db.query<UserRecord>(
+        'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR "googleProviderId" = $2 OR "userId" = $3 LIMIT 1',
+        [session.email, session.userId, session.userId]
+      );
+      const userObj = userRes.rows[0] || null;
+
       return NextResponse.json({
         authenticated: true,
         user: {
-          name: session.email ? session.email.split('@')[0] : 'Valued Client',
+          name: userObj ? userObj.name : (session.email ? session.email.split('@')[0] : 'Valued Client'),
           email: session.email,
-          phone: session.userId,
+          phone: userObj ? (userObj.phone || '9876543210') : '9876543210',
+          googleProviderId: userObj ? (userObj.googleProviderId || session.userId) : session.userId,
+          profileImage: userObj ? (userObj.profileImage || '') : '',
+          dob: userObj ? (userObj.dob || '') : '',
+          gender: userObj ? (userObj.gender || '') : '',
+          wellnessAccessStatus: userObj ? (userObj.wellnessAccessStatus || 'NOT_REQUESTED') : 'NOT_REQUESTED',
+          addresses: userObj ? (userObj.addresses || []) : [],
           role: 'customer'
         }
       });
