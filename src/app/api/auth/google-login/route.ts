@@ -198,15 +198,10 @@ export async function GET(request: Request) {
       step = 'create-session';
       const session = await createSession(customer.userId, customer.email, 'customer');
 
-      // 5. Set session cookie and redirect to intended destination
-      step = 'create-cookie';
-      const response = new NextResponse(
-        `<html><head><meta http-equiv="refresh" content="0;url=${encodeURI(callback)}" /></head><body><script>window.location.href="${callback}";</script></body></html>`,
-        {
-          status: 200,
-          headers: { 'Content-Type': 'text/html' }
-        }
-      );
+      // 5. Set session cookie and redirect to intended destination using safe HTTP 307 redirect
+      step = 'create-redirect';
+      const redirectUrl = new URL(callback, request.url);
+      const response = NextResponse.redirect(redirectUrl, 307);
 
       response.cookies.set('fatafat_session_token', session.sessionId, {
         httpOnly: true,
@@ -215,6 +210,12 @@ export async function GET(request: Request) {
         path: '/',
         maxAge: 7 * 24 * 60 * 60 // 7 days
       });
+
+      // Explicitly set security headers to prevent sniffing, framing, and referrer leakage
+      response.headers.set('X-Content-Type-Options', 'nosniff');
+      response.headers.set('X-Frame-Options', 'DENY');
+      response.headers.set('Referrer-Policy', 'no-referrer');
+      response.headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
 
       return response;
     }
