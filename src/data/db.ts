@@ -470,6 +470,17 @@ export const db = {
       `);
 
       await client.query(`
+        CREATE TABLE IF NOT EXISTS delivery_photos (
+          id VARCHAR(255) PRIMARY KEY,
+          "orderId" VARCHAR(255) NOT NULL,
+          "partnerId" VARCHAR(255) NOT NULL,
+          "photoUrl" TEXT NOT NULL,
+          category VARCHAR(50),
+          "uploadedAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
         CREATE TABLE IF NOT EXISTS admin (
           email VARCHAR(255) PRIMARY KEY,
           "passwordHash" VARCHAR(255) NOT NULL,
