@@ -606,7 +606,7 @@ export const db = {
       await client.query("DELETE FROM orders WHERE id LIKE 'FT-TEST-%' OR id LIKE 'order-test-%'");
       await client.query("DELETE FROM admin WHERE email IN ('admin@fatafat.com', 'manager@fatafat.com', 'admin@fatafat.local')");
       await client.query("DELETE FROM partners WHERE id IN ('DP-001', 'DP-002', 'DP-003')");
-      await client.query("DELETE FROM sessions WHERE userId IN ('DP-001', 'DP-002', 'DP-003', 'DP-TEST-99')");
+      await client.query("DELETE FROM sessions WHERE \"userId\" IN ('DP-001', 'DP-002', 'DP-003', 'DP-TEST-99')");
       
       // Seed Categories, Brands, Products, Users, Sessions, InventoryIssues, AuditLogs
       await bulkInsert(client, 'categories', categoriesJson);
