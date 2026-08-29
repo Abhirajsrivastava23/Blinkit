@@ -6,7 +6,7 @@ import { useOrders } from '../../../context/OrderContext';
 
 export default function AnalyticsPage() {
   const { orders } = useOrders();
-  const totalRevenue = orders.filter(o => o.status === 'Delivered').reduce((sum, o) => sum + o.total, 0) || 124850;
+  const totalRevenue = orders.filter(o => o.status === 'Delivered').reduce((sum, o) => sum + o.total, 0);
 
   return (
     <div className="space-y-6 text-left">
@@ -22,7 +22,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="bg-white border rounded-2xl p-5 shadow-sm">
           <span className="text-[8px] font-extrabold uppercase tracking-widest text-zinc-400 block mb-1">TOTAL ORDERS PLACED</span>
-          <span className="text-lg font-extrabold text-zinc-900">{orders.length || 248}</span>
+          <span className="text-lg font-extrabold text-zinc-900">{orders.length}</span>
         </div>
         <div className="bg-white border rounded-2xl p-5 shadow-sm">
           <span className="text-[8px] font-extrabold uppercase tracking-widest text-zinc-400 block mb-1">CONVERSION RATE</span>

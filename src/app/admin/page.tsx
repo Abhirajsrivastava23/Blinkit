@@ -28,28 +28,37 @@ export default function AdminDashboardPage() {
   
   // Persistent Partner Assignment States
   const [partnerAssignments, setPartnerAssignments] = useState<Record<string, string>>({});
+  const [customersCount, setCustomersCount] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem('fatafat_partner_assignments');
     if (stored) {
       setPartnerAssignments(JSON.parse(stored));
     }
+    
+    // Fetch real customer count from database
+    fetch('/api/users/list')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCustomersCount(data.length);
+        }
+      })
+      .catch(err => console.error('Error fetching customers count:', err));
   }, []);
 
   // 1. Core KPIs from Live Database Context
   const totalRevenue = orders
     .filter(o => o.status === 'Delivered')
-    .reduce((sum, o) => sum + o.total, 0) || 124850;
+    .reduce((sum, o) => sum + o.total, 0);
 
-  const totalOrdersCount = orders.length || 248;
+  const totalOrdersCount = orders.length;
   const activeDeliveriesCount = orders.filter(o => 
     o.status === 'Preparing' || o.status === 'Packed' || o.status === 'Out for Delivery'
-  ).length || 32;
-
-  const customersCount = 1842;
+  ).length;
   
   // Low stock calculation: products with quantity or marked out of stock
-  const lowStockItems = PRODUCTS.filter(p => !p.inStock || p.id.charCodeAt(0) % 7 === 0);
+  const lowStockItems = PRODUCTS.filter(p => !p.inStock);
 
   // 2. Order pipeline statistics
   const pipelineStats = {

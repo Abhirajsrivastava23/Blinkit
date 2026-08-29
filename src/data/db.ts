@@ -620,7 +620,7 @@ export const db = {
       // Seed Orders (Filter out test orders as requested)
       const ordersSeed = ordersJson.filter((o) => {
         const ord = o as Record<string, unknown>;
-        return !!(ord && ord.id && typeof ord.id === 'string' && !ord.id.startsWith('FT-TEST-'));
+        return !!(ord && ord.id && typeof ord.id === 'string' && !ord.id.startsWith('FT-TEST-') && !ord.id.startsWith('order-test-'));
       });
       await bulkInsert(client, 'orders', ordersSeed);
 
