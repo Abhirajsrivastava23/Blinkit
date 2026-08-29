@@ -169,6 +169,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Guest fallback if no active authenticated server session exists
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        if (path.startsWith('/admin') || path.startsWith('/delivery-partner')) {
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const storedUser = localStorage.getItem('fatafat_user');
       let activeClientUser: User;
 

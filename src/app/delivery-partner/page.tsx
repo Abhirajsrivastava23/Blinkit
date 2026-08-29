@@ -50,7 +50,15 @@ export default function DeliveryPartnerPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Availability security: rider phone/email
-  const isRider = user && user.role === 'delivery_partner';
+  const isRider = (user && user.role === 'delivery_partner') || (typeof window !== 'undefined' && (() => {
+    try {
+      const stored = localStorage.getItem('fatafat_user');
+      if (stored) {
+        return JSON.parse(stored).role === 'delivery_partner';
+      }
+    } catch {}
+    return false;
+  })());
 
   // Load persistent rider data on mount & Verify Session
   const [verifyingSession, setVerifyingSession] = useState(true);
