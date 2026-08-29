@@ -613,11 +613,11 @@ export const db = {
       const adminsSeed = [
         { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' }
       ];
+      await client.query("DELETE FROM admin");
       await bulkInsert(client, 'admin', adminsSeed);
       
-      // Actively purge fake/demo production data from tables
+       // Actively purge fake/demo production data from tables
       await client.query("DELETE FROM orders WHERE id LIKE 'FT-TEST-%' OR id LIKE 'order-test-%'");
-      await client.query("DELETE FROM admin WHERE email IN ('admin@fatafat.com', 'manager@fatafat.com', 'admin@fatafat.local')");
       await client.query("DELETE FROM partners WHERE id IN ('DP-001', 'DP-002', 'DP-003')");
       await client.query("DELETE FROM sessions WHERE \"userId\" IN ('DP-001', 'DP-002', 'DP-003', 'DP-TEST-99')");
       
