@@ -15,6 +15,7 @@ import { PRODUCTS as fallbackProducts, COMBOS, CATEGORIES, OCCASIONS } from '../
 import { useToast } from '../components/Toast';
 import { useProducts } from '../context/ProductContext';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import SafeImage from '../components/SafeImage';
 
 export default function HomePage() {
@@ -22,6 +23,7 @@ export default function HomePage() {
   const { showToast } = useToast();
   const { products, loading: productsLoading } = useProducts();
   const { cartItems, subtotal } = useCart();
+  const { wellnessPublished, user } = useAuth();
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
   // 1. Carousel Hero Banner State
@@ -147,7 +149,7 @@ export default function HomePage() {
         {/* 2. HORIZONTALLY SCROLLABLE CATEGORY ICON STRIP */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2">
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x select-none">
-            {CATEGORIES.map((cat) => {
+            {CATEGORIES.filter(cat => cat.id !== 'wellness' || wellnessPublished || user?.role === 'admin').map((cat) => {
               const label = cat.id === 'wellness' ? 'Wellness 18+' : cat.name.split(' & ')[0];
               const targetLink = cat.id === 'wellness' ? '/wellness' : `/${cat.id}`;
               return (
@@ -224,7 +226,7 @@ export default function HomePage() {
             <h2 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">Shop What You Love</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {CATEGORIES.slice(0, 8).map((cat) => {
+            {CATEGORIES.filter(cat => cat.id !== 'wellness' || wellnessPublished || user?.role === 'admin').slice(0, 8).map((cat) => {
               const label = cat.name.split(' & ')[0];
               const targetLink = cat.id === 'wellness' ? '/wellness' : `/${cat.id}`;
               return (

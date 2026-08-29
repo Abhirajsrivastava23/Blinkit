@@ -11,18 +11,22 @@ import { useAuth } from '../../../context/AuthContext';
 import { ShieldCheck, Heart, Sparkles, Flame, EyeOff } from 'lucide-react';
 
 export default function WellnessCategoriesPage() {
-  const { user, isLoading } = useAuth();
   const router = useRouter();
+  const { user, isLoading, wellnessPublished } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
-      if (!user || user.wellnessAccessStatus !== 'APPROVED') {
+      if (!wellnessPublished && user?.role !== 'admin') {
+        router.push('/');
+        return;
+      }
+      if (user?.wellnessAccessStatus !== 'ACTIVE' && user?.role !== 'admin') {
         router.push('/wellness');
       }
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, wellnessPublished, router]);
 
-  if (isLoading || !user || user.wellnessAccessStatus !== 'APPROVED') {
+  if (isLoading || (!wellnessPublished && user?.role !== 'admin') || (user?.wellnessAccessStatus !== 'ACTIVE' && user?.role !== 'admin')) {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center text-white text-xs">
         Verifying Wellness security token...

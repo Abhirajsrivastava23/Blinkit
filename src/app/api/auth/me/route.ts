@@ -23,21 +23,60 @@ interface UserRecord {
   addresses?: unknown;
 }
 
+async function resolveWellnessStatus(userObj: any) {
+  if (!userObj) return 'NOT_REQUESTED';
+  
+  if (userObj.wellnessAccessStatus === 'REJECTED') return 'REJECTED';
+  if (userObj.wellnessAccessStatus === 'SUSPENDED' || userObj.wellnessAccessStatus === 'REVOKED') return 'SUSPENDED';
+  
+  if (!userObj.dob) {
+    return 'PROFILE_INCOMPLETE';
+  }
+
+  const dobDate = new Date(userObj.dob);
+  const today = new Date();
+  let age = today.getFullYear() - dobDate.getFullYear();
+  const m = today.getMonth() - dobDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+    age--;
+  }
+
+  if (age < 18) {
+    return 'NOT_ELIGIBLE';
+  }
+
+  if (userObj.wellnessAccessStatus === 'APPROVED' || userObj.wellnessAccessStatus === 'ACTIVE') {
+    const termsRes = await db.query(
+      'SELECT * FROM wellness_terms_acceptances WHERE "customerId" = $1 AND "termsVersion" = $2 LIMIT 1',
+      [userObj.userId, 'v1']
+    );
+    return termsRes.rows.length > 0 ? 'ACTIVE' : 'TERMS_REQUIRED';
+  }
+
+  return userObj.wellnessAccessStatus || 'NOT_REQUESTED';
+}
+
 export async function GET(request: Request) {
   try {
     const session = await getSession(request);
+    
+    // Fetch publication state
+    const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
+    const wellnessPublished = (configRes.rows[0]?.data as any)?.published ?? false;
+
     if (!session) {
-      return NextResponse.json({ authenticated: false, error: 'Unauthorized session' }, { status: 401 });
+      return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Unauthorized session' }, { status: 401 });
     }
 
     if (session.role === 'admin') {
       const admins = await db.readTable<AdminRecord>('admin') || [];
       const adminObj = admins.find(a => a.email.toLowerCase() === session.email.toLowerCase());
       if (!adminObj) {
-        return NextResponse.json({ authenticated: false, error: 'Admin record not found' }, { status: 401 });
+        return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Admin record not found' }, { status: 401 });
       }
       return NextResponse.json({
         authenticated: true,
+        wellnessPublished,
         user: {
           name: adminObj.name,
           email: adminObj.email,
@@ -51,10 +90,11 @@ export async function GET(request: Request) {
       const partners = await db.readTable<PartnerRecord>('partners') || [];
       const partnerObj = partners.find(p => p.id === session.userId);
       if (!partnerObj) {
-        return NextResponse.json({ authenticated: false, error: 'Delivery partner record not found' }, { status: 401 });
+        return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Delivery partner record not found' }, { status: 401 });
       }
       return NextResponse.json({
         authenticated: true,
+        wellnessPublished,
         user: {
           name: partnerObj.name,
           email: partnerObj.email,
@@ -75,9 +115,12 @@ export async function GET(request: Request) {
         [session.email, session.userId, session.userId]
       );
       const userObj = userRes.rows[0] || null;
+      
+      const status = await resolveWellnessStatus(userObj);
 
       return NextResponse.json({
         authenticated: true,
+        wellnessPublished,
         user: {
           name: userObj ? userObj.name : (session.email ? session.email.split('@')[0] : 'Valued Client'),
           email: session.email,
@@ -86,14 +129,14 @@ export async function GET(request: Request) {
           profileImage: userObj ? (userObj.profileImage || '') : '',
           dob: userObj ? (userObj.dob || '') : '',
           gender: userObj ? (userObj.gender || '') : '',
-          wellnessAccessStatus: userObj ? (userObj.wellnessAccessStatus || 'NOT_REQUESTED') : 'NOT_REQUESTED',
+          wellnessAccessStatus: status,
           addresses: userObj ? (userObj.addresses || []) : [],
           role: 'customer'
         }
       });
     }
 
-    return NextResponse.json({ authenticated: false, error: 'Invalid session role' }, { status: 401 });
+    return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Invalid session role' }, { status: 401 });
   } catch (err) {
     console.error('Session retrieval error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

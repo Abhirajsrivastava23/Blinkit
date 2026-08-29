@@ -227,6 +227,31 @@ export default function AdminWellnessPage() {
     }
   };
 
+  // Action: Revoke Approved User Access
+  const handleRevoke = async (email: string, reqId: string) => {
+    if (!checkPermission('reject')) return;
+    try {
+      const res = await fetch('/api/users/update-wellness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          wellnessAccessStatus: 'REVOKED',
+          approvedBy: adminEmail,
+          requestId: reqId,
+          reason: 'Access revoked by administration audit'
+        })
+      });
+      if (res.ok) {
+        showToast(`Access REVOKED for user: ${email}`, 'info');
+        setSelectedRequest(null);
+        fetchServerTables();
+      }
+    } catch (e) {
+      showToast('Operation failed.', 'error');
+    }
+  };
+
   // Action: Save Access Settings
   const handleSaveSettings = () => {
     localStorage.setItem('fatafat_wellness_age_check', String(ageCheckEnabled));
@@ -235,10 +260,10 @@ export default function AdminWellnessPage() {
   };
 
   // Categorize user lists based on status
-  const pendingRequests = usersList.filter(u => u.wellnessAccessStatus === 'PENDING_REVIEW');
-  const approvedUsers = usersList.filter(u => u.wellnessAccessStatus === 'APPROVED');
+  const pendingRequests = usersList.filter(u => u.wellnessAccessStatus === 'PENDING_REVIEW' || u.wellnessAccessStatus === 'PENDING');
+  const approvedUsers = usersList.filter(u => u.wellnessAccessStatus === 'APPROVED' || u.wellnessAccessStatus === 'ACTIVE' || u.wellnessAccessStatus === 'TERMS_REQUIRED');
   const rejectedRequests = usersList.filter(u => u.wellnessAccessStatus === 'REJECTED');
-  const suspendedUsers = usersList.filter(u => u.wellnessAccessStatus === 'SUSPENDED');
+  const suspendedUsers = usersList.filter(u => u.wellnessAccessStatus === 'SUSPENDED' || u.wellnessAccessStatus === 'REVOKED');
 
   // Filter Wellness Orders
   const wellnessOrders = orders.filter(o => 
@@ -418,12 +443,18 @@ export default function AdminWellnessPage() {
                       <td className="p-3">{u.email}</td>
                       <td className="p-3 font-bold">{u.wellnessApprovedBy || 'System Admin'}</td>
                       <td className="p-3">{u.wellnessApprovedAt ? new Date(u.wellnessApprovedAt).toLocaleDateString() : 'N/A'}</td>
-                      <td className="p-3 text-center">
+                      <td className="p-3 text-center flex gap-1.5 justify-center">
                         <button
                           onClick={() => handleSuspend(u.email, u.wellnessRequestId)}
-                          className="px-2.5 py-1 bg-red-550/10 text-red-600 hover:bg-red-50 rounded-lg text-[10px] font-bold"
+                          className="px-2.5 py-1 bg-red-550/10 text-red-650 hover:bg-red-50 rounded-lg text-[9px] font-bold"
                         >
-                          Suspend Access
+                          Suspend
+                        </button>
+                        <button
+                          onClick={() => handleRevoke(u.email, u.wellnessRequestId)}
+                          className="px-2.5 py-1 bg-red-600 text-white hover:bg-red-700 rounded-lg text-[9px] font-bold"
+                        >
+                          Revoke
                         </button>
                       </td>
                     </tr>
@@ -710,6 +741,23 @@ export default function AdminWellnessPage() {
               <div className="flex justify-between border-b pb-1.5">
                 <span className="text-zinc-450">Google Verified</span>
                 <span className="font-bold text-emerald-700">✓ YES</span>
+              </div>
+              <div className="flex justify-between border-b pb-1.5">
+                <span className="text-zinc-450">Date of Birth</span>
+                <span className="font-bold">{selectedRequest.dob || 'Not Provided'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-1.5">
+                <span className="text-zinc-450">Calculated Age</span>
+                <span className="font-bold text-brand-burgundy font-extrabold">{selectedRequest.dob ? (() => {
+                  const dobDate = new Date(selectedRequest.dob);
+                  const today = new Date();
+                  let age = today.getFullYear() - dobDate.getFullYear();
+                  const m = today.getMonth() - dobDate.getMonth();
+                  if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+                    age--;
+                  }
+                  return `${age} Years Old`;
+                })() : 'N/A'}</span>
               </div>
               <div className="flex justify-between border-b pb-1.5">
                 <span className="text-zinc-450">Account Created</span>

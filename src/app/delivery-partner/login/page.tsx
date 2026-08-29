@@ -50,12 +50,6 @@ export default function DeliveryPartnerLoginPage() {
     }
   };
 
-  const triggerDemoLogin = (id: string) => {
-    setEmailOrId(id);
-    setPassword('rider123');
-    showToast(`Autofilled demo credentials for rider: ${id}`, 'info');
-  };
-
   return (
     <div className="min-h-screen bg-[#FAF9F6] flex flex-col justify-center items-center p-4 font-sans text-xs text-brand-charcoal select-none">
       <div className="w-full max-w-sm bg-white border border-zinc-200/50 rounded-3xl p-6 shadow-xl space-y-6 text-left relative overflow-hidden">
@@ -113,30 +107,6 @@ export default function DeliveryPartnerLoginPage() {
             {isLoading ? 'Decrypting Rider Session...' : 'Sign In Rider Console'}
           </button>
         </form>
-
-        {/* Demo profiles quick login */}
-        <div className="border-t border-zinc-200/50 pt-4 space-y-2">
-          <span className="text-[8px] font-extrabold uppercase tracking-widest text-zinc-400 block text-center">
-            ⚡ QUICK DEMO RIDER LOGIN
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => triggerDemoLogin('DP-001')}
-              className="py-2.5 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-left hover:bg-brand-burgundy/5 hover:border-brand-burgundy/20 transition-all font-bold block"
-            >
-              <p className="text-zinc-800 text-[10px]">Rahul (Rider A)</p>
-              <p className="text-[8px] text-zinc-400 font-normal">Nawabganj Zone</p>
-            </button>
-
-            <button
-              onClick={() => triggerDemoLogin('DP-002')}
-              className="py-2.5 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-left hover:bg-brand-burgundy/5 hover:border-brand-burgundy/20 transition-all font-bold block"
-            >
-              <p className="text-zinc-800 text-[10px]">Aman (Rider B)</p>
-              <p className="text-[8px] text-zinc-400 font-normal">Chandigarh Uni</p>
-            </button>
-          </div>
-        </div>
 
       </div>
     </div>

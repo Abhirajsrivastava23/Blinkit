@@ -22,7 +22,7 @@ const FLAVORS = ['All', 'Chocolate', 'Strawberry'];
 
 export default function WellnessPage() {
   const router = useRouter();
-  const { user, loginWithGoogle, updateWellnessStatus } = useAuth();
+  const { user, loginWithGoogle, updateWellnessStatus, wellnessPublished, isLoading } = useAuth();
   const { products, refreshProducts } = useProducts();
   const { showToast } = useToast();
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
@@ -48,30 +48,34 @@ export default function WellnessPage() {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Age verification settings toggle simulated
-  const [ageVerificationRequired, setAgeVerificationRequired] = useState(true);
-  const [verificationIDType, setVerificationIDType] = useState('Aadhaar Card');
-  const [verificationNumber, setVerificationNumber] = useState('');
+  // Terms and conditions state
+  const [termsChecked, setTermsChecked] = useState(false);
+  const [submittingTerms, setSubmittingTerms] = useState(false);
 
   // 1. Identify authorization state from session context
   const isGoogleAuthenticated = user && user.googleProviderId && user.email !== 'guest@fatafat.com';
   const wellnessStatus = user?.wellnessAccessStatus || 'NOT_REQUESTED';
 
+  // Publication check redirect
+  useEffect(() => {
+    if (!isLoading && !wellnessPublished && user?.role !== 'admin') {
+      router.push('/');
+    }
+  }, [isLoading, wellnessPublished, user, router]);
+
   // 2. Fetch server user details on load
   useEffect(() => {
     if (user?.email && user.email !== 'guest@fatafat.com') {
-      // Sync status from server users table to local session
       const fetchServerUser = async () => {
         try {
-          const res = await fetch('/api/users/list');
+          const res = await fetch('/api/auth/me');
           if (res.ok) {
-            const list = await res.json();
-            const matched = list.find((u: any) => u.email === user.email);
-            if (matched && matched.wellnessAccessStatus !== user.wellnessAccessStatus) {
-              updateWellnessStatus(matched.wellnessAccessStatus, {
-                wellnessApprovedAt: matched.wellnessApprovedAt,
-                wellnessApprovedBy: matched.wellnessApprovedBy,
-                wellnessRequestId: matched.wellnessRequestId
+            const meData = await res.json();
+            if (meData.authenticated && meData.user && meData.user.wellnessAccessStatus !== user.wellnessAccessStatus) {
+              updateWellnessStatus(meData.user.wellnessAccessStatus, {
+                wellnessApprovedAt: meData.user.wellnessApprovedAt,
+                wellnessApprovedBy: meData.user.wellnessApprovedBy,
+                wellnessRequestId: meData.user.wellnessRequestId
               });
             }
           }
@@ -79,18 +83,17 @@ export default function WellnessPage() {
       };
       fetchServerUser();
     }
-  }, [user?.email, updateWellnessStatus]);
+  }, [user?.email, updateWellnessStatus, user?.wellnessAccessStatus]);
 
   // Load and filter wellness products when entered & approved
   useEffect(() => {
-    if (wellnessStatus !== 'APPROVED' || !hasEntered) {
+    if (wellnessStatus !== 'ACTIVE') {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     const timer = setTimeout(() => {
-      // Server-side GET request simulation with Auth header security
       const fetchWellnessData = async () => {
         try {
           const res = await fetch(`/api/products?wellness=true`, {
@@ -147,7 +150,6 @@ export default function WellnessPage() {
 
             setFilteredProducts(result);
           } else {
-            // Server returned 403 Forbidden!
             setFilteredProducts([]);
             showToast('Security Error: Failed to retrieve catalog. 403 Forbidden.', 'error');
           }
@@ -162,7 +164,7 @@ export default function WellnessPage() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchVal, selectedBrand, selectedCategory, selectedCondomType, selectedFlavor, priceRange, sortBy, wellnessStatus, hasEntered, user?.email]);
+  }, [searchVal, selectedBrand, selectedCategory, selectedCondomType, selectedFlavor, priceRange, sortBy, wellnessStatus, user?.email]);
 
   // Handler: Google Login Submission
   const handleGoogleSubmit = async (e: React.FormEvent) => {
@@ -177,7 +179,6 @@ export default function WellnessPage() {
     const mockProfileImg = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60';
 
     try {
-      // 1. Sync User database on server
       const res = await fetch('/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,7 +192,6 @@ export default function WellnessPage() {
       });
 
       if (res.ok) {
-        // 2. Update local AuthContext session
         await loginWithGoogle({
           googleProviderId: mockGoogleId,
           email: googleEmail.trim(),
@@ -213,8 +213,9 @@ export default function WellnessPage() {
   const handleRequestAccess = async () => {
     if (!user || !user.email) return;
 
-    if (ageVerificationRequired && !verificationNumber) {
-      showToast('Please enter your document ID number for age validation.', 'error');
+    if (!user.dob) {
+      showToast('Please add your correct Date of Birth to your profile before requesting access to Wellness.', 'error');
+      router.push('/account/profile');
       return;
     }
 
@@ -227,7 +228,7 @@ export default function WellnessPage() {
           email: user.email,
           wellnessAccessStatus: 'PENDING_REVIEW',
           requestId: mockReqId,
-          reason: `Auto verification via ${verificationIDType}: ${verificationNumber || 'Auto-checked'}`
+          reason: `DOB check access request`
         })
       });
 
@@ -236,9 +237,35 @@ export default function WellnessPage() {
           wellnessRequestId: mockReqId
         });
         showToast('Access request submitted. Under review by Super Admin.', 'success');
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to submit request.', 'error');
       }
     } catch (err) {
       showToast('Request submission error.', 'error');
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    if (!termsChecked) return;
+    setSubmittingTerms(true);
+    try {
+      const res = await fetch('/api/wellness/accept-terms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ termsVersion: 'v1' })
+      });
+      if (res.ok) {
+        showToast('Terms accepted successfully! Welcome to Wellness.', 'success');
+        window.location.reload();
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to accept terms.', 'error');
+      }
+    } catch (err) {
+      showToast('Error accepting terms.', 'error');
+    } finally {
+      setSubmittingTerms(false);
     }
   };
 
@@ -268,7 +295,7 @@ export default function WellnessPage() {
             </p>
           </div>
 
-          <p className="text-zinc-400 leading-relaxed text-[11px] font-medium">
+          <p className="text-zinc-450 leading-relaxed text-[11px] font-medium">
             Age-restricted products are available only to approved customers. Submitting authentication is required to access the catalog.
           </p>
 
@@ -285,8 +312,82 @@ export default function WellnessPage() {
     );
   }
 
-  // STATE B: STATUS = NOT_REQUESTED
+  // STATE B: STATUS = PROFILE_INCOMPLETE
+  if (wellnessStatus === 'PROFILE_INCOMPLETE') {
+    return (
+      <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
+        <div className="absolute inset-0 bg-[#050508]" />
+        
+        <div className="relative max-w-sm w-full bg-[#121217] border border-[#DFBA5E]/15 rounded-3xl p-8 text-center shadow-2xl space-y-6">
+          <div className="h-14 w-14 bg-zinc-800/40 text-brand-gold rounded-full flex items-center justify-center mx-auto border border-zinc-750">
+            <Lock className="h-6 w-6 text-[#DFBA5E]" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Profile Incomplete</h3>
+            <p className="text-[10px] text-[#DFBA5E] font-extrabold">Date of Birth Required</p>
+          </div>
+
+          <p className="text-zinc-450 leading-relaxed text-[11px] font-medium">
+            Please add your correct Date of Birth to your profile before requesting access to Wellness.
+          </p>
+
+          <button
+            onClick={() => router.push('/account/profile')}
+            className="w-full py-3.5 bg-[#6B1D2F] hover:bg-[#8F3A44] text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow text-[10px]"
+          >
+            Go to Profile
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // STATE C: STATUS = NOT_ELIGIBLE
+  if (wellnessStatus === 'NOT_ELIGIBLE') {
+    return (
+      <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
+        <div className="absolute inset-0 bg-[#050508]" />
+        
+        <div className="relative max-w-sm w-full bg-[#121217] border border-red-950/25 rounded-3xl p-8 text-center shadow-2xl space-y-6">
+          <div className="h-14 w-14 bg-red-950/20 border border-red-900/40 text-red-500 rounded-full flex items-center justify-center mx-auto">
+            <ShieldOff className="h-6 w-6 text-red-500" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Access Denied</h3>
+            <p className="text-[10px] text-red-400 font-extrabold uppercase">Underage Restriction</p>
+          </div>
+
+          <p className="text-zinc-450 leading-relaxed text-[11px] font-medium">
+            Wellness access is available only to customers aged 18 or above.
+          </p>
+
+          <button
+            onClick={() => router.push('/')}
+            className="w-full py-3.5 bg-[#1C1C24] hover:bg-zinc-800 text-zinc-300 rounded-xl font-bold uppercase tracking-wider text-[9px]"
+          >
+            ← Back to Storefront
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // STATE D: STATUS = NOT_REQUESTED
   if (wellnessStatus === 'NOT_REQUESTED') {
+    // Determine user's calculated age dynamically for display
+    let calculatedAge = 0;
+    if (user?.dob) {
+      const dobDate = new Date(user.dob);
+      const today = new Date();
+      calculatedAge = today.getFullYear() - dobDate.getFullYear();
+      const m = today.getMonth() - dobDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+        calculatedAge--;
+      }
+    }
+
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
         <div className="absolute inset-0 bg-[#050508]" />
@@ -305,40 +406,12 @@ export default function WellnessPage() {
             To view age-restricted wellness products, submit an access request to the system administrators.
           </p>
 
-          {/* Configurable simulated Age Verification Inputs */}
-          <div className="bg-[#1C1C24] p-3.5 rounded-2xl border border-zinc-850 text-left space-y-3">
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-[9px] font-extrabold text-[#DFBA5E] uppercase tracking-wider">Configure Age Document Check</span>
-              <input
-                type="checkbox"
-                checked={ageVerificationRequired}
-                onChange={(e) => setAgeVerificationRequired(e.target.checked)}
-                className="h-3.5 w-3.5 text-brand-burgundy rounded focus:ring-brand-burgundy bg-zinc-900 border-zinc-750"
-              />
-            </label>
-
-            {ageVerificationRequired && (
-              <div className="space-y-2">
-                <select
-                  value={verificationIDType}
-                  onChange={(e) => setVerificationIDType(e.target.value)}
-                  className="w-full p-2 bg-zinc-900 border border-zinc-800 rounded-xl text-[10px] text-white focus:outline-none focus:border-wellness-bronze"
-                >
-                  <option value="Aadhaar Card">Aadhaar Card (18+ check)</option>
-                  <option value="PAN Card">PAN Card</option>
-                  <option value="Passport">Passport</option>
-                </select>
-
-                <input
-                  type="text"
-                  placeholder="Enter Document number..."
-                  value={verificationNumber}
-                  onChange={(e) => setVerificationNumber(e.target.value)}
-                  className="w-full p-2 bg-zinc-900 border border-zinc-800 rounded-xl text-[10px] text-white focus:outline-none focus:border-wellness-bronze"
-                />
-              </div>
-            )}
-          </div>
+          {user?.dob && (
+            <div className="bg-[#1C1C24] p-3 rounded-2xl border border-zinc-850 text-left text-zinc-450 text-[10px] space-y-1 font-medium">
+              <p>🎂 Date of Birth: <span className="text-white font-bold">{user.dob}</span></p>
+              <p>🛡️ Calculated Age: <span className="text-[#DFBA5E] font-bold">{calculatedAge} Years Old</span></p>
+            </div>
+          )}
 
           <button
             onClick={handleRequestAccess}
@@ -351,8 +424,8 @@ export default function WellnessPage() {
     );
   }
 
-  // STATE C: STATUS = PENDING_REVIEW
-  if (wellnessStatus === 'PENDING_REVIEW') {
+  // STATE E: STATUS = PENDING_REVIEW
+  if (wellnessStatus === 'PENDING_REVIEW' || wellnessStatus === 'PENDING') {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
         <div className="absolute inset-0 bg-[#050508]" />
@@ -363,12 +436,12 @@ export default function WellnessPage() {
           </div>
 
           <div className="space-y-1.5">
-            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Under Review</h3>
+            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Wellness Access Request Received</h3>
             <p className="text-[9px] text-[#DFBA5E] font-black uppercase tracking-wider">Ticket ID: {user?.wellnessRequestId}</p>
           </div>
 
           <p className="text-zinc-450 leading-relaxed text-[11px] font-medium">
-            Your request is currently under review by Super Admin. You will be granted catalog access once approved.
+            Your request has been submitted successfully. Our team will review your eligibility and your Wellness section will be available within approximately 15 minutes after approval.
           </p>
 
           <button 
@@ -382,7 +455,7 @@ export default function WellnessPage() {
     );
   }
 
-  // STATE D: STATUS = REJECTED
+  // STATE F: STATUS = REJECTED
   if (wellnessStatus === 'REJECTED') {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
@@ -394,12 +467,12 @@ export default function WellnessPage() {
           </div>
 
           <div className="space-y-1">
-            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Access Denied</h3>
+            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Access Rejected</h3>
             <p className="text-[9px] text-red-400 font-extrabold uppercase">Verification Rejected</p>
           </div>
 
           <p className="text-zinc-450 leading-relaxed text-[11px] font-medium">
-            Your Wellness access request was not approved by administration. Internal details are protected.
+            Your Wellness access request was rejected because you do not meet the minimum age requirement of 18.
           </p>
 
           <div className="flex gap-2">
@@ -409,19 +482,13 @@ export default function WellnessPage() {
             >
               Back to Store
             </button>
-            <button 
-              onClick={() => showToast('Opening support portal...', 'info')} 
-              className="px-4 py-3 bg-[#6B1D2F] hover:bg-[#8F3A44] text-white rounded-xl font-bold uppercase tracking-wider text-[9px]"
-            >
-              Contact Support
-            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // STATE E: STATUS = SUSPENDED
+  // STATE G: STATUS = SUSPENDED / REVOKED
   if (wellnessStatus === 'SUSPENDED') {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
@@ -452,39 +519,64 @@ export default function WellnessPage() {
     );
   }
 
-  // STATE F: APPROVED BUT HAS NOT CLICKED "ENTER WELLNESS"
-  if (wellnessStatus === 'APPROVED' && !hasEntered) {
+  // STATE H: APPROVED BUT REQUIRES TERMS ACCEPTANCE
+  if (wellnessStatus === 'TERMS_REQUIRED') {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center p-4 select-none font-sans text-xs">
         <div className="absolute inset-0 bg-[#050508]" />
         
-        <div className="relative max-w-sm w-full bg-[#121217] border border-emerald-950/25 rounded-3xl p-8 text-center shadow-2xl space-y-5">
-          <div className="h-14 w-14 bg-emerald-950/20 border border-emerald-900/45 text-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-sm">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500 animate-bounce" />
+        <div className="relative max-w-md w-full bg-[#121217] border border-[#DFBA5E]/15 rounded-3xl p-8 shadow-2xl space-y-6 text-left">
+          <div className="h-12 w-12 bg-amber-950/20 border border-[#DFBA5E]/20 text-[#DFBA5E] rounded-full flex items-center justify-center mx-auto">
+            <ShieldCheck className="h-6 w-6 text-[#DFBA5E]" />
           </div>
 
-          <div className="space-y-1">
-            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Access Approved</h3>
-            <p className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest">wellness access status verified</p>
+          <div className="text-center space-y-1">
+            <h3 className="font-serif font-black text-sm uppercase tracking-wider text-white">Wellness Terms & Conditions</h3>
+            <p className="text-[9px] text-[#DFBA5E] font-extrabold uppercase">Acceptance Required for Activation</p>
           </div>
 
-          <p className="text-zinc-450 leading-relaxed text-[11px] font-medium">
-            Welcome back! Your request was approved by {user?.wellnessApprovedBy || 'Admin'}. Proceed to enter the wellness zone.
-          </p>
+          <div className="bg-[#1C1C24] p-4 rounded-2xl border border-zinc-850 text-zinc-350 text-[10px] leading-relaxed max-h-48 overflow-y-auto space-y-3 font-medium">
+            <p className="font-bold text-white text-[11px]">FATAFAT Wellness Policy Guidelines:</p>
+            <p>1. By entering this section, you represent that you are at least 18 years of age. Date of birth details are validated from your official profile.</p>
+            <p>2. Wellness items (condoms, lubricants, personal washes) are delivered in highly secure, unbranded packaging to maintain your privacy.</p>
+            <p>3. Information and instructions provided are for educational and convenience purposes only. Standard manufacturer directions should always be followed.</p>
+            <p>4. All sales of sexual wellbeing products are final and not eligible for return due to hygiene regulations.</p>
+          </div>
 
-          <button
-            onClick={() => setHasEntered(true)}
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow text-[10px] hover:scale-102 transition-all"
-          >
-            🚀 ENTER WELLNESS
-          </button>
+          <label className="flex items-start gap-3 cursor-pointer text-zinc-400 select-none">
+            <input
+              type="checkbox"
+              checked={termsChecked}
+              onChange={(e) => setTermsChecked(e.target.checked)}
+              className="mt-0.5 h-4 w-4 text-[#6B1D2F] rounded bg-zinc-900 border-zinc-750 focus:ring-offset-0 focus:ring-0"
+            />
+            <span className="text-[10px] leading-snug">
+              I have read and agree to the Wellness Terms & Conditions.
+            </span>
+          </label>
+
+          <div className="flex gap-2">
+            <button 
+              onClick={() => router.push('/')} 
+              className="flex-grow py-3 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 rounded-xl font-bold uppercase tracking-wider text-[9px] text-center"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleAcceptTerms}
+              disabled={!termsChecked || submittingTerms}
+              className="flex-grow py-3 bg-[#6B1D2F] hover:bg-[#8F3A44] disabled:bg-zinc-800 disabled:text-zinc-500 text-white rounded-xl font-bold uppercase tracking-wider text-[9px] text-center"
+            >
+              {submittingTerms ? 'Activating...' : 'Accept & Continue'}
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   // ====================================================
-  // STATE G: APPROVED & CLICKED "ENTER WELLNESS" -> RENDER CATALOG
+  // STATE I: APPROVED & ACTIVE -> RENDER CATALOG
   // ====================================================
   return (
     <div className="min-h-screen flex flex-col bg-[#0B0B0E] text-wellness-text font-sans selection:bg-[#DFBA5E]/20 select-none">

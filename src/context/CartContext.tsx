@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product } from '../data/mockData';
+import { useAuth } from './AuthContext';
 
 export interface CartItem {
   product: Product;
@@ -32,6 +33,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { wellnessPublished } = useAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState<string>('');
   const [promoError, setPromoError] = useState<string>('');
@@ -43,7 +45,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const storedCart = localStorage.getItem('fatafat_cart');
     if (storedCart) {
-      setCartItems(JSON.parse(storedCart));
+      try {
+        setCartItems(JSON.parse(storedCart));
+      } catch (e) {}
     }
   }, []);
 
@@ -61,6 +65,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!product.inStock) return;
 
     if (product.category === 'wellness') {
+      if (!wellnessPublished) {
+        alert('Access Denied: The Wellness section is currently unpublished.');
+        return;
+      }
       const stored = localStorage.getItem('fatafat_user');
       let status = 'NOT_REQUESTED';
       if (stored) {
@@ -68,7 +76,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           status = JSON.parse(stored).wellnessAccessStatus || 'NOT_REQUESTED';
         } catch (e) {}
       }
-      if (status !== 'APPROVED') {
+      if (status !== 'ACTIVE' && status !== 'APPROVED') {
         alert('Access Denied: You must request and receive approval for Wellness 18+ products.');
         return;
       }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../data/db';
 import { Product } from '../../../data/mockData';
+import { getSession } from '../../../data/auth';
 
 export async function GET(request: Request) {
   try {
@@ -13,22 +14,45 @@ export async function GET(request: Request) {
     const featured = searchParams.get('featured'); // 'true' or 'false'
     const stockStatus = searchParams.get('stockStatus'); // 'low', 'out', 'in'
 
+    // Load storefront settings
+    const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
+    const wellnessPublished = (configRes.rows[0]?.data as any)?.published ?? false;
+
     // Server-side security check for Wellness 18+ Access
     const isWellnessReq = wellness === 'true' || category === 'wellness';
     if (isWellnessReq) {
-      const userEmail = request.headers.get('x-user-email') || '';
-      const users = await db.readTable<any>('users') || [];
-      const userObj = users.find((u: any) => u.email === userEmail);
-      
-      if (!userObj || userObj.wellnessAccessStatus !== 'APPROVED') {
+      const session = await getSession(request);
+      const isAdmin = session && session.role === 'admin';
+
+      if (!wellnessPublished && !isAdmin) {
         return new NextResponse(
-          JSON.stringify({ error: '403 Forbidden: Approved Wellness profile required.' }),
+          JSON.stringify({ error: '403 Forbidden: Wellness storefront is currently unpublished.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
+      }
+
+      if (!isAdmin) {
+        const userEmail = request.headers.get('x-user-email') || '';
+        const users = await db.readTable<any>('users') || [];
+        const userObj = users.find((u: any) => u.email === userEmail);
+        
+        if (!userObj || (userObj.wellnessAccessStatus !== 'APPROVED' && userObj.wellnessAccessStatus !== 'ACTIVE')) {
+          return new NextResponse(
+            JSON.stringify({ error: '403 Forbidden: Approved Wellness profile required.' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
 
     let products = await db.readTable<Product>('products');
+    
+    // Force exclude wellness products if storefront is unpublished and requester is not admin
+    const session = await getSession(request);
+    const isAdmin = session && session.role === 'admin';
+    if (!wellnessPublished && !isAdmin) {
+      products = products.filter(p => p.category !== 'wellness');
+    }
 
     // Filter by store category (Wellness vs normal store)
     if (wellness === 'true') {

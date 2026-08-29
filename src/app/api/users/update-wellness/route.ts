@@ -39,7 +39,9 @@ export async function POST(request: Request) {
     if (wellnessAccessStatus === 'APPROVED') actionLabel = 'Wellness access approved';
     else if (wellnessAccessStatus === 'REJECTED') actionLabel = 'Wellness access rejected';
     else if (wellnessAccessStatus === 'SUSPENDED') actionLabel = 'Wellness access suspended';
+    else if (wellnessAccessStatus === 'REVOKED') actionLabel = 'Wellness access revoked';
     else if (wellnessAccessStatus === 'NOT_REQUESTED' && prevStatus === 'SUSPENDED') actionLabel = 'Wellness access restored';
+    else if (wellnessAccessStatus === 'NOT_REQUESTED') actionLabel = 'Wellness access reset';
     
     const auditEvent = {
       id: 'evt-' + Date.now() + '-' + Math.floor(Math.random() * 100),

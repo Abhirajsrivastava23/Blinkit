@@ -22,7 +22,7 @@ export interface User {
   profileImage?: string;
   createdAt?: string;
   lastLoginAt?: string;
-  wellnessAccessStatus?: 'NOT_REQUESTED' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'EXPIRED';
+  wellnessAccessStatus?: 'NOT_REQUESTED' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'EXPIRED' | 'ACTIVE' | 'TERMS_REQUIRED' | 'PROFILE_INCOMPLETE' | 'NOT_ELIGIBLE' | 'REVOKED' | 'PENDING';
   wellnessApprovedAt?: string;
   wellnessApprovedBy?: string;
   wellnessRequestId?: string;
@@ -46,6 +46,8 @@ interface AuthContextType {
   addAddress: (address: Omit<Address, 'id'>) => void;
   removeAddress: (id: string) => void;
   updateProfile: (details: Partial<User>) => Promise<boolean>;
+  wellnessPublished: boolean;
+  setWellnessPublished: (published: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,6 +55,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [wellnessPublished, setWellnessPublished] = useState(false);
 
   // Safely initialize savedAddresses state from localStorage to avoid inline effect warnings
   const [savedAddresses, setSavedAddresses] = useState<Address[]>(() => {
@@ -90,56 +93,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const meRes = await fetch('/api/auth/me');
         if (meRes.ok) {
           const meData = await meRes.json();
-          if (meData.authenticated && meData.user && meData.user.role === 'customer') {
-            // Update client context with active authenticated customer details
-            const authedUser: User = {
-              phone: meData.user.phone || '9876543210',
-              name: meData.user.name || 'Valued Client',
-              email: meData.user.email,
-              googleProviderId: meData.user.googleProviderId || meData.user.phone,
-              role: meData.user.role,
-              wellnessAccessStatus: meData.user.wellnessAccessStatus || 'NOT_REQUESTED',
-              profileImage: meData.user.profileImage || '',
-              dob: meData.user.dob || '',
-              gender: meData.user.gender || ''
-            };
+          if (meData.authenticated && meData.user) {
+            setWellnessPublished(meData.wellnessPublished || false);
+            
+            if (meData.user.role === 'customer') {
+              // Update client context with active authenticated customer details
+              const authedUser: User = {
+                phone: meData.user.phone || '9876543210',
+                name: meData.user.name || 'Valued Client',
+                email: meData.user.email,
+                googleProviderId: meData.user.googleProviderId || meData.user.phone,
+                role: meData.user.role,
+                wellnessAccessStatus: meData.user.wellnessAccessStatus || 'NOT_REQUESTED',
+                profileImage: meData.user.profileImage || '',
+                dob: meData.user.dob || '',
+                gender: meData.user.gender || ''
+              };
 
-            // Use pre-fetched addresses if available from /api/auth/me
-            if (meData.user.addresses && Array.isArray(meData.user.addresses)) {
-              setSavedAddresses(meData.user.addresses);
-              localStorage.setItem('fatafat_addresses', JSON.stringify(meData.user.addresses));
-            }
+              // Use pre-fetched addresses if available from /api/auth/me
+              if (meData.user.addresses && Array.isArray(meData.user.addresses)) {
+                setSavedAddresses(meData.user.addresses);
+                localStorage.setItem('fatafat_addresses', JSON.stringify(meData.user.addresses));
+              }
 
-            // Sync wellness status from users list only as fallback if not returned by me API
-            if (meData.user.email && (!meData.user.profileImage || meData.user.wellnessAccessStatus === 'NOT_REQUESTED')) {
-              try {
-                const listRes = await fetch('/api/users/list');
-                if (listRes.ok) {
-                  const list = await listRes.json();
-                  const matched = list.find((u: { email: string }) => u.email.toLowerCase() === meData.user.email.toLowerCase());
-                  if (matched) {
-                    authedUser.name = matched.name || authedUser.name;
-                    authedUser.phone = matched.phone || authedUser.phone;
-                    authedUser.wellnessAccessStatus = matched.wellnessAccessStatus || 'NOT_REQUESTED';
-                    authedUser.googleProviderId = matched.googleProviderId || authedUser.googleProviderId;
-                    authedUser.profileImage = matched.profileImage || '';
-                    authedUser.dob = matched.dob || '';
-                    authedUser.gender = matched.gender || '';
-                    if (matched.addresses && Array.isArray(matched.addresses)) {
-                      setSavedAddresses(matched.addresses);
-                      localStorage.setItem('fatafat_addresses', JSON.stringify(matched.addresses));
+              // Sync wellness status from users list only as fallback if not returned by me API
+              if (meData.user.email && (!meData.user.profileImage || meData.user.wellnessAccessStatus === 'NOT_REQUESTED')) {
+                try {
+                  const listRes = await fetch('/api/users/list');
+                  if (listRes.ok) {
+                    const list = await listRes.json();
+                    const matched = list.find((u: { email: string }) => u.email.toLowerCase() === meData.user.email.toLowerCase());
+                    if (matched) {
+                      authedUser.name = matched.name || authedUser.name;
+                      authedUser.phone = matched.phone || authedUser.phone;
+                      authedUser.wellnessAccessStatus = matched.wellnessAccessStatus || 'NOT_REQUESTED';
+                      authedUser.googleProviderId = matched.googleProviderId || authedUser.googleProviderId;
+                      authedUser.profileImage = matched.profileImage || '';
+                      authedUser.dob = matched.dob || '';
+                      authedUser.gender = matched.gender || '';
+                      if (matched.addresses && Array.isArray(matched.addresses)) {
+                        setSavedAddresses(matched.addresses);
+                        localStorage.setItem('fatafat_addresses', JSON.stringify(matched.addresses));
+                      }
                     }
                   }
+                } catch (e) {
+                  console.error('Failed to fetch wellness status in init:', e);
                 }
-              } catch (e) {
-                console.error('Failed to fetch wellness status in init:', e);
               }
-            }
 
-            setUser(authedUser);
-            localStorage.setItem('fatafat_user', JSON.stringify(authedUser));
-            setIsLoading(false);
-            return;
+              setUser(authedUser);
+              localStorage.setItem('fatafat_user', JSON.stringify(authedUser));
+              setIsLoading(false);
+              return;
+            } else {
+              // It's an admin or delivery partner
+              const authedUser: User = {
+                phone: meData.user.phone || '',
+                name: meData.user.name || meData.user.role,
+                email: meData.user.email,
+                role: meData.user.role,
+                deliveryPartnerId: meData.user.deliveryPartnerId || '',
+                locationId: meData.user.locationId || '',
+                locationName: meData.user.locationName || ''
+              };
+              setUser(authedUser);
+              localStorage.setItem('fatafat_user', JSON.stringify(authedUser));
+              setIsLoading(false);
+              return;
+            }
           }
         }
       } catch (err) {
@@ -375,7 +397,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       savedAddresses,
       addAddress,
       removeAddress,
-      updateProfile
+      updateProfile,
+      wellnessPublished,
+      setWellnessPublished
     }}>
       {children}
     </AuthContext.Provider>

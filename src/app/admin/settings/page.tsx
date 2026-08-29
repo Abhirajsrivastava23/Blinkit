@@ -31,6 +31,9 @@ export default function AdminSettingsPage() {
     testimonials: true
   });
 
+  // Wellness Config state
+  const [wellnessPublished, setWellnessPublished] = useState(false);
+
   const fetchConfig = async () => {
     try {
       setLoading(true);
@@ -45,6 +48,13 @@ export default function AdminSettingsPage() {
         if (data.sectionsVisibility) {
           setVisibilities(data.sectionsVisibility);
         }
+      }
+      
+      // Load Wellness Settings
+      const wRes = await fetch('/api/admin/wellness-settings');
+      if (wRes.ok) {
+        const wData = await wRes.json();
+        setWellnessPublished(wData.published ?? false);
       }
     } catch (err) {
       console.error(err);
@@ -63,6 +73,27 @@ export default function AdminSettingsPage() {
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const handleSaveWellnessSettings = async () => {
+    try {
+      setSaving(true);
+      const res = await fetch('/api/admin/wellness-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: wellnessPublished })
+      });
+      if (res.ok) {
+        showToast('Wellness portal settings updated successfully!', 'success');
+      } else {
+        showToast('Failed to save settings.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error saving settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -116,13 +147,53 @@ export default function AdminSettingsPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Left Column (8 Cols): Banner content details */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* Hero Customizer */}
+          {/* Wellness customizer card */}
           <div className="bg-white border border-zinc-200/20 p-6 rounded-3xl space-y-4 shadow-sm">
+            <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2 flex items-center gap-1.5">
+              <SlidersHorizontal className="h-4.5 w-4.5" /> Wellness Portal Configuration
+            </h4>
+            <div className="flex items-center justify-between py-2">
+              <div className="max-w-md">
+                <span className="font-bold text-zinc-800 text-[11px] block">Global Storefront Publication State</span>
+                <span className="text-[10px] text-zinc-400 font-medium leading-normal block mt-0.5">When unpublished, the Wellness section, checkout, search indexes, and routes are hidden from customers.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWellnessPublished(!wellnessPublished)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all select-none shrink-0 ${
+                  wellnessPublished 
+                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/30' 
+                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/30'
+                }`}
+              >
+                {wellnessPublished ? (
+                  <>
+                    <Eye className="h-4 w-4" /> Published (Live)
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-4 w-4" /> Unpublished (Hidden)
+                  </>
+                )}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveWellnessSettings}
+              disabled={saving}
+              className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all select-none"
+            >
+              Update Wellness Settings
+            </button>
+          </div>
+
+          {/* Hero Customizer */}
+          <form onSubmit={handleSave} className="bg-white border border-zinc-200/20 p-6 rounded-3xl space-y-4 shadow-sm">
             <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2 flex items-center gap-1.5">
               <Image className="h-4.5 w-4.5" /> Hero Banner Settings
             </h4>
@@ -188,7 +259,16 @@ export default function AdminSettingsPage() {
               </div>
             </div>
 
-          </div>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold uppercase tracking-wider rounded-xl shadow transition-all select-none text-[10px]"
+              >
+                Save Hero Banner
+              </button>
+            </div>
+          </form>
 
         </div>
 
@@ -258,7 +338,7 @@ export default function AdminSettingsPage() {
 
         </div>
 
-      </form>
+      </div>
 
     </div>
   );

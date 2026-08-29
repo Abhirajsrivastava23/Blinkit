@@ -548,6 +548,40 @@ export const db = {
         );
       `);
 
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS wellness_terms_acceptances (
+          "customerId" VARCHAR(255) PRIMARY KEY,
+          "termsVersion" VARCHAR(255) NOT NULL,
+          "acceptedAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS delivery_photos (
+          id VARCHAR(255) PRIMARY KEY,
+          "orderId" VARCHAR(255) NOT NULL,
+          "partnerId" VARCHAR(255) NOT NULL,
+          "photoUrl" TEXT NOT NULL,
+          category VARCHAR(255) NOT NULL,
+          "uploadedAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS wellness_access_requests (
+          id VARCHAR(255) PRIMARY KEY,
+          "customerId" VARCHAR(255) NOT NULL,
+          "customerName" VARCHAR(255) NOT NULL,
+          "customerEmail" VARCHAR(255) NOT NULL,
+          "requestedAt" VARCHAR(255) NOT NULL,
+          status VARCHAR(255) NOT NULL,
+          "calculatedAge" INTEGER,
+          "reviewedBy" VARCHAR(255),
+          "reviewedAt" VARCHAR(255),
+          "rejectionReason" TEXT
+        );
+      `);
+
       await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
       await client.query('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders("customerId")');
       await client.query('CREATE INDEX IF NOT EXISTS idx_orders_assigned_partner_id ON orders("assignedPartnerId")');
@@ -559,25 +593,20 @@ export const db = {
       
       // 3. Seed Tables Idempotently (ON CONFLICT DO NOTHING)
       const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
-      const hash = crypto.createHash('sha256').update('admin123' + salt).digest('hex');
-      const riderHash = crypto.createHash('sha256').update('rider123' + salt).digest('hex');
       
-      // Seed Admins
+      // Seed Admins - exactly ONE super admin
+      const adminPasswordInput = process.env.ADMIN_PASSWORD || 'superadmin123';
+      const adminHash = crypto.createHash('sha256').update(adminPasswordInput + salt).digest('hex');
       const adminsSeed = [
-        { email: 'superadmin@fatafat.com', passwordHash: hash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
-        { email: 'admin@fatafat.com', passwordHash: hash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' },
-        { email: 'manager@fatafat.com', passwordHash: hash, name: 'FATAFAT Inv Manager', phone: '9999999992', role: 'admin' },
-        { email: 'admin@fatafat.local', passwordHash: hash, name: 'Local Dev Admin', phone: '9999999993', role: 'admin' }
+        { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' }
       ];
       await bulkInsert(client, 'admin', adminsSeed);
       
-      // Seed Partners
-      const partnersSeed = [
-        { id: 'DP-001', name: 'Rahul', phone: '9999999999', email: 'rider@fatafat.com', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true },
-        { id: 'DP-002', name: 'Aman', phone: '8888888888', email: 'aman_rider@fatafat.com', passwordHash: riderHash, role: 'delivery_partner', locationId: 'chandigarh-university-up', locationName: 'Chandigarh University, Uttar Pradesh', status: 'Active', isOnline: false },
-        { id: 'DP-003', name: 'Rider Local', phone: '7777777777', email: 'rider@fatafat.local', passwordHash: riderHash, role: 'delivery_partner', locationId: 'nawabganj-unnao', locationName: 'Nawabganj, Unnao', status: 'Active', isOnline: true }
-      ];
-      await bulkInsert(client, 'partners', partnersSeed);
+      // Actively purge fake/demo production data from tables
+      await client.query("DELETE FROM orders WHERE id LIKE 'FT-TEST-%' OR id LIKE 'order-test-%'");
+      await client.query("DELETE FROM admin WHERE email IN ('admin@fatafat.com', 'manager@fatafat.com', 'admin@fatafat.local')");
+      await client.query("DELETE FROM partners WHERE id IN ('DP-001', 'DP-002', 'DP-003')");
+      await client.query("DELETE FROM sessions WHERE userId IN ('DP-001', 'DP-002', 'DP-003', 'DP-TEST-99')");
       
       // Seed Categories, Brands, Products, Users, Sessions, InventoryIssues, AuditLogs
       await bulkInsert(client, 'categories', categoriesJson);
@@ -601,6 +630,15 @@ export const db = {
         await client.query(
           'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
           ['homepage', JSON.stringify(homepageJson)]
+        );
+      }
+
+      // Seed wellness settings config
+      const wellnessSettingsCount = await client.query("SELECT COUNT(*) FROM config WHERE key = 'wellness_settings'");
+      if (parseInt(wellnessSettingsCount.rows[0].count, 10) === 0) {
+        await client.query(
+          'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
+          ['wellness_settings', JSON.stringify({ published: false })]
         );
       }
       

@@ -45,6 +45,10 @@ export default function DeliveryPartnerPage() {
   const [updateReason, setUpdateReason] = useState('Physical count');
   const [reportsLog, setReportsLog] = useState<any[]>([]);
 
+  // Photo upload states for active delivery
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
   // Availability security: rider phone/email
   const isRider = user && user.role === 'delivery_partner';
 
@@ -148,9 +152,11 @@ export default function DeliveryPartnerPage() {
       setOtpError('');
       setArrivedNotify(false);
       setShowFailForm(false);
+      setUploadedPhotoUrl(''); // Reset uploaded proof photo url
     } else {
       setChecklistItems({});
       setChecklistHubVerified(false);
+      setUploadedPhotoUrl('');
     }
   }, [activeOrderId]);
 
@@ -159,6 +165,72 @@ export default function DeliveryPartnerPage() {
       ...prev,
       [productId]: !prev[productId]
     }));
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeOrder) return;
+
+    setUploadingPhoto(true);
+    const formData = new FormData();
+    formData.append('orderId', activeOrder.id);
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/delivery/upload-photo', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUploadedPhotoUrl(data.photoUrl);
+        showToast('Proof photo uploaded successfully.', 'success');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to upload photo.', 'error');
+      }
+    } catch (err) {
+      showToast('Error uploading photo.', 'error');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleToggleProductStock = async (productId: string, inStock: boolean) => {
+    try {
+      const res = await fetch('/api/delivery/toggle-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, inStock })
+      });
+      if (res.ok) {
+        showToast(`Stock updated successfully.`, 'success');
+        
+        // Add to history
+        const matched = products.find(p => p.id === productId);
+        const newReport = {
+          product: { name: matched ? matched.name : productId, id: productId },
+          issue: inStock ? 'Marked Available' : 'Marked Sold Out',
+          reportedStock: inStock ? 1 : 0,
+          date: new Date().toLocaleDateString()
+        };
+        const updatedReports = [newReport, ...reportsLog];
+        setReportsLog(updatedReports);
+        localStorage.setItem('fatafat_rider_reports', JSON.stringify(updatedReports));
+
+        if (refreshProducts) {
+          await refreshProducts();
+        } else {
+          window.location.reload();
+        }
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to update stock.', 'error');
+      }
+    } catch (e) {
+      showToast('Error toggling product stock.', 'error');
+    }
   };
 
   const isChecklistComplete = activeOrder && 
@@ -695,6 +767,36 @@ export default function DeliveryPartnerPage() {
                         <p className="text-[8px] text-zinc-450 uppercase">Waypoint sector 45 • 8 min away</p>
                       </div>
 
+                      {/* Photo Upload Section */}
+                      <div className="bg-zinc-50 border border-zinc-200/40 rounded-xl p-4 text-left space-y-3">
+                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400 block font-sans">Delivery Verification Photo</span>
+                        {uploadedPhotoUrl ? (
+                          <div className="space-y-2">
+                            <div className="relative aspect-video rounded-lg overflow-hidden border">
+                              <img src={uploadedPhotoUrl} alt="Uploaded delivery proof" className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-[8px] bg-green-50 text-green-700 border border-green-150 font-bold px-2 py-0.5 rounded uppercase tracking-wider inline-block">✓ Proof Uploaded</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              id="delivery-photo-file"
+                              onChange={handlePhotoUpload}
+                              className="hidden"
+                              disabled={uploadingPhoto}
+                            />
+                            <label
+                              htmlFor="delivery-photo-file"
+                              className="w-full py-2.5 bg-white border border-dashed border-zinc-350 rounded-lg flex items-center justify-center gap-1.5 text-zinc-650 hover:bg-zinc-100/50 cursor-pointer text-[10px] font-bold"
+                            >
+                              {uploadingPhoto ? 'Uploading...' : '📁 Upload Proof Photo'}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Communications */}
                       <div className="flex gap-2 justify-center pt-2">
                         <button
@@ -838,152 +940,81 @@ export default function DeliveryPartnerPage() {
         {/* ================= TAB 3: ISSUES (INVENTORY MANAGEMENT) ================= */}
         {activeTab === 'issues' && (
           <div className="space-y-4">
-            
-            {/* Adjustment Form Modal overlay */}
-            {selectedInvProduct ? (
-              <form onSubmit={submitQuantityReport} className="bg-white border border-zinc-200/40 p-5 rounded-2xl shadow-sm space-y-4">
-                <div className="flex justify-between items-center border-b pb-2">
-                  <h4 className="font-extrabold text-[10px] text-zinc-800 uppercase tracking-wider">Update Available Physical Stock</h4>
-                  <button type="button" onClick={() => setSelectedInvProduct(null)} className="text-zinc-450 hover:text-zinc-700">
-                    <X className="h-4 w-4" />
-                  </button>
+            {/* Direct stock display, no adjustments overlay */}
+            <div className="space-y-4">
+              
+              {/* Search products bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search product / SKU to manage availability..."
+                  value={invSearch}
+                  onChange={(e) => setInvSearch(e.target.value)}
+                  className="w-full p-3 pl-9 border border-zinc-200 rounded-xl text-xs bg-white focus:outline-none focus:border-brand-burgundy font-medium text-zinc-800"
+                />
+                <Compass className="absolute left-3 top-3.5 h-4 w-4 text-zinc-400" />
+              </div>
+
+              {/* Products list for stock reports */}
+              <div className="bg-white border border-zinc-200/40 rounded-2xl shadow-sm divide-y text-[11px] font-medium text-zinc-700">
+                <div className="p-3 bg-zinc-50/75 border-b font-extrabold text-zinc-700 text-[10px]">
+                  HUB INVENTORY STOCK CONTROLS
                 </div>
-
-                <div className="flex gap-3 items-center">
-                  <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0 border bg-zinc-50">
-                    <SafeImage src={selectedInvProduct.image} alt={selectedInvProduct.name} />
-                  </div>
-                  <div className="min-w-0">
-                    <h5 className="font-bold text-zinc-800 truncate leading-snug">{selectedInvProduct.name}</h5>
-                    <p className="text-[9px] text-zinc-400">SKU: FT-{selectedInvProduct.id.slice(0, 6).toUpperCase()}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 text-[11px] font-medium text-zinc-700">
-                  <div className="space-y-1">
-                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-zinc-400 block">Physical Quantity count</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={physicalCount}
-                      onChange={(e) => setPhysicalCount(Number(e.target.value))}
-                      className="w-full p-2.5 border rounded-xl focus:outline-none bg-white text-zinc-800"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-zinc-400 block">Reason for Update</span>
-                    <select
-                      value={updateReason}
-                      onChange={(e) => setUpdateReason(e.target.value)}
-                      className="w-full p-2.5 border rounded-xl focus:outline-none bg-white font-medium text-zinc-800"
-                    >
-                      <option value="Physical count">Physical count adjustment</option>
-                      <option value="Damaged Quantity">Damaged Quantity at counter</option>
-                      <option value="Missing Item">Missing from counter basket</option>
-                      <option value="Out of Stock">Temporary Hub unavailability</option>
-                    </select>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider text-[10px]"
-                  >
-                    SUBMIT INVENTORY ADJUSTMENT
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                
-                {/* Search products bar */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search product / SKU to report issues..."
-                    value={invSearch}
-                    onChange={(e) => setInvSearch(e.target.value)}
-                    className="w-full p-3 pl-9 border border-zinc-200 rounded-xl text-xs bg-white focus:outline-none focus:border-brand-burgundy font-medium text-zinc-800"
-                  />
-                  <Compass className="absolute left-3 top-3.5 h-4 w-4 text-zinc-400" />
-                </div>
-
-                {/* Products list for stock reports */}
-                <div className="bg-white border border-zinc-200/40 rounded-2xl shadow-sm divide-y text-[11px] font-medium text-zinc-700">
-                  <div className="p-3 bg-zinc-50/75 border-b font-extrabold text-zinc-700 text-[10px]">
-                    HUB INVENTORY STOCK CONTROLS
-                  </div>
-                  {filteredProducts.slice(0, 5).map((p) => (
-                    <div key={p.id} className="p-3 flex items-center justify-between gap-3 hover:bg-zinc-50/20">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border bg-zinc-50">
-                          <SafeImage src={p.image} alt={p.name} />
-                        </div>
-                        <div>
-                          <h5 className="font-bold text-zinc-800 leading-snug">{p.name}</h5>
-                          <p className="text-[9px] text-zinc-400">SKU: FT-{p.id.slice(0,6).toUpperCase()}</p>
-                          <span className={`text-[8px] font-bold uppercase tracking-wider block mt-0.5 ${p.inStock ? 'text-green-700' : 'text-red-600'}`}>
-                            {p.inStock ? '🟢 Available' : '🔴 Out of Stock'}
-                          </span>
-                        </div>
+                {filteredProducts.slice(0, 5).map((p) => (
+                  <div key={p.id} className="p-3 flex items-center justify-between gap-3 hover:bg-zinc-50/20">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 border bg-zinc-50">
+                        <SafeImage src={p.image} alt={p.name} />
                       </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedInvProduct(p);
-                            setPhysicalCount(p.inStock ? 8 : 0);
-                            setUpdateReason('Physical count');
-                          }}
-                          className="px-2.5 py-1.5 border rounded-lg hover:bg-zinc-50 text-[9px] font-extrabold uppercase tracking-wider"
-                        >
-                          Adjust Count
-                        </button>
-                        {p.inStock ? (
-                          <button
-                            type="button"
-                            onClick={() => handleReportIssue(p.id, p.name, 'Product out of stock', 0, 1)}
-                            className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 font-sans"
-                          >
-                            Report Out
-                          </button>
-                        ) : (
-                          <span className="text-[8px] bg-red-50 text-red-650 px-2 py-1.5 rounded-lg font-extrabold uppercase tracking-wider">
-                            Reported Out
-                          </span>
-                        )}
+                      <div>
+                        <h5 className="font-bold text-zinc-800 leading-snug">{p.name}</h5>
+                        <p className="text-[9px] text-zinc-400">SKU: FT-{p.id.slice(0,6).toUpperCase()}</p>
+                        <span className={`text-[8px] font-bold uppercase tracking-wider block mt-0.5 ${p.inStock ? 'text-green-700' : 'text-red-650'}`}>
+                          {p.inStock ? '🟢 Available' : '🔴 Sold Out'}
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                {/* My reports logs */}
-                <div className="bg-white border border-zinc-200/40 rounded-2xl shadow-sm p-4 space-y-3">
-                  <h4 className="text-xs font-serif font-black uppercase tracking-wider text-zinc-800">My Reports History</h4>
-                  <div className="divide-y space-y-2 text-[10px] font-medium text-zinc-650">
-                    {reportsLog.map((r, idx) => (
-                      <div key={idx} className="pt-2 first:pt-0 flex justify-between items-center">
-                        <div className="text-left">
-                          <p className="font-bold text-zinc-800">{r.product.name}</p>
-                          <p className="text-[8px] text-zinc-400">{r.issue} • {r.date}</p>
-                        </div>
-                        <span className="font-mono text-zinc-700">QTY: {r.reportedStock} (Applied)</span>
-                      </div>
-                    ))}
-                    {reportsLog.length === 0 && (
-                      <div className="text-center py-6 text-zinc-400 font-bold">
-                        No inventory adjustments filed yet.
-                      </div>
-                    )}
+                    {/* Actions */}
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleProductStock(p.id, !p.inStock)}
+                        className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all select-none ${
+                          p.inStock
+                            ? 'bg-red-50 hover:bg-red-100 text-red-650 border border-red-200/40'
+                            : 'bg-green-50 hover:bg-green-100 text-green-700 border border-green-200/40'
+                        }`}
+                      >
+                        {p.inStock ? 'Mark Sold Out' : 'Mark Available'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-
+                ))}
               </div>
-            )}
 
+              {/* My reports logs */}
+              <div className="bg-white border border-zinc-200/40 rounded-2xl shadow-sm p-4 space-y-3">
+                <h4 className="text-xs font-serif font-black uppercase tracking-wider text-zinc-800">My Reports History</h4>
+                <div className="divide-y space-y-2 text-[10px] font-medium text-zinc-650">
+                  {reportsLog.map((r, idx) => (
+                    <div key={idx} className="pt-2 first:pt-0 flex justify-between items-center">
+                      <div className="text-left">
+                        <p className="font-bold text-zinc-800">{r.product.name}</p>
+                        <p className="text-[8px] text-zinc-400">{r.issue} • {r.date}</p>
+                      </div>
+                      <span className="font-mono text-zinc-700">STATUS: {r.reportedStock === 1 ? 'Available' : 'Sold Out'}</span>
+                    </div>
+                  ))}
+                  {reportsLog.length === 0 && (
+                    <div className="text-center py-6 text-zinc-400 font-bold">
+                      No inventory status changes filed yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
           </div>
         )}
 

@@ -92,6 +92,28 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Only authenticated customers can place orders.' }, { status: 403 });
       }
 
+      // Check if order contains wellness items
+      const hasWellnessItem = body.items && body.items.some((item: any) => item.category === 'wellness');
+      if (hasWellnessItem) {
+        const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
+        const wellnessPublished = (configRes.rows[0]?.data as any)?.published ?? false;
+
+        if (!wellnessPublished) {
+          return NextResponse.json({ error: 'Checkout blocked: Wellness storefront is currently unpublished.' }, { status: 403 });
+        }
+
+        const users = await db.readTable<any>('users') || [];
+        const userObj = users.find((u: any) => u.userId === session.userId || u.email === session.email);
+
+        if (!userObj) {
+          return NextResponse.json({ error: 'Checkout blocked: Customer profile record not found.' }, { status: 403 });
+        }
+
+        if (userObj.wellnessAccessStatus !== 'APPROVED' && userObj.wellnessAccessStatus !== 'ACTIVE') {
+          return NextResponse.json({ error: 'Checkout blocked: Approved Wellness profile required.' }, { status: 403 });
+        }
+      }
+
       // Securely generate OTP on the server for new orders
       const deliveryOtp = Math.floor(100000 + Math.random() * 900000).toString();
       body.deliveryOtp = deliveryOtp;
