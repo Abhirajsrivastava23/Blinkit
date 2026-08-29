@@ -88,7 +88,7 @@ if (connectionString) {
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
   brands: ['id', 'name', 'slug', 'description', 'status', 'website', 'logo', 'itemCount'],
-  products: ['id', 'name', 'description', 'price', 'originalPrice', 'image', 'category', 'brand', 'rating', 'reviews', 'stock', 'unit', 'isWellness', 'wellnessAgeVerifyRequired', 'tags'],
+  products: ['id', 'name', 'description', 'price', 'originalPrice', 'image', 'category', 'brand', 'rating', 'reviews', 'stock', 'unit', 'isWellness', 'wellnessAgeVerifyRequired', 'tags', 'inStock'],
   users: ['userId', 'googleProviderId', 'name', 'email', 'profileImage', 'createdAt', 'lastLoginAt', 'wellnessAccessStatus', 'wellnessRequestId', 'wellnessApprovedAt', 'wellnessApprovedBy', 'phone', 'dob', 'gender', 'addresses'],
   sessions: ['sessionId', 'userId', 'email', 'role', 'expiresAt'],
   admin: ['email', 'passwordHash', 'name', 'phone', 'role'],
@@ -117,7 +117,7 @@ async function insertRow(p: Pool, table: string, item: Record<string, unknown>) 
         k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
         k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
         k === 'statusHistory' || k === 'assignedPartnerId' || 
-        k === 'assignedPartnerName' || k === 'assignedAt') {
+        k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock') {
       return `"${k}"`;
     }
     return k;
@@ -157,7 +157,7 @@ async function bulkInsert(client: PoolClient, table: string, items: Record<strin
           k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
           k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
           k === 'statusHistory' || k === 'assignedPartnerId' || 
-          k === 'assignedPartnerName' || k === 'assignedAt') {
+          k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock') {
         return `"${k}"`;
       }
       return k;
@@ -291,7 +291,7 @@ export const db = {
               k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
               k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
               k === 'statusHistory' || k === 'assignedPartnerId' || 
-              k === 'assignedPartnerName' || k === 'assignedAt') {
+              k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock') {
             return `"${k}"`;
           }
           return k;
@@ -433,9 +433,11 @@ export const db = {
           unit VARCHAR(50),
           "isWellness" BOOLEAN DEFAULT FALSE,
           "wellnessAgeVerifyRequired" BOOLEAN DEFAULT FALSE,
-          tags JSONB
+          tags JSONB,
+          "inStock" BOOLEAN DEFAULT TRUE
         );
       `);
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "inStock" BOOLEAN DEFAULT TRUE');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
