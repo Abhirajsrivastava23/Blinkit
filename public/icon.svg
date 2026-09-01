@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background cream gradient -->
+    <radialGradient id="fatafatBg" cx="50%" cy="50%" r="50%" fx="45%" fy="45%">
+      <stop offset="0%" stop-color="#FFFDF9"/>
+      <stop offset="90%" stop-color="#FDF8F2"/>
+      <stop offset="100%" stop-color="#F4E9DC"/>
+    </radialGradient>
+    
+    <!-- Deep Brand Burgundy -->
+    <linearGradient id="burgundyMain" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7B1D30"/>
+      <stop offset="100%" stop-color="#580F1E"/>
+    </linearGradient>
+
+    <!-- Soft Brand Coral / Rose Pink -->
+    <linearGradient id="roseAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7A292"/>
+      <stop offset="100%" stop-color="#E27B66"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Circle with Rich Burgundy Outer Border -->
+  <circle cx="256" cy="256" r="246" fill="url(#fatafatBg)" stroke="#6B1D2F" stroke-width="20"/>
+
+  <!-- Left Dynamic Speed Lines (Soft Pink / Coral) -->
+  <path d="M 120 190 H 220 C 228 190 228 208 220 208 H 120 C 112 208 112 190 120 190 Z" fill="url(#roseAccent)"/>
+  <path d="M 90 236 H 215 C 223 236 223 254 215 254 H 90 C 82 254 82 236 90 236 Z" fill="url(#roseAccent)"/>
+  <path d="M 105 282 H 210 C 218 282 218 300 210 300 H 105 C 97 300 97 282 105 282 Z" fill="url(#roseAccent)"/>
+  <path d="M 135 328 H 205 C 213 328 213 346 205 346 H 135 C 127 346 127 328 135 328 Z" fill="url(#roseAccent)"/>
+
+  <!-- Iconic Dynamic 'F' Central Mark (Maroon / Burgundy) -->
+  <path d="
+    M 215 155
+    C 235 142 275 142 375 142
+    C 392 142 396 166 376 178
+    C 325 192 270 192 256 192
+    L 246 235
+    C 285 235 338 235 352 235
+    C 368 235 368 260 350 264
+    C 315 268 258 268 240 274
+    L 202 368
+    C 188 402 165 385 188 350
+    L 226 274
+    L 215 155
+    Z
+  " fill="url(#burgundyMain)"/>
+
+  <!-- Gift Ribbon Bow atop 'F' -->
+  <!-- Left Bow Loop -->
+  <path d="M 252 135 C 215 85 228 58 252 108 Z" fill="#F48B9B"/>
+  <!-- Right Bow Loop -->
+  <path d="M 256 135 C 293 85 280 58 256 108 Z" fill="#F48B9B"/>
+  <!-- Ribbon Center Knot -->
+  <ellipse cx="254" cy="126" rx="14" ry="11" fill="#E27B66"/>
+
+  <!-- Floral Rose / Tulip Bud Accent (Right) -->
+  <!-- Petals -->
+  <path d="M 378 265 C 400 238 434 255 422 300 C 412 328 382 336 368 318 C 356 304 360 282 378 265 Z" fill="#F48B9B"/>
+  <path d="M 388 278 C 405 260 422 272 414 302 C 406 320 388 325 378 312 Z" fill="#E27B66" opacity="0.85"/>
+  
+  <!-- Green Leaves -->
+  <path d="M 364 316 C 348 330 334 316 344 298 C 354 284 368 298 364 316 Z" fill="#4A6B53"/>
+  <path d="M 372 328 C 385 345 408 345 412 332 C 416 318 390 318 372 328 Z" fill="#5C8267"/>
+</svg>
