@@ -3,6 +3,7 @@ import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,11 +13,39 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
 
     const { id } = await params;
-    const orders = await db.readTable<any>('orders') || [];
-    const order = orders.find((o: any) => o.id === id);
+    let order: any = null;
+
+    try {
+      const orderQuery = await db.query<any>('SELECT * FROM orders WHERE id = $1 LIMIT 1', [id]);
+      if (orderQuery.rows.length > 0) {
+        order = orderQuery.rows[0];
+      }
+    } catch (e) {
+      console.warn('Direct order SQL query warning:', e);
+    }
+
+    if (!order) {
+      const orders = await db.readTable<any>('orders') || [];
+      order = orders.find((o: any) => o.id === id);
+    }
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    // Enrich with latest payment transaction record if present
+    const paymentTx = await db.getPaymentByOrderId(order.id);
+    if (paymentTx) {
+      order = {
+        ...order,
+        paymentStatus: paymentTx.status || order.paymentStatus,
+        utr: paymentTx.utr || order.utr,
+        proofImageUrl: paymentTx.proofImageUrl || order.proofImageUrl,
+        paymentSubmittedAt: paymentTx.submittedAt || order.paymentSubmittedAt,
+        paymentVerifiedAt: paymentTx.verifiedAt || order.paymentVerifiedAt,
+        paymentRejectedAt: paymentTx.rejectedAt || order.paymentRejectedAt,
+        rejectionReason: paymentTx.rejectionReason || order.rejectionReason,
+      };
     }
 
     // Role-based authorization
@@ -30,10 +59,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const { deliveryOtp, ...rest } = order;
       return NextResponse.json(rest);
     } else if (session.role === 'customer') {
-      if (
-        order.customerId.toLowerCase() !== session.email.toLowerCase() &&
-        order.customerId.toLowerCase() !== session.userId.toLowerCase()
-      ) {
+      const cId = String(order.customerId || '').toLowerCase();
+      const cEmail = String(order.customerEmail || '').toLowerCase();
+      const sId = String(session.userId || '').toLowerCase();
+      const sEmail = String(session.email || '').toLowerCase();
+
+      if (cId !== sEmail && cId !== sId && cEmail !== sEmail && cEmail !== sId) {
         return NextResponse.json({ error: 'Forbidden: You do not own this order.' }, { status: 403 });
       }
 
@@ -43,11 +74,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         return NextResponse.json(masked);
       }
 
-      if (order.status === 'Out for Delivery' || order.status === 'Delivered' || otpActive) {
-        return NextResponse.json(order);
-      }
-
-      return NextResponse.json({ ...order, deliveryOtp: '******' });
+      return NextResponse.json(order);
     }
 
     return NextResponse.json({ error: 'Unauthorized role' }, { status: 403 });

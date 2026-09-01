@@ -123,7 +123,7 @@ export default function CheckoutPage() {
 
       const uploadData = await uploadRes.json() as { success?: boolean; url?: string; error?: string };
       if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
-        throw new Error(uploadData.error || 'Failed to upload payment proof');
+        throw new Error(uploadData.error || 'Failed to upload payment proof screenshot');
       }
 
       const submitRes = await fetch('/api/payments/submit', {
@@ -133,7 +133,7 @@ export default function CheckoutPage() {
           orderId: manualUpi.orderId,
           paymentId: manualUpi.paymentId,
           amount: manualUpi.amount,
-          utr,
+          utr: utr.trim(),
           proofImageUrl: uploadData.url,
         }),
       });
@@ -143,13 +143,14 @@ export default function CheckoutPage() {
         throw new Error(submitData.error || 'Could not submit payment proof');
       }
 
+      const confirmedOrderId = manualUpi.orderId;
       setPaymentStatus('COMPLETED');
       setManualUpi(null);
       setUtr('');
       setProofFile(null);
       clearCart();
-      showToast('UPI payment proof submitted successfully. It is under verification.', 'success');
-      router.push('/account/orders');
+      showToast('Payment submitted successfully. Your payment is under review by our team.', 'success');
+      router.push(`/order/${confirmedOrderId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Payment proof submission failed.';
       showToast(message, 'error');
@@ -172,13 +173,13 @@ export default function CheckoutPage() {
     }
 
     if (!address.name || !address.mobile || !address.house || !address.street || !address.area || !address.city || !address.pincode) {
-      showToast('Invalid delivery address.', 'error');
+      showToast('Invalid delivery address. Please fill all address fields.', 'error');
       setCurrentStep(1);
       return;
     }
 
     if (paymentMethod !== 'UPI') {
-      showToast('Card and net banking are not active yet. Manual UPI verification is the only operational online payment option.', 'info');
+      showToast('Manual UPI verification is the only active payment option.', 'info');
       return;
     }
 
@@ -191,6 +192,7 @@ export default function CheckoutPage() {
         price: item.product.price,
         quantity: item.quantity,
         image: item.product.image,
+        category: item.product.category,
         selectedSize: item.selectedSize,
         selectedType: item.selectedType
       }));
@@ -209,7 +211,8 @@ export default function CheckoutPage() {
         scheduledDeliveryAt = tomorrow.toISOString();
       }
 
-      const order = placeOrder(
+      // 1. Create order on server FIRST and await response
+      const order = await placeOrder(
         orderItems,
         address,
         deliveryOption,
@@ -219,51 +222,16 @@ export default function CheckoutPage() {
         scheduledDeliveryAt || undefined
       );
 
-      const paymentRes = await fetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          customerId: order.customerId,
-          amount: total,
-          paymentMethod: paymentMethod,
-        }),
-      });
-
-      if (!paymentRes.ok) {
-        const errorData = await paymentRes.json() as { error?: string };
-        throw new Error(errorData.error || 'Failed to create payment');
+      if (!order || !order.id) {
+        throw new Error('Order creation did not return a valid order ID.');
       }
 
-      const paymentData = await paymentRes.json() as { success: boolean; payment?: { id: string } };
-      if (!paymentData.success || !paymentData.payment) {
-        throw new Error('Payment creation failed');
-      }
-
-      const qrRes = await fetch(`/api/payments/qr?orderId=${encodeURIComponent(order.id)}&amount=${encodeURIComponent(String(total))}`);
-      const qrData = await qrRes.json() as { success?: boolean; upiId?: string; amount?: number; uri?: string; merchantName?: string; note?: string; error?: string };
-      if (!qrRes.ok || !qrData.success || !qrData.upiId || !qrData.uri) {
-        throw new Error(qrData.error || 'Failed to load live UPI details');
-      }
-
-      setManualUpi({
-        paymentId: paymentData.payment.id,
-        orderId: order.id,
-        amount: total,
-      });
-      setUpiDetails({
-        upiId: qrData.upiId,
-        amount: Number(qrData.amount ?? total),
-        uri: qrData.uri,
-        merchantName: qrData.merchantName || 'FATAFAT',
-        note: qrData.note || 'Pay the exact amount and submit the proof for admin verification.'
-      });
-      setPaymentStatus('NOT_STARTED');
-      showToast('Pay via the live UPI details below and submit your screenshot for admin verification.', 'success');
-      setCurrentStep(5);
+      clearCart();
+      showToast('Order created successfully! Proceed to payment.', 'success');
+      router.push(`/order/${order.id}`);
     } catch (err) {
       setPaymentStatus('FAILED');
-      const errorMsg = err instanceof Error ? err.message : 'Payment processing failed. Please try again.';
+      const errorMsg = err instanceof Error ? err.message : 'Order creation failed. Please try again.';
       showToast(errorMsg, 'error');
       console.error('Payment error:', err);
     }
@@ -651,61 +619,65 @@ export default function CheckoutPage() {
                 {/* STEP 5: UPI PAYMENT & PROOF SUBMISSION */}
                 {currentStep === 5 && upiDetails && (
                   <div className="space-y-6">
-                    <div>
-                      <h2 className="text-lg font-serif font-extrabold text-zinc-800">Pay & Submit Proof</h2>
-                      <p className="text-xs text-zinc-500">Scan the QR code, make the payment, and submit proof for admin verification.</p>
+                    <div className="border-b pb-3">
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-burgundy">Secure Payment</span>
+                      <h2 className="text-xl font-serif font-extrabold text-zinc-900 mt-1">PAY SECURELY VIA UPI</h2>
+                      <p className="text-xs text-zinc-500 mt-0.5">Amount to Pay: <strong className="text-zinc-900 font-extrabold text-sm">₹{upiDetails.amount}</strong> (Order #{manualUpi?.orderId})</p>
                     </div>
 
                     {/* UPI QR Code Card */}
-                    <div className="rounded-3xl border border-brand-burgundy/20 bg-gradient-to-br from-brand-burgundy/[0.05] to-brand-burgundy/[0.02] p-8 space-y-6">
+                    <div className="rounded-3xl border border-brand-burgundy/20 bg-gradient-to-br from-brand-burgundy/[0.05] to-brand-burgundy/[0.02] p-6 sm:p-8 space-y-6">
                       
                       {/* QR Code Display */}
-                      <div className="flex flex-col items-center justify-center space-y-4 p-6 bg-white rounded-2xl border border-zinc-100">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Scan to Pay</p>
-                        <div className="border-4 border-white rounded-xl shadow-lg overflow-hidden">
+                      <div className="flex flex-col items-center justify-center space-y-3 p-6 bg-white rounded-2xl border border-zinc-100 shadow-sm">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-brand-burgundy bg-[#FFF0EE] px-3 py-1 rounded-full">
+                          Scan to Pay ₹{upiDetails.amount}
+                        </span>
+                        <div className="border-4 border-white rounded-2xl shadow-xl overflow-hidden p-2 bg-white">
                           <QRCodeSVG 
                             value={upiDetails.uri} 
-                            size={256} 
+                            size={240} 
                             level="H" 
                             includeMargin={true}
                           />
                         </div>
-                        <p className="text-xs text-zinc-600 text-center font-semibold">
-                          Scan with any UPI app to pay ₹{upiDetails.amount}
+                        <p className="text-xs text-zinc-600 text-center font-medium">
+                          Scan the QR using any UPI app (GPay, PhonePe, Paytm, BHIM) and pay the exact amount.
                         </p>
                       </div>
 
                       {/* UPI ID Display */}
-                      <div className="space-y-3 p-4 bg-white rounded-2xl border border-zinc-100">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">{upiDetails.merchantName} UPI ID</p>
-                            <h4 className="mt-2 text-2xl font-serif font-black text-zinc-900 break-all">{upiDetails.upiId}</h4>
-                          </div>
+                      <div className="space-y-3 p-5 bg-white rounded-2xl border border-zinc-100 shadow-sm">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">FATAFAT Merchant UPI ID</p>
+                          <h4 className="mt-1 text-xl sm:text-2xl font-serif font-black text-brand-burgundy tracking-wide select-all">{upiDetails.upiId}</h4>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1">
                           <button
                             type="button"
                             onClick={handleCopyUpi}
-                            className="flex-shrink-0 px-4 py-3 text-[10px] font-bold uppercase tracking-wider border border-zinc-200 rounded-lg bg-white text-zinc-700 hover:bg-zinc-50 active:bg-zinc-100 transition-colors"
+                            className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider border border-zinc-200 rounded-xl bg-white text-zinc-700 hover:bg-zinc-50 active:scale-98 transition-all text-center"
                           >
-                            Copy ID
+                            Copy UPI ID
                           </button>
+                          <a
+                            href={upiDetails.uri}
+                            className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider bg-brand-burgundy text-white rounded-xl text-center hover:bg-[#541424] active:scale-98 transition-all flex items-center justify-center shadow-sm"
+                          >
+                            Pay via UPI App
+                          </a>
                         </div>
                       </div>
 
                       {/* Payment Instructions */}
-                      <div className="space-y-3 p-4 bg-white rounded-2xl border border-zinc-100">
-                        <h4 className="text-sm font-bold text-zinc-800">How to Pay</h4>
-                        <ol className="space-y-2 text-xs text-zinc-700 list-decimal list-inside">
-                          <li>Open your UPI app (Google Pay, Paytm, PhonePe, etc.)</li>
-                          <li>Scan the QR code above OR enter this UPI ID: <span className="font-bold text-zinc-900">{upiDetails.upiId}</span></li>
-                          <li>Confirm the amount: <span className="font-bold text-zinc-900">₹{upiDetails.amount}</span></li>
-                          <li>Complete the payment</li>
-                          <li>Save the payment confirmation screenshot</li>
-                          <li>Enter the UTR below and upload the screenshot</li>
+                      <div className="space-y-2 p-5 bg-white rounded-2xl border border-zinc-100 text-xs text-zinc-700">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-800">Payment Steps</h4>
+                        <ol className="space-y-1.5 list-decimal list-inside text-zinc-600 font-medium">
+                          <li>Open any UPI app and scan the QR code above or enter UPI ID <strong className="text-zinc-900">{upiDetails.upiId}</strong>.</li>
+                          <li>Confirm exact amount: <strong className="text-zinc-900">₹{upiDetails.amount}</strong>.</li>
+                          <li>Complete the transfer and take a screenshot of the payment receipt.</li>
+                          <li>Enter your 12-digit UTR below and attach your screenshot.</li>
                         </ol>
-                        <p className="text-[10px] text-zinc-500 pt-2 border-t mt-3">
-                          ℹ️ {upiDetails.note}
-                        </p>
                       </div>
 
                       {/* Payment Details Summary */}

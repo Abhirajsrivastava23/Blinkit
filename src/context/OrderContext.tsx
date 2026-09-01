@@ -34,16 +34,28 @@ export interface Order {
   total: number;
   address: OrderAddress;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Packed' | 'Ready for Delivery' | 'Waiting for Partner' | 'Assigned' | 'Accepted' | 'Picked Up' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
-  paymentStatus: 'PENDING' | 'PAYMENT_VERIFICATION_PENDING' | 'COMPLETED' | 'FAILED' | 'PAID' | 'PROCESSING' | 'REJECTED';
+  paymentStatus: 'PENDING' | 'PAYMENT_VERIFICATION_PENDING' | 'COMPLETED' | 'FAILED' | 'PAID' | 'PROCESSING' | 'REJECTED' | 'NOT_STARTED';
   paymentMethod?: 'UPI' | 'Card' | 'NetBanking';
+  paymentId?: string;
+  utr?: string;
+  proofImageUrl?: string;
+  submittedAt?: string;
+  paymentSubmittedAt?: string;
+  paymentVerifiedAt?: string;
+  paymentRejectedAt?: string;
+  rejectionReason?: string;
   deliveryOption: 'ASAP' | 'Scheduled';
   deliveryTimeSlot?: string;
   scheduledDeliveryAt?: string;
   eta: string;
   createdAt: string;
-  statusHistory?: Array<{ newStatus: string; timestamp: string }>;
+  updatedAt?: string;
+  statusHistory?: Array<{ newStatus: string; previousStatus?: string | null; changedByUserId?: string; changedByRole?: string; timestamp: string; action?: string; note?: string }>;
   delivery_completed_at?: string;
-  deliveryOtp?: string;
+  delivery_otp_verified?: boolean;
+  otp_verified_at?: string;
+  verified_by_partner_id?: string;
+  deliveryOtp?: string | null;
   deliveryLocationId: 'nawabganj-unnao' | 'chandigarh-university-up';
   deliveryLocationName: string;
   assignedPartnerId?: string;
@@ -63,7 +75,7 @@ interface OrderContextType {
     pricing: { subtotal: number; deliveryFee: number; discount: number; total: number },
     paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
     scheduledDeliveryAt?: string
-  ) => Order;
+  ) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   updateOrderDetails: (orderId: string, updates: Partial<Order>) => void;
   getOrderById: (orderId: string) => Order | undefined;
@@ -119,7 +131,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  const placeOrder = (
+  const placeOrder = async (
     items: OrderItem[],
     address: OrderAddress,
     deliveryOption: 'ASAP' | 'Scheduled',
@@ -127,21 +139,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pricing: { subtotal: number; deliveryFee: number; discount: number; total: number },
     paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
     scheduledDeliveryAt?: string
-  ): Order => {
-    const randomId = Math.floor(10000 + Math.random() * 90000);
-    
-    // Retrieve active logged in customer email
-    let activeCustomer = 'guest@fatafat.com';
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('fatafat_user');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          activeCustomer = parsed.email || parsed.phone || 'guest@fatafat.com';
-        } catch (e) {}
-      }
-    }
-
+  ): Promise<Order> => {
     // Determine delivery location ID based on current selection
     let locName = 'Nawabganj, Unnao';
     let locId: 'nawabganj-unnao' | 'chandigarh-university-up' = 'nawabganj-unnao';
@@ -155,40 +153,39 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
-    const newOrder: Order = {
-      id: `FT${randomId}`,
-      customerId: activeCustomer,
+    const payload = {
       items,
-      subtotal: pricing.subtotal,
-      deliveryFee: pricing.deliveryFee,
-      discount: pricing.discount,
-      total: pricing.total,
       address,
-      status: 'Pending',
-      paymentStatus: 'PENDING',
-      paymentMethod: paymentMethod || 'UPI',
       deliveryOption,
       deliveryTimeSlot: deliveryOption === 'Scheduled' ? deliveryTimeSlot : undefined,
       scheduledDeliveryAt: scheduledDeliveryAt || undefined,
-      eta: '35 mins',
-      createdAt: new Date().toISOString(),
+      discount: pricing.discount,
+      paymentMethod: paymentMethod || 'UPI',
       deliveryLocationId: locId,
       deliveryLocationName: locName
-    }
+    };
 
-    // Save to local state
-    const updated = [newOrder, ...orders];
-    setOrders(updated);
-    localStorage.setItem('fatafat_orders', JSON.stringify(updated));
-
-    // Save to server database asynchronously
-    fetch('/api/orders', {
+    const res = await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newOrder)
-    }).catch(err => console.error('Failed to post order to server:', err));
+      body: JSON.stringify(payload)
+    });
 
-    return newOrder;
+    const data = await res.json();
+    if (!res.ok || !data.success || !data.order) {
+      throw new Error(data.error || 'Failed to place order. Please try again.');
+    }
+
+    const serverOrder = data.order as Order;
+
+    // Save to local state
+    setOrders(prev => {
+      const updated = [serverOrder, ...prev.filter(o => o.id !== serverOrder.id)];
+      localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+      return updated;
+    });
+
+    return serverOrder;
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {

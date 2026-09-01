@@ -194,6 +194,38 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
+          {/* Payment Status Alert Banner if not PAID */}
+          {order.paymentStatus !== 'PAID' && order.status !== 'Confirmed' && (
+            <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs ${
+              order.paymentStatus === 'REJECTED'
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              <div className="space-y-0.5 text-center sm:text-left">
+                <p className="font-bold">
+                  {order.paymentStatus === 'REJECTED'
+                    ? '⚠️ Payment Verification Rejected'
+                    : order.utr
+                    ? '⏳ Payment Under Admin Review'
+                    : '💳 UPI Payment Required'}
+                </p>
+                <p className="text-[11px] opacity-90">
+                  {order.paymentStatus === 'REJECTED'
+                    ? order.rejectionReason || 'Please resubmit your payment transfer proof.'
+                    : order.utr
+                    ? 'Your UTR & screenshot are being verified by our team. Order fulfillment begins upon approval.'
+                    : 'Please complete your UPI transfer and submit the UTR reference to confirm this order.'}
+                </p>
+              </div>
+              <Link
+                href={`/order/${order.id}`}
+                className="px-5 py-2.5 bg-brand-burgundy text-white font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-brand-burgundy-dark transition-all shrink-0 shadow"
+              >
+                {order.paymentStatus === 'REJECTED' ? 'Resubmit Proof' : order.utr ? 'View Payment Details' : 'Pay via UPI'}
+              </Link>
+            </div>
+          )}
+
           {/* Core Tracking Grid */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
             

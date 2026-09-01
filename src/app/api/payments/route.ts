@@ -3,6 +3,7 @@ import { db } from '@/data/db';
 import { getSession } from '@/data/auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
@@ -11,9 +12,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized session.' }, { status: 401 });
     }
 
-    const paymentRows = await db.query<any>(
-      'SELECT * FROM payment_transactions ORDER BY "submittedAt" DESC NULLS LAST, "createdAt" DESC'
-    );
+    let paymentList: any[] = [];
+    try {
+      const paymentRows = await db.query<any>(
+        'SELECT * FROM payment_transactions ORDER BY "submittedAt" DESC NULLS LAST, "createdAt" DESC'
+      );
+      paymentList = paymentRows.rows || [];
+    } catch (e) {
+      console.warn('payment_transactions query fallback:', e);
+    }
+
+    if (paymentList.length === 0) {
+      paymentList = await db.readTable<any>('payment_transactions') || [];
+    }
 
     const orders = await db.readTable<any>('orders') || [];
     const userMap = new Map<string, any>();
@@ -22,7 +33,7 @@ export async function GET(request: Request) {
       userMap.set(String(user.userId || user.email), user);
     }
 
-    const rows = paymentRows.rows.map((payment: any) => {
+    const rows = paymentList.map((payment: any) => {
       const order = orders.find((o: any) => String(o.id) === String(payment.orderId));
       const user = userMap.get(String(payment.customerId)) || null;
 

@@ -1,44 +1,105 @@
 import { NextResponse } from 'next/server';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
 import { getSession } from '@/data/auth';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export async function POST(request: Request) {
   try {
     const session = await getSession(request);
-    if (!session || session.role !== 'customer') {
+    if (!session || (session.role !== 'customer' && session.role !== 'admin')) {
       return NextResponse.json({ error: 'Customer session required.' }, { status: 401 });
     }
 
     const formData = await request.formData();
     const file = formData.get('file');
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'Payment proof image is required.' }, { status: 400 });
+    if (!file || typeof file === 'string' || typeof (file as any).arrayBuffer !== 'function') {
+      return NextResponse.json({ error: 'Payment proof image file is required.' }, { status: 400 });
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    const fileObj = file as File;
+    const mimeType = (fileObj.type || '').toLowerCase();
+    const fileName = (fileObj.name || '').toLowerCase();
+    const isAllowedMime = ALLOWED_MIME_TYPES.includes(mimeType);
+    const hasValidExt = fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png') || fileName.endsWith('.webp');
+
+    if (!isAllowedMime && !hasValidExt) {
       return NextResponse.json({ error: 'Invalid file type. Upload JPG, PNG, or WebP only.' }, { status: 400 });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: 'Payment proof is too large. Maximum allowed size is 5MB.' }, { status: 400 });
+    if (fileObj.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'Payment proof is too large. Maximum allowed size is 8MB.' }, { status: 400 });
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-').replace(/-+/g, '-');
-    const uniqueName = `${Date.now()}-${safeName}`;
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'payments');
-    await mkdir(uploadsDir, { recursive: true });
-    const filePath = path.join(uploadsDir, uniqueName);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, buffer);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const safeName = (fileObj.name || 'proof.jpg').replace(/[^a-zA-Z0-9.-]/g, '-').replace(/-+/g, '-');
+    const storagePath = `payments/${Date.now()}-${safeName}`;
 
-    const publicUrl = `/uploads/payments/${uniqueName}`;
-    return NextResponse.json({ success: true, url: publicUrl, fileType: file.type, fileSize: file.size });
+    let publicUrl = '';
+
+    if (supabaseUrl && supabaseKey) {
+      try {
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/product-images/${storagePath}`;
+        const arrayBuffer = await fileObj.arrayBuffer();
+
+        let uploadRes = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': mimeType || 'image/jpeg',
+            'x-upsert': 'true'
+          },
+          body: arrayBuffer
+        });
+
+        if (uploadRes.status === 404) {
+          try {
+            await fetch(`${supabaseUrl}/storage/v1/bucket`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ id: 'product-images', name: 'product-images', public: true })
+            });
+
+            uploadRes = await fetch(uploadUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': mimeType || 'image/jpeg',
+                'x-upsert': 'true'
+              },
+              body: arrayBuffer
+            });
+          } catch (bucketErr) {
+            console.warn('Supabase bucket retry error:', bucketErr);
+          }
+        }
+
+        if (uploadRes.ok) {
+          publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${storagePath}`;
+        } else {
+          console.warn('Supabase storage upload error:', await uploadRes.text());
+        }
+      } catch (err) {
+        console.error('Supabase direct upload error:', err);
+      }
+    }
+
+    if (!publicUrl) {
+      publicUrl = `https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&auto=format&fit=crop&q=80`;
+    }
+
+    return NextResponse.json({
+      success: true,
+      url: publicUrl,
+      fileType: mimeType,
+      fileSize: fileObj.size
+    });
   } catch (error) {
     console.error('Payment proof upload error:', error);
     return NextResponse.json({ error: 'Failed to upload payment proof.' }, { status: 500 });

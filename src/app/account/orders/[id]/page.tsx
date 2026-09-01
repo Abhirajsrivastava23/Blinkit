@@ -23,18 +23,39 @@ export default function AccountOrderDetailPage() {
 
   const orderId = params.id as string;
   const [order, setOrder] = useState<Order | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
   const [cancellationInProgress, setCancellationInProgress] = useState(false);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
 
   useEffect(() => {
     const found = getOrderById(orderId);
-    setOrder(found);
+    if (found) {
+      setOrder(found);
+      setLoading(false);
+    }
+    fetch(`/api/orders/${orderId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && !data.error) {
+          setOrder(data);
+        }
+      })
+      .catch((err) => console.error(err))
+      .finally(() => setLoading(false));
   }, [orderId, getOrderById]);
 
-  if (!order) {
+  if (loading && !order) {
     return (
       <div className="text-center py-12 text-xs text-zinc-400">
         Locating order specifications...
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="text-center py-12 text-xs text-zinc-500">
+        Order not found.
       </div>
     );
   }
