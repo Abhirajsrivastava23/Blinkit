@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { Product } from '../../../../data/mockData';
+import { getSession } from '../../../../data/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request, context: any) {
   try {
@@ -12,17 +16,27 @@ export async function GET(request: Request, context: any) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     }
 
-    // Server-side security check for Wellness 18+ Access
+    // Server-side security check for Wellness 18+ Access & Publication state
     if (product.category === 'wellness') {
-      const userEmail = request.headers.get('x-user-email') || '';
-      const users = await db.readTable<any>('users') || [];
-      const userObj = users.find((u: any) => u.email === userEmail);
-      
-      if (!userObj || userObj.wellnessAccessStatus !== 'APPROVED') {
-        return new NextResponse(
-          JSON.stringify({ error: '403 Forbidden: Approved Wellness profile required.' }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } }
-        );
+      const wellnessSettings = await db.getWellnessSettings();
+      const session = await getSession(request);
+      const isAdmin = session && session.role === 'admin';
+
+      if (!wellnessSettings.published && !isAdmin) {
+        return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
+      }
+
+      if (!isAdmin) {
+        const userEmail = request.headers.get('x-user-email') || '';
+        const users = await db.readTable<any>('users') || [];
+        const userObj = users.find((u: any) => u.email === userEmail);
+        
+        if (!userObj || (userObj.wellnessAccessStatus !== 'APPROVED' && userObj.wellnessAccessStatus !== 'ACTIVE')) {
+          return new NextResponse(
+            JSON.stringify({ error: '403 Forbidden: Approved Wellness profile required.' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
 

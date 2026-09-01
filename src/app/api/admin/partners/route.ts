@@ -32,12 +32,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { id, name, phone, email, password, locationId, locationName, status, isOnline } = body;
 
-    if (!id || !name || !email) {
+    const cleanId = String(id).trim();
+    const cleanName = String(name).trim();
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPhone = String(phone || '').replace(/\D/g, '');
+    const cleanPassword = password ? String(password).trim() : '';
+
+    if (!cleanId || !cleanName || !cleanEmail) {
       return NextResponse.json({ error: 'ID, Name, and Email are required fields.' }, { status: 400 });
     }
 
     const partners = await db.readTable<any>('partners') || [];
-    const idx = partners.findIndex(p => p.id.toLowerCase() === id.toLowerCase());
+    const idx = partners.findIndex(p => p.id && p.id.toLowerCase().trim() === cleanId.toLowerCase());
 
     let savedPartner: any;
     if (idx > -1) {
@@ -45,9 +51,9 @@ export async function POST(request: Request) {
       const prevPartner = partners[idx];
       savedPartner = {
         ...prevPartner,
-        name,
-        phone: phone !== undefined ? phone : prevPartner.phone,
-        email: email !== undefined ? email : prevPartner.email,
+        name: cleanName,
+        phone: cleanPhone !== undefined ? cleanPhone : prevPartner.phone,
+        email: cleanEmail,
         locationId: locationId !== undefined ? locationId : prevPartner.locationId,
         locationName: locationName !== undefined ? locationName : prevPartner.locationName,
         status: status !== undefined ? status : prevPartner.status,
@@ -55,21 +61,21 @@ export async function POST(request: Request) {
       };
 
       // Optional: password reset
-      if (password) {
-        savedPartner.passwordHash = hashPassword(password);
+      if (cleanPassword) {
+        savedPartner.passwordHash = hashPassword(cleanPassword);
       }
 
       partners[idx] = savedPartner;
-      db.logActivity('Admin Console', 'Updated Partner', name, `ID: ${id}`, `Status: ${savedPartner.status}`);
+      db.logActivity('Admin Console', 'Updated Partner', cleanName, `ID: ${cleanId}`, `Status: ${savedPartner.status}`);
     } else {
       // Create new partner
-      if (!password) {
+      if (!cleanPassword) {
         return NextResponse.json({ error: 'Password is required to create a new partner.' }, { status: 400 });
       }
 
       // Check ID/email uniqueness
-      const idExists = partners.some(p => p.id.toLowerCase() === id.toLowerCase());
-      const emailExists = partners.some(p => p.email.toLowerCase() === email.toLowerCase());
+      const idExists = partners.some(p => p.id && p.id.toLowerCase().trim() === cleanId.toLowerCase());
+      const emailExists = partners.some(p => p.email && p.email.toLowerCase().trim() === cleanEmail);
 
       if (idExists) {
         return NextResponse.json({ error: 'Partner ID already exists.' }, { status: 400 });
@@ -79,11 +85,11 @@ export async function POST(request: Request) {
       }
 
       savedPartner = {
-        id,
-        name,
-        phone: phone || '',
-        email,
-        passwordHash: hashPassword(password),
+        id: cleanId,
+        name: cleanName,
+        phone: cleanPhone || '',
+        email: cleanEmail,
+        passwordHash: hashPassword(cleanPassword),
         role: 'delivery_partner',
         locationId: locationId || 'nawabganj-unnao',
         locationName: locationName || 'Nawabganj, Unnao',
@@ -92,7 +98,7 @@ export async function POST(request: Request) {
       };
 
       partners.push(savedPartner);
-      db.logActivity('Admin Console', 'Created Partner', name, `ID: ${id}`, `Location: ${savedPartner.locationName}`);
+      db.logActivity('Admin Console', 'Created Partner', cleanName, `ID: ${cleanId}`, `Location: ${savedPartner.locationName}`);
     }
 
     await db.writeTable('partners', partners);

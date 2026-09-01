@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../data/db';
+import { getSession } from '../../../data/auth';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function GET(request: Request) {
   try {
-    const categories = await db.readTable('categories');
+    const session = await getSession(request);
+    const isAdmin = session && session.role === 'admin';
+    const wellnessSettings = await db.getWellnessSettings();
+
+    let categories = await db.readTable<any>('categories') || [];
+    if (!wellnessSettings.published && !isAdmin) {
+      categories = categories.filter((c: any) => c.id !== 'wellness' && c.slug !== 'wellness');
+    }
     return NextResponse.json(categories);
   } catch (error) {
     console.error('Error fetching categories:', error);

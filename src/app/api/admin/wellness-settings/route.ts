@@ -9,9 +9,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Admin permission required' }, { status: 403 });
     }
 
-    const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
-    const data = configRes.rows[0]?.data || { published: false };
-    return NextResponse.json(data);
+    const settings = await db.getWellnessSettings();
+    return NextResponse.json(settings);
   } catch (err) {
     console.error('Error fetching wellness settings:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
@@ -25,20 +24,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Admin permission required' }, { status: 403 });
     }
 
-    const { published } = await request.json();
+    const body = await request.json();
+    const { published } = body;
     if (published === undefined) {
       return NextResponse.json({ error: 'Published state boolean is required' }, { status: 400 });
     }
 
-    // Get previous value
-    const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
-    const prevPublished = (configRes.rows[0]?.data as any)?.published ?? false;
-
-    // Update wellness settings
-    await db.query(
-      "INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2",
-      ['wellness_settings', JSON.stringify({ published })]
-    );
+    const prevSettings = await db.getWellnessSettings();
+    await db.setWellnessSettings(Boolean(published));
 
     // Save event to audit log
     const auditLogs = await db.readTable<any>('auditLogs') || [];
@@ -51,12 +44,12 @@ export async function POST(request: Request) {
       adminId: adminSession.email,
       timestamp: new Date().toISOString(),
       requestId: 'system-settings',
-      reason: `Toggled publication from ${prevPublished} to ${published}`
+      reason: `Toggled publication from ${prevSettings.published} to ${published}`
     };
     auditLogs.push(auditEvent);
     await db.writeTable('auditLogs', auditLogs);
 
-    return NextResponse.json({ success: true, published });
+    return NextResponse.json({ success: true, published: Boolean(published) });
   } catch (err) {
     console.error('Error updating wellness settings:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

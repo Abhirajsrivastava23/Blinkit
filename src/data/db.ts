@@ -102,6 +102,11 @@ const inMemoryData: Record<string, Record<string, unknown>[]> = {
   product_image_history: [],
 };
 
+const inMemoryConfig: Record<string, unknown> = {
+  wellness_settings: { published: false },
+  homepage: homepageJson
+};
+
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
   brands: ['id', 'name', 'slug', 'description', 'status', 'website', 'logo', 'itemCount'],
@@ -586,6 +591,45 @@ export const db = {
       const list = inMemoryData['payment_transactions'] || [];
       return list.filter((p: Record<string, unknown>) => String(p.customerId) === String(customerId)).slice(0, limit);
     }
+  },
+
+  async getConfig<T = any>(key: string): Promise<T | null> {
+    if (pool) {
+      try {
+        const res = await pool.query('SELECT data FROM config WHERE key = $1', [key]);
+        if (res.rows.length > 0) {
+          const d = res.rows[0].data;
+          return typeof d === 'string' ? JSON.parse(d) : (d as T);
+        }
+      } catch (err) {
+        console.error(`Error reading config for ${key}:`, err);
+      }
+    }
+    return (inMemoryConfig[key] as T) || null;
+  },
+
+  async setConfig<T = any>(key: string, data: T): Promise<boolean> {
+    inMemoryConfig[key] = data;
+    if (!pool) return true;
+    try {
+      await pool.query(
+        'INSERT INTO config (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2',
+        [key, typeof data === 'object' ? JSON.stringify(data) : data]
+      );
+      return true;
+    } catch (err) {
+      console.error(`Error writing config for ${key}:`, err);
+      return false;
+    }
+  },
+
+  async getWellnessSettings(): Promise<{ published: boolean }> {
+    const config = await this.getConfig<{ published: boolean }>('wellness_settings');
+    return config && typeof config.published === 'boolean' ? config : { published: false };
+  },
+
+  async setWellnessSettings(published: boolean): Promise<boolean> {
+    return this.setConfig('wellness_settings', { published: !!published });
   },
 
   async readHomepage(): Promise<Record<string, unknown>> {

@@ -18,8 +18,8 @@ export async function GET(request: Request) {
     const stockStatus = searchParams.get('stockStatus'); // 'low', 'out', 'in'
 
     // Load storefront settings
-    const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
-    const wellnessPublished = (configRes.rows[0]?.data as any)?.published ?? false;
+    const wellnessSettings = await db.getWellnessSettings();
+    const wellnessPublished = wellnessSettings.published;
 
     // Server-side security check for Wellness 18+ Access
     const isWellnessReq = wellness === 'true' || category === 'wellness';

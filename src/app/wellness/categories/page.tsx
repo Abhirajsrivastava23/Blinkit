@@ -26,7 +26,31 @@ export default function WellnessCategoriesPage() {
     }
   }, [user, isLoading, wellnessPublished, router]);
 
-  if (isLoading || (!wellnessPublished && user?.role !== 'admin') || (user?.wellnessAccessStatus !== 'ACTIVE' && user?.role !== 'admin')) {
+  if (!isLoading && !wellnessPublished && user?.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-brand-charcoal select-none font-sans text-xs">
+        <Header />
+        <div className="flex-grow flex flex-col items-center justify-center p-8 text-center py-24 space-y-4">
+          <div className="h-16 w-16 bg-zinc-100 text-zinc-400 rounded-full flex items-center justify-center mx-auto">
+            <EyeOff className="h-8 w-8 text-zinc-400" />
+          </div>
+          <h2 className="text-2xl font-serif font-black text-zinc-900 uppercase tracking-wide">404 - Section Unavailable</h2>
+          <p className="text-xs text-zinc-500 max-w-sm font-medium leading-relaxed">
+            The Wellness section is currently offline or unpublished. Please check back later.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-6 py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl text-xs font-serif font-bold uppercase tracking-wider transition-all"
+          >
+            Return to Store
+          </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (isLoading || (user?.wellnessAccessStatus !== 'ACTIVE' && user?.role !== 'admin')) {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center text-white text-xs">
         Verifying Wellness security token...

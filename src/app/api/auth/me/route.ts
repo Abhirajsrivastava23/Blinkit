@@ -61,8 +61,8 @@ export async function GET(request: Request) {
     const session = await getSession(request);
     
     // Fetch publication state
-    const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
-    const wellnessPublished = (configRes.rows[0]?.data as any)?.published ?? false;
+    const wellnessSettings = await db.getWellnessSettings();
+    const wellnessPublished = wellnessSettings.published;
 
     if (!session) {
       return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Unauthorized session' }, { status: 401 });
