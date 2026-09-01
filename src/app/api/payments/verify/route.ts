@@ -34,9 +34,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order ID could not be identified.' }, { status: 400 });
     }
 
+    const cleanOrderId = decodeURIComponent(String(resolvedOrderId) || '').trim();
     const now = new Date().toISOString();
     const orders = await db.readTable<any>('orders') || [];
-    const ordIdx = orders.findIndex((o: any) => o.id === resolvedOrderId);
+    const ordIdx = orders.findIndex((o: any) => String(o.id).trim().toLowerCase() === cleanOrderId.toLowerCase());
 
     if (action === 'approve') {
       if (payment) {
@@ -63,8 +64,8 @@ export async function POST(request: Request) {
            SET status = $1,
                "paymentStatus" = $2,
                "updatedAt" = $3
-           WHERE id = $4`,
-          ['Confirmed', 'PAID', now, resolvedOrderId]
+           WHERE LOWER(id) = LOWER($4)`,
+          ['Confirmed', 'PAID', now, cleanOrderId]
         );
       } catch (e) {
         console.warn('orders approve query warning:', e);
@@ -88,7 +89,6 @@ export async function POST(request: Request) {
           updatedAt: now,
           statusHistory: hist
         };
-        await db.writeTable('orders', orders);
       }
 
       return NextResponse.json({ success: true, status: 'PAID', message: 'Payment approved and order confirmed.' });
@@ -119,8 +119,8 @@ export async function POST(request: Request) {
           `UPDATE orders
            SET "paymentStatus" = $1,
                "updatedAt" = $2
-           WHERE id = $3`,
-          ['REJECTED', now, resolvedOrderId]
+           WHERE LOWER(id) = LOWER($3)`,
+          ['REJECTED', now, cleanOrderId]
         );
       } catch (e) {
         console.warn('orders reject query warning:', e);
@@ -144,7 +144,6 @@ export async function POST(request: Request) {
           updatedAt: now,
           statusHistory: hist
         };
-        await db.writeTable('orders', orders);
       }
 
       return NextResponse.json({ success: true, status: 'REJECTED', message: 'Payment rejected and order payment status updated.' });

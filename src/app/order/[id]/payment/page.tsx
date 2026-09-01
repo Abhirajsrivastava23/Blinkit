@@ -85,12 +85,13 @@ export default function OrderPaymentPage() {
         setFetchError(null);
         setIsConfirmedNotFound(false);
       } else if (res.status === 404) {
-        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
+        // Only set confirmed not-found if there is NO pre-existing active order
+        if (!activeOrderRef.current && !contextOrder) {
           setIsConfirmedNotFound(true);
           setFetchError(data?.error || 'Order not found in records.');
         }
       } else {
-        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
+        if (!activeOrderRef.current && !contextOrder) {
           setFetchError(data?.error || `Connecting to payment gateway (${res.status})...`);
         }
       }
@@ -99,7 +100,7 @@ export default function OrderPaymentPage() {
     } finally {
       setLoading(false);
     }
-  }, [orderId, contextOrder, fetchedOrder]);
+  }, [orderId, contextOrder]);
 
   // Initial load + live polling every 3 seconds for instant status sync
   useEffect(() => {
@@ -110,7 +111,7 @@ export default function OrderPaymentPage() {
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
-  const order = fetchedOrder || contextOrder || activeOrderRef.current;
+  const order = fetchedOrder || activeOrderRef.current || contextOrder;
 
   // Fetch dynamic QR code data from backend API whenever order is loaded
   useEffect(() => {
@@ -210,6 +211,20 @@ export default function OrderPaymentPage() {
       if (!submitRes.ok || !submitData.success) {
         throw new Error(submitData.error || 'Failed to submit payment verification');
       }
+
+      // 3. Optimistic local update to immediately show "Verification in Progress"
+      const now = new Date().toISOString();
+      const updatedOrderData: Order = {
+        ...order,
+        paymentStatus: 'PAYMENT_VERIFICATION_PENDING' as const,
+        utr: trimmedUtr,
+        proofImageUrl: uploadData.url,
+        paymentSubmittedAt: now,
+        updatedAt: now,
+      };
+
+      setFetchedOrder(updatedOrderData);
+      activeOrderRef.current = updatedOrderData;
 
       showToast('Payment submitted successfully. Verification is in progress.', 'success');
       setUtr('');
