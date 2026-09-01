@@ -481,6 +481,14 @@ export const db = {
       `);
 
       await client.query(`
+        CREATE TABLE IF NOT EXISTS wellness_terms_acceptances (
+          "customerId" VARCHAR(255) PRIMARY KEY,
+          "termsVersion" VARCHAR(50) NOT NULL,
+          "acceptedAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
         CREATE TABLE IF NOT EXISTS admin (
           email VARCHAR(255) PRIMARY KEY,
           "passwordHash" VARCHAR(255) NOT NULL,
