@@ -36,10 +36,30 @@ export async function GET(
       }
     } catch (err) {
       console.error('Error fetching payment:', err);
-      return Response.json(
-        { error: 'Failed to retrieve payment' },
-        { status: 500 }
-      );
+    }
+
+    if (!payment) {
+      try {
+        const orders = await db.readTable<any>('orders') || [];
+        const order = orders.find((o: any) => o.id === paymentId);
+        if (order) {
+          payment = {
+            id: `pay-${order.id}`,
+            orderId: order.id,
+            amount: order.total,
+            currency: 'INR',
+            status: order.paymentStatus || 'PAYMENT_VERIFICATION_PENDING',
+            method: order.paymentMethod || 'UPI',
+            provider: 'MANUAL_UPI',
+            createdAt: order.createdAt,
+            updatedAt: order.updatedAt || order.createdAt,
+            paidAt: order.paymentVerifiedAt || null,
+            attemptCount: 1
+          };
+        }
+      } catch (err) {
+        console.error('Error fallback reading order for payment:', err);
+      }
     }
 
     if (!payment) {
