@@ -11,6 +11,7 @@ import ordersJson from './db/orders.json';
 import sessionsJson from './db/sessions.json';
 import partnersJson from './db/partners.json';
 import usersJson from './db/users.json';
+import adminJson from './db/admin.json';
 
 
 export interface AuditLogRecord {
@@ -96,6 +97,7 @@ const inMemoryData: Record<string, Record<string, unknown>[]> = {
   sessions: [...sessionsJson],
   partners: [...partnersJson],
   users: [...usersJson],
+  admin: [...adminJson],
   payment_transactions: [],
   product_image_history: [],
 };

@@ -31,6 +31,9 @@ export async function GET(
     let payment: Record<string, unknown> | null = null;
     try {
       payment = await db.getPaymentById(paymentId);
+      if (!payment) {
+        payment = await db.getPaymentByOrderId(paymentId);
+      }
     } catch (err) {
       console.error('Error fetching payment:', err);
       return Response.json(

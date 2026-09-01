@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { verifyPassword, createSession } from '../../../../data/auth';
 import partnersJson from '../../../../data/db/partners.json';
+import adminJson from '../../../../data/db/admin.json';
 
 // Trigger route reload
 export const dynamic = 'force-dynamic';
@@ -16,9 +17,12 @@ export async function POST(request: Request) {
 
     const cleanInput = String(emailOrId).trim().toLowerCase();
 
-    // 1. Check Admin Account (admin.json)
+    // 1. Check Admin Account (admin table + admin.json fallback)
     const admins = await db.readTable<any>('admin') || [];
-    const adminObj = admins.find(a => (a.email && a.email.toLowerCase().trim() === cleanInput));
+    let adminObj = admins.find(a => (a.email && a.email.toLowerCase().trim() === cleanInput));
+    if (!adminObj) {
+      adminObj = (adminJson as any[]).find((a: any) => a.email && a.email.toLowerCase().trim() === cleanInput);
+    }
     if (adminObj) {
       if (verifyPassword(password, adminObj.passwordHash)) {
         const session = await createSession(adminObj.email, adminObj.email, 'admin');
