@@ -46,11 +46,14 @@ export default function OrderPaymentPage() {
   const { getOrderById } = useOrders();
   const { showToast } = useToast();
   
-  const orderId = params.id as string;
+  const orderId = (params.id as string || '').trim();
   const contextOrder = getOrderById(orderId);
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isConfirmedNotFound, setIsConfirmedNotFound] = useState(false);
+
+  const activeOrderRef = React.useRef<Order | null>(contextOrder || null);
 
   // Dynamic UPI QR details from backend
   const [qrDetails, setQrDetails] = useState<QrResponse | null>(null);
@@ -66,21 +69,35 @@ export default function OrderPaymentPage() {
   const fetchOrderDetails = useCallback(async () => {
     if (!orderId) return;
     try {
-      const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && !data.error) {
-          setFetchedOrder(data);
-          setFetchError(null);
+      console.log("[PAYMENT] route param:", orderId);
+      console.log("[PAYMENT] fetching order");
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+      console.log("[PAYMENT] response status:", res.status);
+      const data = await res.json().catch(() => null);
+      console.log("[PAYMENT] response body:", data);
+
+      if (res.ok && data && !data.error && data.id) {
+        console.log("[PAYMENT] setting order", data);
+        setFetchedOrder(data);
+        activeOrderRef.current = data;
+        setFetchError(null);
+        setIsConfirmedNotFound(false);
+      } else if (res.status === 404) {
+        // Only set confirmed not-found if there is no pre-existing order data
+        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
+          console.log("[PAYMENT] setting order-not-found (confirmed 404)");
+          setIsConfirmedNotFound(true);
+          setFetchError(data?.error || 'Order not found in records.');
         }
       } else {
-        const errData = await res.json().catch(() => ({}));
-        if (!contextOrder && !fetchedOrder) {
-          setFetchError(errData.error || `HTTP ${res.status}: Order not accessible.`);
+        // Temporary network / auth / 500 issue -> never destroy valid order state
+        console.warn("[PAYMENT] temporary fetch issue, keeping existing order visible:", res.status, data);
+        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
+          setFetchError(data?.error || `Connecting to server (${res.status})...`);
         }
       }
     } catch (err) {
-      console.error('Error polling order details:', err);
+      console.error("[PAYMENT] network error during order fetch:", err);
     } finally {
       setLoading(false);
     }
@@ -95,7 +112,7 @@ export default function OrderPaymentPage() {
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
-  const order = fetchedOrder || contextOrder;
+  const order = fetchedOrder || contextOrder || activeOrderRef.current;
 
   // Fetch dynamic QR code data from backend API whenever order is loaded
   useEffect(() => {
@@ -239,8 +256,8 @@ export default function OrderPaymentPage() {
     );
   }
 
-  // 2. Order Not Found / Access Error State
-  if (!order) {
+  // 2. Confirmed Order Not Found (404 from backend and no existing order in state)
+  if (!order && isConfirmedNotFound) {
     return (
       <>
         <Header />
@@ -264,6 +281,39 @@ export default function OrderPaymentPage() {
               className="px-6 py-2.5 rounded-full border border-zinc-300 text-zinc-700 text-xs font-bold uppercase tracking-wider hover:bg-zinc-50 transition-all"
             >
               Return Home
+            </button>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  // 3. Temporary connection / retrieval issue when no order in state
+  if (!order) {
+    return (
+      <>
+        <Header />
+        <main className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-12 text-center min-h-[60vh]">
+          <div className="p-4 bg-amber-50 text-amber-600 rounded-full mb-4">
+            <RefreshCw className="h-10 w-10 animate-spin" />
+          </div>
+          <h2 className="text-xl font-serif font-black text-zinc-900">Connecting to Payment Gateway...</h2>
+          <p className="text-xs text-zinc-500 mt-1 max-w-sm">
+            {fetchError || 'Synchronizing your order details with the server.'}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={() => void fetchOrderDetails()}
+              className="px-6 py-2.5 rounded-full bg-brand-burgundy text-white text-xs font-bold uppercase tracking-wider hover:bg-brand-burgundy-dark transition-all shadow"
+            >
+              Retry Loading Order
+            </button>
+            <button
+              onClick={() => router.push('/account/orders')}
+              className="px-6 py-2.5 rounded-full border border-zinc-300 text-zinc-700 text-xs font-bold uppercase tracking-wider hover:bg-zinc-50 transition-all"
+            >
+              View My Orders
             </button>
           </div>
         </main>

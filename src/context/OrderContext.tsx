@@ -88,7 +88,15 @@ interface OrderContextType {
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('fatafat_orders');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return [];
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number | null>(null);
@@ -100,9 +108,19 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setStatusCode(res.status);
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
-        setError(null);
-        localStorage.setItem('fatafat_orders', JSON.stringify(data));
+        if (Array.isArray(data)) {
+          setOrders(prev => {
+            const map = new Map<string, Order>();
+            for (const o of prev) map.set(o.id, o);
+            for (const o of data) map.set(o.id, o);
+            const merged = Array.from(map.values());
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('fatafat_orders', JSON.stringify(merged));
+            }
+            return merged;
+          });
+          setError(null);
+        }
       } else {
         const errData = await res.json().catch(() => ({}));
         setError(errData.error || `HTTP Error ${res.status}`);
