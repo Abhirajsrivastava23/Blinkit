@@ -505,9 +505,12 @@ export default function OrderPaymentPage() {
                         )}
                       </div>
 
-                      <p className="text-xs text-zinc-600 text-center font-medium max-w-xs">
-                        Scan with any UPI app (GPay, PhonePe, Paytm, BHIM, CRED) and pay the exact amount.
-                      </p>
+                      <div className="text-center space-y-0.5">
+                        <h4 className="text-sm font-bold text-zinc-900">Scan & Pay</h4>
+                        <p className="text-xs text-zinc-600 font-medium max-w-xs">
+                          Open any UPI app and scan this QR code.
+                        </p>
+                      </div>
                     </div>
 
                     {/* Merchant UPI ID Box */}
@@ -556,7 +559,7 @@ export default function OrderPaymentPage() {
                   {/* Payment Verification Form */}
                   <form onSubmit={handleProofSubmit} className="rounded-3xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-6 sm:p-8 space-y-5">
                     <div>
-                      <h3 className="text-sm font-serif font-extrabold text-zinc-900">Payment Verification</h3>
+                      <h3 className="text-base font-serif font-black text-zinc-900">Payment Verification</h3>
                       <p className="text-xs text-zinc-500 mt-0.5">
                         Submit your transaction details to verify payment and confirm your order.
                       </p>
@@ -566,7 +569,7 @@ export default function OrderPaymentPage() {
                       {/* UTR Input */}
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 flex justify-between">
-                          <span>UTR / Transaction Reference *</span>
+                          <span>UTR / TRANSACTION REFERENCE *</span>
                           <span className="text-zinc-400 font-normal">12-digit transaction ID</span>
                         </label>
                         <input
@@ -574,7 +577,7 @@ export default function OrderPaymentPage() {
                           required
                           value={utr}
                           onChange={(e) => setUtr(e.target.value)}
-                          placeholder="Enter the UTR / transaction reference from your UPI payment"
+                          placeholder="Enter UTR / transaction reference"
                           className="w-full border border-zinc-200 rounded-xl p-3.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-burgundy/20 font-mono text-zinc-800"
                         />
                         <p className="text-[10px] text-zinc-400">Available in your GPay / PhonePe / Paytm / BHIM transaction summary.</p>
@@ -583,7 +586,7 @@ export default function OrderPaymentPage() {
                       {/* Screenshot Upload with Live Preview */}
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-700">
-                          Payment Screenshot *
+                          PAYMENT SCREENSHOT *
                         </label>
                         
                         <div className="border-2 border-dashed border-zinc-300 rounded-xl p-5 bg-white hover:bg-zinc-50 transition-colors text-center cursor-pointer relative">
@@ -597,7 +600,7 @@ export default function OrderPaymentPage() {
                           
                           {previewUrl ? (
                             <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
-                              <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-zinc-200 shadow-sm bg-zinc-100">
+                              <div className="relative w-36 h-36 rounded-lg overflow-hidden border border-zinc-200 shadow-sm bg-zinc-100">
                                 <Image 
                                   src={previewUrl} 
                                   alt="Payment Proof Preview" 
@@ -614,7 +617,7 @@ export default function OrderPaymentPage() {
                             <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
                               <UploadCloud className="h-8 w-8 text-zinc-400" />
                               <span className="text-xs font-bold text-zinc-700">
-                                Choose File or Drag & Drop
+                                Upload Screenshot
                               </span>
                               <span className="text-[10px] text-zinc-400">
                                 Image files only (PNG, JPG, WebP up to 8MB)

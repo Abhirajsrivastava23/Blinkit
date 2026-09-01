@@ -14,7 +14,7 @@ import { useToast } from '../../components/Toast';
 export default function CheckoutPage() {
   const router = useRouter();
   const { cartItems, subtotal, deliveryFee, discountAmount, total, clearCart } = useCart();
-  const { savedAddresses, addAddress, isLoggedIn } = useAuth();
+  const { savedAddresses, addAddress, isLoggedIn, isLoading } = useAuth();
   const { placeOrder } = useOrders();
   const { showToast } = useToast();
 
@@ -40,22 +40,28 @@ export default function CheckoutPage() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [isSubmittingProof, setIsSubmittingProof] = useState(false);
   const [isLoadingUpi, setIsLoadingUpi] = useState(false);
+  const isOrderPlacedRef = React.useRef(false);
 
   // Redirect if not logged in or cart is empty
   useEffect(() => {
+    if (isLoading) return;
     if (!isLoggedIn) {
       showToast('Please sign in to proceed to checkout.', 'error');
       router.push('/login?callback=/checkout');
       return;
     }
+    if (isOrderPlacedRef.current) {
+      return;
+    }
     if (cartItems.length === 0 && currentStep !== 5) {
       showToast('Your cart is empty. Add products to checkout.', 'info');
       router.push('/');
+      return;
     }
     if (savedAddresses.length > 0 && !selectedAddressId) {
       setSelectedAddressId(savedAddresses[0].id);
     }
-  }, [isLoggedIn, cartItems, savedAddresses, router]);
+  }, [isLoading, isLoggedIn, cartItems.length, savedAddresses, router]);
 
   const handleNextStep = () => {
     if (currentStep === 1) {
@@ -226,10 +232,20 @@ export default function CheckoutPage() {
         throw new Error('Order creation did not return a valid order ID.');
       }
 
-      clearCart();
+      // Mark order placed to prevent cart empty guard interference
+      isOrderPlacedRef.current = true;
+
+      const paymentRoute = `/order/${order.id}/payment`;
+      console.log('ORDER CREATED:', order);
+      console.log('ORDER ID:', order.id);
+      console.log('PAYMENT ROUTE:', paymentRoute);
+      console.log('NAVIGATION STARTED:', paymentRoute);
+
       showToast('Order created! Complete your UPI payment.', 'success');
-      router.push(`/order/${order.id}/payment`);
+      clearCart();
+      router.replace(paymentRoute);
     } catch (err) {
+      isOrderPlacedRef.current = false;
       setPaymentStatus('FAILED');
       const errorMsg = err instanceof Error ? err.message : 'Order creation failed. Please try again.';
       showToast(errorMsg, 'error');

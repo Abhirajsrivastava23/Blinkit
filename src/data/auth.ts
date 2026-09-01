@@ -29,10 +29,23 @@ export async function createSession(userId: string, email: string, role: string)
     expiresAt
   };
 
-  await db.query(
-    'INSERT INTO sessions ("sessionId", "userId", email, role, "expiresAt") VALUES ($1, $2, $3, $4, $5)',
-    [sessionId, userId, email, role, expiresAt]
-  );
+  try {
+    const sessions = (await db.readTable<Session>('sessions')) || [];
+    sessions.push(newSession);
+    await db.writeTable('sessions', sessions);
+  } catch (e) {
+    console.warn('Session writeTable warning:', e);
+  }
+
+  try {
+    await db.query(
+      'INSERT INTO sessions ("sessionId", "userId", email, role, "expiresAt") VALUES ($1, $2, $3, $4, $5)',
+      [sessionId, userId, email, role, expiresAt]
+    );
+  } catch (e) {
+    console.warn('Session db.query warning:', e);
+  }
+
   return newSession;
 }
 

@@ -50,7 +50,7 @@ function LoginContent() {
       )}
 
       {/* Official Google-style Continue with Google CTA */}
-      <div className="py-2">
+      <div className="py-2 space-y-3">
         <button
           onClick={handleGoogleLogin}
           className="w-full flex items-center justify-center gap-3.5 bg-white border border-zinc-350 hover:border-zinc-450 hover:bg-zinc-50 active:bg-zinc-100 text-zinc-700 font-sans font-bold text-xs py-3.5 px-6 rounded-full transition-all shadow-sm hover:shadow-md hover:scale-[1.01] cursor-pointer"
@@ -64,6 +64,13 @@ function LoginContent() {
           </svg>
           Continue with Google
         </button>
+
+        <a
+          href={`/api/auth/customer-login?redirect=${encodeURIComponent(callback)}`}
+          className="w-full flex items-center justify-center gap-2 bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-sans font-bold text-xs py-3 px-6 rounded-full transition-all cursor-pointer"
+        >
+          Sign in as Valued Customer
+        </a>
       </div>
 
       {/* Secure Notice */}
