@@ -253,6 +253,16 @@ export const db = {
             parsed[col] = val;
           }
         }
+
+        // Normalize PostgreSQL lowercase column names to camelCase
+        if (parsed.passwordhash && !parsed.passwordHash) parsed.passwordHash = parsed.passwordhash;
+        if (parsed.locationid && !parsed.locationId) parsed.locationId = parsed.locationid;
+        if (parsed.locationname && !parsed.locationName) parsed.locationName = parsed.locationname;
+        if (parsed.isonline !== undefined && parsed.isOnline === undefined) parsed.isOnline = parsed.isonline;
+        if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+        if (parsed.customeremail && !parsed.customerEmail) parsed.customerEmail = parsed.customeremail;
+        if (parsed.paymentstatus && !parsed.paymentStatus) parsed.paymentStatus = parsed.paymentstatus;
+
         return parsed;
       }) as unknown as T[];
     } catch (err) {
