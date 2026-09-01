@@ -48,29 +48,47 @@ export async function POST(request: Request) {
 
     // 2. Check Delivery Partner Accounts
     const partners = await db.readTable<any>('partners') || [];
-    const partnerObj = partners.find(
-      p => (p.id && p.id.toLowerCase().trim() === cleanInput) ||
-           (p.email && p.email.toLowerCase().trim() === cleanInput) ||
-           (p.phone && p.phone.replace(/\D/g, '') === cleanInput.replace(/\D/g, ''))
-    );
+    const cleanDigits = cleanInput.replace(/\D/g, '');
+
+    const partnerObj = partners.find(p => {
+      const pId = String(p.id || p.ID || '').trim().toLowerCase();
+      const pEmail = String(p.email || '').trim().toLowerCase();
+      const pPhone = String(p.phone || '').replace(/\D/g, '');
+      return (
+        (pId && pId === cleanInput) ||
+        (pEmail && pEmail === cleanInput) ||
+        (pPhone && cleanDigits && pPhone === cleanDigits)
+      );
+    });
 
     if (partnerObj) {
-      if (partnerObj.status !== 'Active') {
+      const partnerStatus = String(partnerObj.status || 'Active').trim().toLowerCase();
+      if (partnerStatus === 'inactive') {
         return NextResponse.json({ error: 'Your delivery partner account is currently inactive. Contact admin.' }, { status: 403 });
       }
 
-      if (verifyPassword(password, partnerObj.passwordHash)) {
-        const session = await createSession(partnerObj.id, partnerObj.email, 'delivery_partner');
+      const storedHash = String(
+        partnerObj.passwordHash ||
+        partnerObj.passwordhash ||
+        partnerObj.password_hash ||
+        ''
+      ).trim();
+
+      if (verifyPassword(password, storedHash)) {
+        const partnerId = partnerObj.id || partnerObj.ID || 'DP-001';
+        const partnerEmail = partnerObj.email || `${partnerId.toLowerCase()}@fatafat.com`;
+        const session = await createSession(partnerId, partnerEmail, 'delivery_partner');
+
         const response = NextResponse.json({
           success: true,
           user: {
-            name: partnerObj.name,
-            email: partnerObj.email,
-            phone: partnerObj.phone,
+            name: partnerObj.name || 'Delivery Partner',
+            email: partnerEmail,
+            phone: partnerObj.phone || '',
             role: 'delivery_partner',
-            deliveryPartnerId: partnerObj.id,
-            locationId: partnerObj.locationId,
-            locationName: partnerObj.locationName
+            deliveryPartnerId: partnerId,
+            locationId: partnerObj.locationId || partnerObj.locationid || 'nawabganj-unnao',
+            locationName: partnerObj.locationName || partnerObj.locationname || 'Nawabganj, Unnao'
           }
         });
 
