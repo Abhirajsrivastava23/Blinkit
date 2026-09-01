@@ -51,6 +51,38 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Listen for real-time product updates to keep cart item images and prices synchronized
+  useEffect(() => {
+    const handleSync = (e: Event) => {
+      const customEvent = e as CustomEvent<Product[]>;
+      const freshProducts = customEvent.detail;
+      if (Array.isArray(freshProducts) && freshProducts.length > 0) {
+        setCartItems(prev => {
+          let hasChanges = false;
+          const updated = prev.map(item => {
+            const matched = freshProducts.find(p => p.id === item.product.id);
+            if (matched && (matched.image !== item.product.image || matched.price !== item.product.price || matched.name !== item.product.name)) {
+              hasChanges = true;
+              return { 
+                ...item, 
+                product: { ...item.product, image: matched.image, price: matched.price, name: matched.name } 
+              };
+            }
+            return item;
+          });
+          if (hasChanges) {
+            localStorage.setItem('fatafat_cart', JSON.stringify(updated));
+            return updated;
+          }
+          return prev;
+        });
+      }
+    };
+
+    window.addEventListener('fatafat_products_sync', handleSync);
+    return () => window.removeEventListener('fatafat_products_sync', handleSync);
+  }, []);
+
   // Save cart to localStorage when it changes
   const saveCart = (items: CartItem[]) => {
     setCartItems(items);

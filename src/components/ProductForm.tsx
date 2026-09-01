@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from './Toast';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/mockData';
-import { ShieldCheck, Sparkles, Image as ImageIcon, Eye, Trash2, Plus, ArrowLeft, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Sparkles, Image as ImageIcon, Eye, Trash2, Plus, ArrowLeft, RefreshCw, Upload, UploadCloud } from 'lucide-react';
 
 interface ProductFormProps {
   initialProduct?: Product;
@@ -52,6 +52,10 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const [primaryImage, setPrimaryImage] = useState(initialProduct?.image || '');
   const [galleryImages, setGalleryImages] = useState<string[]>(initialProduct?.gallery || []);
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
+  const [imageHistory, setImageHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [adminUploadingPhoto, setAdminUploadingPhoto] = useState(false);
+  const [restoringImage, setRestoringImage] = useState(false);
 
   // Inventory
   const [stockQuantity, setStockQuantity] = useState(initialProduct?.inStock ? '25' : '0');
@@ -91,6 +95,92 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const priceVal = parseFloat(sellingPrice) || 0;
   const mrpVal = parseFloat(mrp) || priceVal;
   const discountPct = mrpVal > priceVal ? Math.round(((mrpVal - priceVal) / mrpVal) * 100) : 0;
+
+  // Fetch image history on mount if editing existing product
+  const fetchImageHistory = async () => {
+    if (!initialProduct?.id) return;
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/products/${initialProduct.id}/image-history`);
+      if (res.ok) {
+        const data = await res.json();
+        setImageHistory(data.history || []);
+      }
+    } catch (e) {
+      console.warn('Could not load image history:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialProduct?.id) {
+      fetchImageHistory();
+    }
+  }, [initialProduct?.id]);
+
+  const handleAdminPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !initialProduct?.id) return;
+
+    const file = files[0];
+    if (file.size > 8 * 1024 * 1024) {
+      showToast('Image exceeds 8 MB maximum size.', 'error');
+      return;
+    }
+
+    setAdminUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('productId', initialProduct.id);
+      formData.append('file', file);
+
+      const res = await fetch('/api/products/upload-photo', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPrimaryImage(data.imageUrl);
+        showToast('Real product photo updated successfully!', 'success');
+        await refreshProducts();
+        await fetchImageHistory();
+      } else {
+        showToast(data.error || 'Failed to upload photo.', 'error');
+      }
+    } catch (err) {
+      showToast('Error uploading photo.', 'error');
+    } finally {
+      setAdminUploadingPhoto(false);
+    }
+  };
+
+  const handleRestoreImage = async (historyId: string, targetImageUrl: string) => {
+    if (!initialProduct?.id) return;
+    setRestoringImage(true);
+    try {
+      const res = await fetch(`/api/products/${initialProduct.id}/restore-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historyId, targetImageUrl })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPrimaryImage(data.imageUrl);
+        showToast('Product image rolled back successfully!', 'success');
+        await refreshProducts();
+        await fetchImageHistory();
+      } else {
+        showToast(data.error || 'Failed to restore image.', 'error');
+      }
+    } catch (err) {
+      showToast('Error restoring image.', 'error');
+    } finally {
+      setRestoringImage(false);
+    }
+  };
 
   // Auto slug generation
   useEffect(() => {
@@ -390,10 +480,25 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
 
           {/* Section 3: Image Manager */}
           <div className="bg-white border border-zinc-200/20 rounded-3xl p-6 space-y-4 shadow-sm">
-            <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2">3. Product Image Manager</h4>
+            <div className="flex justify-between items-center border-b pb-2">
+              <h4 className="font-serif font-extrabold text-sm text-brand-burgundy">3. Product Image Manager</h4>
+              {initialProduct?.id && (
+                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-burgundy hover:bg-[#541424] text-white text-[10px] font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-sm select-none">
+                  {adminUploadingPhoto ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  <span>{adminUploadingPhoto ? 'Uploading...' : 'Upload Real Photo'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleAdminPhotoUpload}
+                    disabled={adminUploadingPhoto}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
             
             <div className="space-y-2">
-              <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px] block">Primary Image URL *</label>
+              <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px] block">Primary Storefront Image *</label>
               <div className="flex gap-4 items-center">
                 <input
                   type="text"
@@ -404,12 +509,71 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                   className="flex-grow p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none font-mono"
                 />
                 {primaryImage && (
-                  <div className="h-12 w-12 rounded-xl overflow-hidden border bg-zinc-50 shrink-0">
+                  <div className="h-14 w-14 rounded-xl overflow-hidden border bg-zinc-50 shrink-0 relative group">
                     <img src={primaryImage} alt="Preview" className="h-full w-full object-cover" />
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Product Image History & Rollback Panel */}
+            {initialProduct?.id && imageHistory.length > 0 && (
+              <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200/50 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-700 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-brand-burgundy" />
+                    <span>Real Photo History & Rollback Control ({imageHistory.length})</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={fetchImageHistory}
+                    disabled={loadingHistory}
+                    className="text-[9px] font-bold text-brand-burgundy hover:underline flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${loadingHistory ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto divide-y divide-zinc-200/40">
+                  {imageHistory.map((item, idx) => (
+                    <div key={item.id || idx} className="pt-2 first:pt-0 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-10 w-10 rounded-lg overflow-hidden border bg-white shrink-0">
+                          <img src={item.imageUrl} alt="Historical shot" className="h-full w-full object-cover" />
+                        </div>
+                        <div className="text-[10px] text-zinc-600">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-zinc-900">
+                              {item.uploadedByRole === 'delivery_partner' ? '🛵 Rider Photo' : '👤 Admin Photo'}
+                            </span>
+                            {item.imageUrl === primaryImage && (
+                              <span className="bg-green-100 text-green-700 text-[8px] font-bold px-1.5 py-0.2 rounded-full">
+                                Active Live
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[8px] text-zinc-400">
+                            By {item.uploadedBy} • {new Date(item.uploadedAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {item.imageUrl !== primaryImage && (
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreImage(item.id, item.imageUrl)}
+                          disabled={restoringImage}
+                          className="px-2.5 py-1 bg-white hover:bg-zinc-100 border text-brand-burgundy rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all shadow-2xs"
+                        >
+                          Restore This Photo
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3 pt-2">
               <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px] block">Product Gallery List</label>

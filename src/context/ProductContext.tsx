@@ -21,6 +21,9 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('fatafat_products_sync', { detail: data }));
+        }
       }
     } catch (error) {
       console.error('Error fetching database products:', error);

@@ -96,7 +96,8 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   config: ['key', 'data'],
   inventoryIssues: ['id', 'productId', 'productName', 'issue', 'status', 'createdAt'],
   auditLogs: ['id', 'adminUser', 'action', 'dateTime', 'product', 'previousValue', 'newValue'],
-  orders: ['id', 'customerId', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'address', 'status', 'deliveryOption', 'eta', 'createdAt', 'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt', 'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt']
+  orders: ['id', 'customerId', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'address', 'status', 'deliveryOption', 'eta', 'createdAt', 'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt', 'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt'],
+  product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive']
 };
 
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
@@ -117,7 +118,9 @@ async function insertRow(p: Pool, table: string, item: Record<string, unknown>) 
         k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
         k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
         k === 'statusHistory' || k === 'assignedPartnerId' || 
-        k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock') {
+        k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock' ||
+        k === 'storagePath' || k === 'imageUrl' || k === 'uploadedBy' || 
+        k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive') {
       return `"${k}"`;
     }
     return k;
@@ -157,7 +160,9 @@ async function bulkInsert(client: PoolClient, table: string, items: Record<strin
           k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
           k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
           k === 'statusHistory' || k === 'assignedPartnerId' || 
-          k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock') {
+          k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock' ||
+          k === 'storagePath' || k === 'imageUrl' || k === 'uploadedBy' || 
+          k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive') {
         return `"${k}"`;
       }
       return k;
@@ -225,13 +230,13 @@ export const db = {
     };
   },
 
-  async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues'): Promise<T[]> {
+  async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history'): Promise<T[]> {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to read table ${key}`);
     }
     
     try {
-      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
+      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key;
       const res = await pool.query(`SELECT * FROM "${tableName}"`);
       
       return res.rows.map(row => {
@@ -260,12 +265,12 @@ export const db = {
     }
   },
 
-  async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues', data: T[]): Promise<boolean> {
+  async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history', data: T[]): Promise<boolean> {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to write table ${key}`);
     }
     
-    const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key;
+    const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -291,7 +296,9 @@ export const db = {
               k === 'deliveryLocationId' || k === 'deliveryLocationName' || 
               k === 'deliveryOtp' || k === 'otpFailedAttempts' || k === 'otpExpiresAt' || 
               k === 'statusHistory' || k === 'assignedPartnerId' || 
-              k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock') {
+              k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock' ||
+              k === 'storagePath' || k === 'imageUrl' || k === 'uploadedBy' || 
+              k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive') {
             return `"${k}"`;
           }
           return k;
@@ -485,6 +492,20 @@ export const db = {
           "customerId" VARCHAR(255) PRIMARY KEY,
           "termsVersion" VARCHAR(50) NOT NULL,
           "acceptedAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS product_image_history (
+          id VARCHAR(255) PRIMARY KEY,
+          "productId" VARCHAR(255) NOT NULL,
+          "storagePath" TEXT,
+          "imageUrl" TEXT NOT NULL,
+          "uploadedBy" VARCHAR(255) NOT NULL,
+          "uploadedByRole" VARCHAR(50) NOT NULL,
+          "uploadedAt" VARCHAR(255) NOT NULL,
+          "previousImage" TEXT,
+          "isActive" BOOLEAN DEFAULT TRUE
         );
       `);
 

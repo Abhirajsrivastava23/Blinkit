@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { 
   Truck, Clock, MapPin, CheckCircle, ShieldAlert, Sparkles, Navigation, 
   History, AlertTriangle, FileText, User, Settings, EyeOff, RotateCw, CheckCircle2,
-  Phone, MessageSquare, Compass, ClipboardList, Check, X, ShieldCheck
+  Phone, MessageSquare, Compass, ClipboardList, Check, X, ShieldCheck,
+  Camera, UploadCloud, Image as ImageIcon, AlertCircle, ArrowRight, RefreshCw, Upload
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOrders, Order } from '../../context/OrderContext';
@@ -22,7 +23,7 @@ export default function DeliveryPartnerPage() {
   const { products, refreshProducts } = useProducts();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'home' | 'deliveries' | 'issues' | 'history' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'deliveries' | 'photos' | 'issues' | 'history' | 'profile'>('home');
   const [isOnline, setIsOnline] = useState(true);
 
   // Active delivery sub-states
@@ -37,6 +38,16 @@ export default function DeliveryPartnerPage() {
   const [checklistItems, setChecklistItems] = useState<Record<string, boolean>>({});
   const [checklistHubVerified, setChecklistHubVerified] = useState(false);
   const [isConfirmingPickup, setIsConfirmingPickup] = useState(false);
+
+  // Real Product Photo Upload states
+  const [photoSearch, setPhotoSearch] = useState('');
+  const [photoCategory, setPhotoCategory] = useState('All');
+  const [selectedPhotoProduct, setSelectedPhotoProduct] = useState<Product | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoSuccessMsg, setPhotoSuccessMsg] = useState('');
+  const [photoErrorMsg, setPhotoErrorMsg] = useState('');
 
   // Inventory Issues states
   const [invSearch, setInvSearch] = useState('');
@@ -238,6 +249,83 @@ export default function DeliveryPartnerPage() {
       }
     } catch (e) {
       showToast('Error toggling product stock.', 'error');
+    }
+  };
+
+  const handlePhotoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const ext = file.name.toLowerCase();
+    const hasValidExt = ext.endsWith('.jpg') || ext.endsWith('.jpeg') || ext.endsWith('.png') || ext.endsWith('.webp');
+
+    if (!allowedTypes.includes(file.type.toLowerCase()) && !hasValidExt) {
+      setPhotoErrorMsg('Invalid format. Please select a JPEG, PNG, or WebP photo.');
+      showToast('Only JPEG, PNG, or WebP images are supported.', 'error');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setPhotoErrorMsg('Image size exceeds 8 MB limit.');
+      showToast('Image exceeds 8 MB limit.', 'error');
+      return;
+    }
+
+    setPhotoErrorMsg('');
+    setPhotoSuccessMsg('');
+    setPhotoFile(file);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhotoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleProductPhotoUpload = async () => {
+    if (!selectedPhotoProduct || !photoFile) {
+      showToast('Please capture or select a photo first.', 'error');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setPhotoErrorMsg('');
+    setPhotoSuccessMsg('');
+
+    try {
+      const formData = new FormData();
+      formData.append('productId', selectedPhotoProduct.id);
+      formData.append('file', photoFile);
+
+      const res = await fetch('/api/products/upload-photo', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPhotoSuccessMsg('Product photo updated successfully.');
+        showToast('Product photo updated successfully.', 'success');
+        await refreshProducts();
+        setTimeout(() => {
+          setSelectedPhotoProduct(null);
+          setPhotoFile(null);
+          setPhotoPreview('');
+          setPhotoSuccessMsg('');
+        }, 1500);
+      } else {
+        const errorText = data.error || 'Failed to update product photo.';
+        setPhotoErrorMsg(errorText);
+        showToast(errorText, 'error');
+      }
+    } catch (err) {
+      console.error('Photo upload error:', err);
+      setPhotoErrorMsg('Network error. Please try again.');
+      showToast('Network error during photo upload.', 'error');
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -945,6 +1033,274 @@ export default function DeliveryPartnerPage() {
           </div>
         )}
 
+        {/* ================= TAB: PRODUCT PHOTOS (REAL PRODUCT PHOTO UPDATE) ================= */}
+        {activeTab === 'photos' && (
+          <div className="space-y-4">
+            
+            {/* Header banner */}
+            <div className="bg-gradient-to-r from-[#2A0812] to-[#541424] text-white p-4 rounded-2xl shadow-sm space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[#E58B75]">Vendor & Hub Sync</span>
+                <span className="bg-[#E58B75]/20 text-[#E58B75] text-[8px] font-bold px-2 py-0.5 rounded-full border border-[#E58B75]/30">Live Storefront</span>
+              </div>
+              <h3 className="font-serif font-black text-sm uppercase tracking-wide">Rider Real Product Photos</h3>
+              <p className="text-[10px] text-zinc-300 font-medium leading-relaxed">
+                Take live photos of cakes, flowers, and items directly from dark kitchens to update the customer storefront.
+              </p>
+            </div>
+
+            {/* Search & Category Filter */}
+            <div className="space-y-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search products to update real photo..."
+                  value={photoSearch}
+                  onChange={(e) => setPhotoSearch(e.target.value)}
+                  className="w-full p-3 pl-9 border border-zinc-200 rounded-xl text-xs bg-white focus:outline-none focus:border-brand-burgundy font-medium text-zinc-800 shadow-sm"
+                />
+                <Compass className="absolute left-3 top-3.5 h-4 w-4 text-zinc-400" />
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[9px] font-bold uppercase tracking-wider">
+                {['All', 'cakes', 'bakery', 'pastries', 'flowers', 'gifts', 'chocolates', 'celebrations'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setPhotoCategory(cat)}
+                    className={`px-3 py-1 rounded-full whitespace-nowrap transition-all select-none ${
+                      photoCategory === cat
+                        ? 'bg-brand-burgundy text-white shadow-sm'
+                        : 'bg-white text-zinc-600 border border-zinc-200/60 hover:bg-zinc-50'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Product List */}
+            <div className="bg-white border border-zinc-200/40 rounded-2xl shadow-sm divide-y text-[11px] font-medium text-zinc-700">
+              <div className="p-3 bg-zinc-50/75 border-b font-extrabold text-zinc-700 text-[10px] flex justify-between items-center">
+                <span>CATALOG PRODUCTS ({products.filter(p => {
+                  if (photoCategory !== 'All' && p.category !== photoCategory) return false;
+                  if (photoSearch.trim()) {
+                    const q = photoSearch.toLowerCase();
+                    return p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+                  }
+                  return true;
+                }).length})</span>
+                <span className="text-[9px] font-medium text-zinc-400">Tap to upload live photo</span>
+              </div>
+
+              {products
+                .filter(p => {
+                  if (photoCategory !== 'All' && p.category !== photoCategory) return false;
+                  if (photoSearch.trim()) {
+                    const q = photoSearch.toLowerCase();
+                    return p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+                  }
+                  return true;
+                })
+                .map((p) => (
+                  <div key={p.id} className="p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-zinc-50/30 transition-colors">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="h-14 w-14 rounded-xl overflow-hidden shrink-0 border bg-zinc-50 relative group">
+                        <SafeImage src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                        <span className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[6px] font-bold text-center py-0.5 uppercase tracking-tighter">
+                          Live Image
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] font-extrabold uppercase tracking-wider text-brand-burgundy px-1.5 py-0.5 bg-[#FFF0EE] rounded">
+                            {p.category}
+                          </span>
+                          <span className={`text-[8px] font-bold uppercase tracking-wider ${p.inStock ? 'text-green-700' : 'text-red-650'}`}>
+                            {p.inStock ? '🟢 Available' : '🔴 Sold Out'}
+                          </span>
+                        </div>
+                        <h5 className="font-bold text-zinc-900 leading-snug text-xs truncate">{p.name}</h5>
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-medium">
+                          <span className="font-extrabold text-zinc-900">₹{p.price}</span>
+                          {p.originalPrice && <span className="line-through text-zinc-400">₹{p.originalPrice}</span>}
+                          <span className="text-[9px] text-zinc-400">• Hub: {user?.locationName || 'Nawabganj Hub'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPhotoProduct(p);
+                        setPhotoFile(null);
+                        setPhotoPreview('');
+                        setPhotoErrorMsg('');
+                        setPhotoSuccessMsg('');
+                      }}
+                      className="w-full sm:w-auto px-4 py-2 bg-brand-burgundy hover:bg-[#541424] text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 select-none"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      <span>Upload Real Photo</span>
+                    </button>
+                  </div>
+                ))}
+            </div>
+
+            {/* Upload Modal / Drawer */}
+            {selectedPhotoProduct && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-zinc-100 max-h-[90vh] overflow-y-auto">
+                  
+                  {/* Modal Header */}
+                  <div className="flex justify-between items-start border-b pb-3">
+                    <div>
+                      <span className="text-[8px] font-black uppercase tracking-[0.2em] text-brand-burgundy">Real Product Photo Update</span>
+                      <h4 className="font-bold text-sm text-zinc-900 line-clamp-1">{selectedPhotoProduct.name}</h4>
+                      <p className="text-[9px] text-zinc-400">Current Selling Price: ₹{selectedPhotoProduct.price}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (!isUploadingPhoto) {
+                          setSelectedPhotoProduct(null);
+                          setPhotoFile(null);
+                          setPhotoPreview('');
+                        }
+                      }}
+                      disabled={isUploadingPhoto}
+                      className="p-1 text-zinc-400 hover:text-zinc-700 rounded-full hover:bg-zinc-100"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Image Comparison Preview */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Current Live Image */}
+                    <div className="space-y-1 text-center">
+                      <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400">Current Storefront</span>
+                      <div className="aspect-square rounded-2xl overflow-hidden border border-zinc-200 bg-zinc-50 relative">
+                        <SafeImage src={selectedPhotoProduct.image} alt={selectedPhotoProduct.name} className="h-full w-full object-cover" />
+                      </div>
+                    </div>
+
+                    {/* New Captured / Selected Photo */}
+                    <div className="space-y-1 text-center">
+                      <span className="text-[8px] font-bold uppercase tracking-wider text-brand-burgundy">New Real Photo</span>
+                      <div className="aspect-square rounded-2xl overflow-hidden border-2 border-dashed border-brand-burgundy/40 bg-[#FFF0EE]/30 flex flex-col items-center justify-center relative p-1">
+                        {photoPreview ? (
+                          <img src={photoPreview} alt="Preview" className="h-full w-full object-cover rounded-xl" />
+                        ) : (
+                          <div className="text-center p-2 space-y-1">
+                            <Camera className="h-6 w-6 text-brand-burgundy/50 mx-auto" />
+                            <p className="text-[8px] text-zinc-500 font-medium">No new photo captured yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons for Capture / Gallery */}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Camera Button */}
+                      <label className="flex items-center justify-center gap-1.5 p-3 bg-zinc-100 hover:bg-zinc-200 active:scale-98 rounded-xl font-bold text-zinc-800 text-[10px] uppercase tracking-wider cursor-pointer border border-zinc-200 select-none">
+                        <Camera className="h-4 w-4 text-brand-burgundy" />
+                        <span>Take Photo</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          capture="environment"
+                          onChange={handlePhotoFileSelect}
+                          className="hidden"
+                          disabled={isUploadingPhoto}
+                        />
+                      </label>
+
+                      {/* Gallery Button */}
+                      <label className="flex items-center justify-center gap-1.5 p-3 bg-zinc-100 hover:bg-zinc-200 active:scale-98 rounded-xl font-bold text-zinc-800 text-[10px] uppercase tracking-wider cursor-pointer border border-zinc-200 select-none">
+                        <ImageIcon className="h-4 w-4 text-brand-burgundy" />
+                        <span>From Gallery</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handlePhotoFileSelect}
+                          className="hidden"
+                          disabled={isUploadingPhoto}
+                        />
+                      </label>
+                    </div>
+
+                    {photoFile && (
+                      <div className="text-[9px] text-zinc-500 bg-zinc-50 p-2 rounded-lg flex justify-between items-center border">
+                        <span className="truncate max-w-[200px] font-medium">{photoFile.name}</span>
+                        <span className="font-mono font-bold">{(photoFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status Messages */}
+                  {photoSuccessMsg && (
+                    <div className="p-3 bg-green-50 text-green-700 rounded-xl text-[10px] font-bold flex items-center gap-2 border border-green-200">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                      <span>{photoSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {photoErrorMsg && (
+                    <div className="p-3 bg-red-50 text-red-650 rounded-xl text-[10px] font-bold flex items-center gap-2 border border-red-200">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                      <span>{photoErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {/* Primary Upload CTA */}
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPhotoProduct(null);
+                        setPhotoFile(null);
+                        setPhotoPreview('');
+                      }}
+                      disabled={isUploadingPhoto}
+                      className="flex-1 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleProductPhotoUpload}
+                      disabled={!photoFile || isUploadingPhoto}
+                      className={`flex-2 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all flex items-center justify-center gap-2 shadow-sm ${
+                        photoFile && !isUploadingPhoto
+                          ? 'bg-brand-burgundy hover:bg-[#541424] text-white active:scale-98'
+                          : 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {isUploadingPhoto ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          <span>Updating Storefront...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="h-3.5 w-3.5" />
+                          <span>Update Live Photo</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
         {/* ================= TAB 3: ISSUES (INVENTORY MANAGEMENT) ================= */}
         {activeTab === 'issues' && (
           <div className="space-y-4">
@@ -1130,6 +1486,14 @@ export default function DeliveryPartnerPage() {
           {activeOrder && (
             <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-brand-burgundy animate-ping" />
           )}
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('photos')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'photos' ? 'text-brand-burgundy font-black scale-103' : 'text-zinc-400 hover:text-zinc-700'}`}
+        >
+          <Camera className="h-5 w-5" />
+          <span className="text-[8px] uppercase tracking-wider font-bold">Photos</span>
         </button>
 
         <button 
