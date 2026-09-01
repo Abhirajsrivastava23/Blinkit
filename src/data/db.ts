@@ -12,6 +12,7 @@ import sessionsJson from './db/sessions.json';
 import partnersJson from './db/partners.json';
 import usersJson from './db/users.json';
 import adminJson from './db/admin.json';
+import { resolveImageUrl } from '../utils/imageUtils';
 
 
 export interface AuditLogRecord {
@@ -269,6 +270,13 @@ export const db = {
         if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
         if (parsed.customeremail && !parsed.customerEmail) parsed.customerEmail = parsed.customeremail;
         if (parsed.paymentstatus && !parsed.paymentStatus) parsed.paymentStatus = parsed.paymentstatus;
+
+        // Normalize and resolve image URLs
+        if (key === 'products') {
+          parsed.image = resolveImageUrl(parsed.image as string, parsed.category as string);
+        } else if (key === 'categories') {
+          parsed.image = resolveImageUrl(parsed.image as string, parsed.id as string);
+        }
 
         return parsed;
       }) as unknown as T[];
