@@ -76,6 +76,12 @@ export default function OrderConfirmationPage() {
 
   const order = fetchedOrder || contextOrder;
 
+  useEffect(() => {
+    if (order && order.paymentStatus !== 'PAID' && order.status !== 'Confirmed') {
+      router.replace(`/order/${order.id}/payment`);
+    }
+  }, [order, router]);
+
   const handleCopyUpi = async () => {
     const upiId = '8081988627@pthdfc';
     try {

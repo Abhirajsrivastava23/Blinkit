@@ -86,7 +86,7 @@ if (connectionString) {
   dbInitError = 'PostgreSQL connection URL (POSTGRES_URL/DATABASE_URL) is missing';
 }
 
-const inMemoryData: Record<string, any[]> = {
+const inMemoryData: Record<string, Record<string, unknown>[]> = {
   products: [...productsJson],
   categories: [...categoriesJson],
   brands: [...brandsJson],
@@ -184,13 +184,13 @@ export const db = {
       if (lower.includes('select') && lower.includes('orders') && lower.includes('id =') && params && params[0]) {
         const orderId = String(params[0]);
         const list = inMemoryData['orders'] || [];
-        const found = list.filter((o: any) => String(o.id) === orderId);
+        const found = list.filter((o: Record<string, unknown>) => String(o.id) === orderId);
         return { rows: found as T[] };
       }
       if (lower.includes('select') && lower.includes('payment_transactions') && params && params[0]) {
         const idVal = String(params[0]);
         const list = inMemoryData['payment_transactions'] || [];
-        const found = list.filter((p: any) => String(p.id) === idVal || String(p.orderId) === idVal);
+        const found = list.filter((p: Record<string, unknown>) => String(p.id) === idVal || String(p.orderId) === idVal);
         return { rows: found as T[] };
       }
       if (lower.includes('update payment_transactions') && params) {
@@ -263,7 +263,7 @@ export const db = {
   },
 
   async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions', data: T[]): Promise<boolean> {
-    inMemoryData[key] = [...data];
+    inMemoryData[key] = [...data] as unknown as Record<string, unknown>[];
     if (!pool) {
       return true;
     }
@@ -312,7 +312,7 @@ export const db = {
   async getPaymentByOrderId(orderId: string): Promise<Record<string, unknown> | null> {
     if (!pool) {
       const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: any) => String(p.orderId) === String(orderId));
+      const found = list.find((p: Record<string, unknown>) => String(p.orderId) === String(orderId));
       return found || null;
     }
     try {
@@ -325,14 +325,14 @@ export const db = {
     } catch (err) {
       console.error('Error fetching payment by orderId:', err);
       const list = inMemoryData['payment_transactions'] || [];
-      return list.find((p: any) => String(p.orderId) === String(orderId)) || null;
+      return list.find((p: Record<string, unknown>) => String(p.orderId) === String(orderId)) || null;
     }
   },
 
   async getPaymentById(paymentId: string): Promise<Record<string, unknown> | null> {
     if (!pool) {
       const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: any) => String(p.id) === String(paymentId));
+      const found = list.find((p: Record<string, unknown>) => String(p.id) === String(paymentId));
       return found || null;
     }
     try {
@@ -345,13 +345,13 @@ export const db = {
     } catch (err) {
       console.error('Error fetching payment by id:', err);
       const list = inMemoryData['payment_transactions'] || [];
-      return list.find((p: any) => String(p.id) === String(paymentId)) || null;
+      return list.find((p: Record<string, unknown>) => String(p.id) === String(paymentId)) || null;
     }
   },
 
   async createPayment(payment: Record<string, unknown>): Promise<boolean> {
     const list = inMemoryData['payment_transactions'] || [];
-    const idx = list.findIndex((p: any) => p.id === payment.id || (payment.orderId && p.orderId === payment.orderId));
+    const idx = list.findIndex((p: Record<string, unknown>) => p.id === payment.id || (payment.orderId && p.orderId === payment.orderId));
     if (idx >= 0) {
       list[idx] = { ...list[idx], ...payment };
     } else {
@@ -408,7 +408,7 @@ export const db = {
     metadata?: Record<string, unknown>
   ): Promise<boolean> {
     const list = inMemoryData['payment_transactions'] || [];
-    const idx = list.findIndex((p: any) => p.id === paymentId);
+    const idx = list.findIndex((p: Record<string, unknown>) => p.id === paymentId);
     const updatedAt = new Date().toISOString();
     const paidAt = status === 'PAID' ? updatedAt : null;
     if (idx >= 0) {
@@ -417,7 +417,7 @@ export const db = {
         status,
         updatedAt,
         ...(paidAt ? { paidAt } : {}),
-        ...(metadata ? { metadata: { ...(list[idx].metadata || {}), ...metadata } } : {})
+        ...(metadata ? { metadata: { ...((list[idx].metadata as Record<string, unknown>) || {}), ...metadata } } : {})
       };
     }
 
@@ -455,7 +455,7 @@ export const db = {
     status: string
   ): Promise<boolean> {
     const list = inMemoryData['payment_transactions'] || [];
-    const idx = list.findIndex((p: any) => p.id === paymentId);
+    const idx = list.findIndex((p: Record<string, unknown>) => p.id === paymentId);
     const updatedAt = new Date().toISOString();
     const paidAt = status === 'PAID' ? updatedAt : null;
     if (idx >= 0) {
@@ -497,7 +497,7 @@ export const db = {
     failureReason: string
   ): Promise<boolean> {
     const list = inMemoryData['payment_transactions'] || [];
-    const idx = list.findIndex((p: any) => p.id === paymentId);
+    const idx = list.findIndex((p: Record<string, unknown>) => p.id === paymentId);
     const updatedAt = new Date().toISOString();
     if (idx >= 0) {
       list[idx] = {
@@ -527,12 +527,12 @@ export const db = {
 
   async incrementPaymentRetry(paymentId: string): Promise<boolean> {
     const list = inMemoryData['payment_transactions'] || [];
-    const idx = list.findIndex((p: any) => p.id === paymentId);
+    const idx = list.findIndex((p: Record<string, unknown>) => p.id === paymentId);
     const updatedAt = new Date().toISOString();
     if (idx >= 0) {
       list[idx] = {
         ...list[idx],
-        attemptCount: (list[idx].attemptCount || 0) + 1,
+        attemptCount: (Number(list[idx].attemptCount) || 0) + 1,
         lastAttemptAt: updatedAt,
         updatedAt
       };
@@ -558,7 +558,7 @@ export const db = {
   async getPaymentHistory(customerId: string, limit: number = 50): Promise<Record<string, unknown>[]> {
     if (!pool) {
       const list = inMemoryData['payment_transactions'] || [];
-      return list.filter((p: any) => String(p.customerId) === String(customerId)).slice(0, limit);
+      return list.filter((p: Record<string, unknown>) => String(p.customerId) === String(customerId)).slice(0, limit);
     }
     try {
       const res = await pool.query(
@@ -572,7 +572,7 @@ export const db = {
     } catch (err) {
       console.error('Error fetching payment history:', err);
       const list = inMemoryData['payment_transactions'] || [];
-      return list.filter((p: any) => String(p.customerId) === String(customerId)).slice(0, limit);
+      return list.filter((p: Record<string, unknown>) => String(p.customerId) === String(customerId)).slice(0, limit);
     }
   },
 

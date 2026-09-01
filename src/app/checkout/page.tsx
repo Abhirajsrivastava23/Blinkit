@@ -227,8 +227,8 @@ export default function CheckoutPage() {
       }
 
       clearCart();
-      showToast('Order created successfully! Proceed to payment.', 'success');
-      router.push(`/order/${order.id}`);
+      showToast('Order created! Complete your UPI payment.', 'success');
+      router.push(`/order/${order.id}/payment`);
     } catch (err) {
       setPaymentStatus('FAILED');
       const errorMsg = err instanceof Error ? err.message : 'Order creation failed. Please try again.';
@@ -786,9 +786,10 @@ export default function CheckoutPage() {
                     ) : currentStep === 4 ? (
                       <button
                         onClick={handlePlaceOrder}
-                        className="px-8 py-3.5 bg-brand-burgundy text-white hover:bg-brand-burgundy-dark font-serif font-bold text-xs tracking-wider uppercase rounded-full shadow-lg shadow-brand-burgundy/20"
+                        className="px-8 py-3.5 bg-brand-burgundy text-white hover:bg-brand-burgundy-dark font-serif font-bold text-xs tracking-wider uppercase rounded-full shadow-lg shadow-brand-burgundy/20 flex items-center gap-2"
                       >
-                        Place Order (₹{total})
+                        <span>Proceed to Payment (₹{total})</span>
+                        <ArrowRight className="h-4 w-4" />
                       </button>
                     ) : null}
                   </div>

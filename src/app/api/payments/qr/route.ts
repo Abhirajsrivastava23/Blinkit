@@ -39,8 +39,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Valid positive amount is required.' }, { status: 400 });
     }
 
-    const upiId = '8081988627@pthdfc';
-    const merchantName = 'FATAFAT';
+    let upiId = '8081988627@pthdfc';
+    let merchantName = 'FATAFAT';
+
+    try {
+      const configRes = await db.query<any>("SELECT data FROM config WHERE key = 'payment_settings' LIMIT 1");
+      if (configRes.rows.length > 0 && configRes.rows[0].data) {
+        const d = typeof configRes.rows[0].data === 'string' ? JSON.parse(configRes.rows[0].data) : configRes.rows[0].data;
+        if (d.merchantUpiId || d.upiId) upiId = d.merchantUpiId || d.upiId;
+        if (d.merchantName) merchantName = d.merchantName;
+      }
+    } catch (e) {
+      console.warn('Payment settings config lookup warning:', e);
+    }
+
     const formattedAmount = amountNumber.toFixed(2);
     const orderRef = orderId || `FT${Date.now()}`;
     const uri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${formattedAmount}&cu=INR&tr=${encodeURIComponent(orderRef)}`;

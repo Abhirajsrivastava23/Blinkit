@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/data/auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -91,7 +92,8 @@ export async function POST(request: Request) {
     }
 
     if (!publicUrl) {
-      publicUrl = `https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&auto=format&fit=crop&q=80`;
+      const buffer = Buffer.from(await fileObj.arrayBuffer());
+      publicUrl = `data:${mimeType || 'image/jpeg'};base64,${buffer.toString('base64')}`;
     }
 
     return NextResponse.json({

@@ -3,6 +3,7 @@ import { db } from '@/data/db';
 import { getSession } from '@/data/auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(request: Request) {
   try {
@@ -23,14 +24,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order ID is required.' }, { status: 400 });
     }
 
-    const orderQuery = await db.query<any>('SELECT * FROM orders WHERE id = $1 LIMIT 1', [orderId]);
-    const order = orderQuery.rows[0];
+    let order: any = null;
+    try {
+      const orderQuery = await db.query<any>('SELECT * FROM orders WHERE id = $1 LIMIT 1', [orderId]);
+      if (orderQuery.rows.length > 0) {
+        order = orderQuery.rows[0];
+      }
+    } catch (e) {
+      console.warn('Order lookup warning in create payment:', e);
+    }
+
+    if (!order) {
+      const orders = await db.readTable<any>('orders') || [];
+      order = orders.find((o: any) => o.id === orderId);
+    }
+
     if (!order) {
       return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     }
 
-    const orderCustomer = String(order.customerId || '');
-    if (session.role !== 'admin' && orderCustomer !== session.userId && orderCustomer !== session.email) {
+    const orderCustomer = String(order.customerId || '').toLowerCase();
+    const orderEmail = String(order.customerEmail || '').toLowerCase();
+    const sId = String(session.userId || '').toLowerCase();
+    const sEmail = String(session.email || '').toLowerCase();
+
+    if (session.role !== 'admin' && orderCustomer !== sId && orderCustomer !== sEmail && orderEmail !== sEmail && orderEmail !== sId) {
       return NextResponse.json({ error: 'Unauthorized: Order does not belong to this customer.' }, { status: 403 });
     }
 
