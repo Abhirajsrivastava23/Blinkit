@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-09-01T07:21:07.132Z",
+  "productionDbConnected": true,
+  "databaseHost": "aws-0-ap-south-1.pooler.supabase.com",
+  "tables": {
+    "users": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 15
+    },
+    "sessions": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 5
+    },
+    "products": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 16
+    },
+    "categories": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 7
+    },
+    "brands": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 8
+    },
+    "orders": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 21
+    },
+    "admin": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 5
+    },
+    "partners": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 10
+    },
+    "config": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 2
+    },
+    "inventoryIssues": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 6
+    },
+    "auditLogs": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 7
+    },
+    "product_image_history": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 9
+    },
+    "delivery_photos": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 6
+    },
+    "wellness_access_requests": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 10
+    },
+    "wellness_terms_acceptances": {
+      "exists": true,
+      "status": "PASS",
+      "columnCount": 3
+    }
+  },
+  "dataCounts": {
+    "users": 5,
+    "products": 80,
+    "orders": 6,
+    "admin": 1,
+    "partners": 1
+  },
+  "summary": {
+    "totalTables": 15,
+    "passCount": 15,
+    "failCount": 0,
+    "errorCount": 0,
+    "overallStatus": "PASS",
+    "productionDbActuallyVerified": true,
+    "productionDataPreserved": true
+  }
+}

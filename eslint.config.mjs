@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "scratch/**",
+    // Database scripts
+    "verify-db-schema.js",
+    "migrate-db-schema.js",
   ]),
 ]);
 

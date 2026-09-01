@@ -87,22 +87,9 @@ export default function AccountOrdersPage() {
     );
   }
 
-  // 5. Filter orders safely mapping all canonical ID keys (migration safe)
-  const customerOrders = orders.filter(o => {
-    if (user.email && o.customerEmail && o.customerEmail.toLowerCase() === user.email.toLowerCase()) {
-      return true;
-    }
-    if (user.email && o.customerId && o.customerId.toLowerCase() === user.email.toLowerCase()) {
-      return true;
-    }
-    if (user.phone && o.customerId && o.customerId.toLowerCase() === user.phone.toLowerCase()) {
-      return true;
-    }
-    if (user.googleProviderId && o.customerId && o.customerId.toLowerCase() === user.googleProviderId.toLowerCase()) {
-      return true;
-    }
-    return false;
-  });
+  // 5. Use orders directly from API (already filtered by server for this authenticated customer)
+  // The backend /api/orders endpoint returns only orders belonging to the authenticated session.userId
+  // No additional frontend filtering needed - backend filtering is authoritative and secure.
 
   return (
     <div className="space-y-6">
@@ -111,7 +98,7 @@ export default function AccountOrdersPage() {
         <p className="text-xs text-zinc-500">Track and view history of your quick commerce deliveries.</p>
       </div>
 
-      {customerOrders.length === 0 ? (
+      {orders.length === 0 ? (
         <div className="text-center py-12 space-y-3">
           <div className="flex justify-center text-zinc-300">
             <ShoppingBag className="h-12 w-12" />
@@ -121,7 +108,7 @@ export default function AccountOrdersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {customerOrders.map((order) => (
+          {orders.map((order) => (
             <div
               key={order.id}
               className="border border-zinc-100 rounded-2xl p-5 hover:border-brand-burgundy/10 transition-colors space-y-4 text-xs bg-white shadow-sm"
