@@ -16,14 +16,12 @@ export default function OrderConfirmationPage() {
   const { showToast } = useToast();
   
   const orderId = params.id as string;
-  const [order, setOrder] = useState<Order | undefined>(undefined);
-
-  useEffect(() => {
-    const found = getOrderById(orderId);
-    if (found) {
-      setOrder(found);
-    }
-  }, [orderId, getOrderById]);
+  const order = getOrderById(orderId);
+  const paymentStatusLabel = order?.paymentStatus === 'PAYMENT_VERIFICATION_PENDING'
+    ? 'Payment Submitted — Awaiting Admin Verification'
+    : order?.status === 'Confirmed' || order?.paymentStatus === 'PAID'
+      ? 'Order Confirmed! 🎉'
+      : 'Order Received — Awaiting Payment Verification';
 
   if (!order) {
     return (
@@ -62,10 +60,14 @@ export default function OrderConfirmationPage() {
 
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-serif font-extrabold text-zinc-800">
-                Order Confirmed! 🎉
+                {paymentStatusLabel}
               </h1>
               <p className="text-xs text-zinc-500">
-                Thank you for choosing FATAFAT. Your delivery runner will be assigned shortly.
+                {order.paymentStatus === 'PAYMENT_VERIFICATION_PENDING'
+                  ? 'Your payment proof is under review. The order will be confirmed only after admin approval.'
+                  : order.status === 'Confirmed' || order.paymentStatus === 'PAID'
+                    ? 'Thank you for choosing FATAFAT. Your delivery runner will be assigned shortly.'
+                    : 'Your order has been received. Please complete the UPI verification step to receive final confirmation.'}
               </p>
             </div>
 
@@ -82,7 +84,7 @@ export default function OrderConfirmationPage() {
               <div className="flex justify-between">
                 <span className="text-zinc-400 font-bold">Estimated Delivery</span>
                 <span className="font-extrabold flex items-center gap-1 text-green-700">
-                  <Truck className="h-4 w-4" /> ASAP (30–60 mins)
+                  <Truck className="h-4 w-4" /> Within 12 hours
                 </span>
               </div>
             </div>

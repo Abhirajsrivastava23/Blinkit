@@ -17,16 +17,12 @@ function OrderSuccessContent() {
   const { showToast } = useToast();
   
   const orderId = searchParams.get('orderId') || '';
-  const [order, setOrder] = useState<Order | undefined>(undefined);
-
-  useEffect(() => {
-    if (orderId) {
-      const found = getOrderById(orderId);
-      if (found) {
-        setOrder(found);
-      }
-    }
-  }, [orderId, getOrderById]);
+  const order = orderId ? getOrderById(orderId) : undefined;
+  const paymentStatusLabel = order?.paymentStatus === 'PAYMENT_VERIFICATION_PENDING'
+    ? 'Payment Submitted — Awaiting Admin Verification'
+    : order?.status === 'Confirmed' || order?.paymentStatus === 'PAID'
+      ? 'Order Confirmed'
+      : 'Order Received — Awaiting Payment Verification';
 
   if (!orderId || !order) {
     return (
@@ -57,10 +53,14 @@ function OrderSuccessContent() {
 
         <div className="space-y-1.5">
           <h1 className="text-2xl sm:text-3xl font-serif font-extrabold text-zinc-800">
-            Order Confirmed! 🎉
+            {paymentStatusLabel}
           </h1>
           <p className="text-xs text-zinc-500">
-            Thank you for celebrating with FATAFAT. Your delivery runner is being assigned.
+            {order.paymentStatus === 'PAYMENT_VERIFICATION_PENDING'
+              ? 'Your payment proof has been submitted. We will confirm the order only after admin verification.'
+              : order.status === 'Confirmed' || order.paymentStatus === 'PAID'
+                ? 'Thank you for celebrating with FATAFAT. Your delivery runner is being assigned.'
+                : 'Your order has been received. Please complete the UPI verification step to receive final confirmation.'}
           </p>
         </div>
 
@@ -77,7 +77,7 @@ function OrderSuccessContent() {
           <div className="flex justify-between">
             <span className="text-zinc-400 font-bold">ETA</span>
             <span className="font-extrabold flex items-center gap-1 text-green-700">
-              <Truck className="h-4 w-4" /> ASAP (30–60 mins)
+              <Truck className="h-4 w-4" /> Within 12 hours
             </span>
           </div>
         </div>

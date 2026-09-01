@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MapPin, Calendar, CreditCard, ShoppingBag, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { MapPin, Calendar, CreditCard, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { useCart } from '../../context/CartContext';
@@ -13,7 +13,7 @@ import { useToast } from '../../components/Toast';
 export default function CheckoutPage() {
   const router = useRouter();
   const { cartItems, subtotal, deliveryFee, discountAmount, total, clearCart } = useCart();
-  const { user, savedAddresses, addAddress, isLoggedIn } = useAuth();
+  const { savedAddresses, addAddress, isLoggedIn } = useAuth();
   const { placeOrder } = useOrders();
   const { showToast } = useToast();
 
@@ -31,7 +31,14 @@ export default function CheckoutPage() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('06:00 PM - 08:00 PM');
 
   // Step 3: Payment states
-  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'NetBanking' | 'COD'>('UPI');
+  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'NetBanking'>('UPI');
+  const [paymentStatus, setPaymentStatus] = useState<'NOT_STARTED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'>('NOT_STARTED');
+  const [manualUpi, setManualUpi] = useState<{ paymentId: string; orderId: string; amount: number } | null>(null);
+  const [upiDetails, setUpiDetails] = useState<{ upiId: string; amount: number; uri: string; merchantName: string; note: string } | null>(null);
+  const [utr, setUtr] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [isSubmittingProof, setIsSubmittingProof] = useState(false);
+  const [isLoadingUpi, setIsLoadingUpi] = useState(false);
 
   // Redirect if not logged in or cart is empty
   useEffect(() => {
@@ -77,7 +84,80 @@ export default function CheckoutPage() {
     setCurrentStep((prev) => Math.max(1, prev - 1));
   };
 
-  const handlePlaceOrder = () => {
+  const handleCopyUpi = async () => {
+    if (!upiDetails?.upiId) return;
+    try {
+      await navigator.clipboard.writeText(upiDetails.upiId);
+      showToast('UPI ID copied to clipboard.', 'success');
+    } catch {
+      showToast('Unable to copy UPI ID automatically.', 'error');
+    }
+  };
+
+  const handleManualUpiSubmit = async () => {
+    if (!manualUpi) {
+      showToast('No pending UPI payment found.', 'error');
+      return;
+    }
+
+    if (!utr.trim()) {
+      showToast('Please enter the UTR reference from your payment transfer.', 'error');
+      return;
+    }
+
+    if (!proofFile) {
+      showToast('Please upload a payment proof screenshot.', 'error');
+      return;
+    }
+
+    try {
+      setIsSubmittingProof(true);
+      const formData = new FormData();
+      formData.append('file', proofFile);
+
+      const uploadRes = await fetch('/api/payments/upload-proof', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json() as { success?: boolean; url?: string; error?: string };
+      if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
+        throw new Error(uploadData.error || 'Failed to upload payment proof');
+      }
+
+      const submitRes = await fetch('/api/payments/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: manualUpi.orderId,
+          paymentId: manualUpi.paymentId,
+          amount: manualUpi.amount,
+          utr,
+          proofImageUrl: uploadData.url,
+        }),
+      });
+
+      const submitData = await submitRes.json() as { success?: boolean; error?: string };
+      if (!submitRes.ok || !submitData.success) {
+        throw new Error(submitData.error || 'Could not submit payment proof');
+      }
+
+      setPaymentStatus('COMPLETED');
+      setManualUpi(null);
+      setUtr('');
+      setProofFile(null);
+      clearCart();
+      showToast('UPI payment proof submitted successfully. It is under verification.', 'success');
+      router.push('/account/orders');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Payment proof submission failed.';
+      showToast(message, 'error');
+    } finally {
+      setIsSubmittingProof(false);
+    }
+  };
+
+  const handlePlaceOrder = async () => {
     const address = savedAddresses.find(a => a.id === selectedAddressId);
     if (!address) {
       showToast('Delivery address not selected.', 'error');
@@ -85,31 +165,106 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Format items for Order logs
-    const orderItems = cartItems.map((item) => ({
-      productId: item.product.id,
-      name: item.product.name,
-      price: item.product.price,
-      quantity: item.quantity,
-      image: item.product.image,
-      selectedSize: item.selectedSize,
-      selectedType: item.selectedType
-    }));
+    if (!paymentMethod) {
+      showToast('Please select a payment method.', 'error');
+      return;
+    }
+
+    if (!address.name || !address.mobile || !address.house || !address.street || !address.area || !address.city || !address.pincode) {
+      showToast('Invalid delivery address.', 'error');
+      setCurrentStep(1);
+      return;
+    }
+
+    if (paymentMethod !== 'UPI') {
+      showToast('Card and net banking are not active yet. Manual UPI verification is the only operational online payment option.', 'info');
+      return;
+    }
+
+    setPaymentStatus('PROCESSING');
 
     try {
+      const orderItems = cartItems.map((item) => ({
+        productId: item.product.id,
+        name: item.product.name,
+        price: item.product.price,
+        quantity: item.quantity,
+        image: item.product.image,
+        selectedSize: item.selectedSize,
+        selectedType: item.selectedType
+      }));
+
+      let scheduledDeliveryAt = null;
+      if (deliveryOption === 'Scheduled') {
+        const slotStart = selectedTimeSlot.split(' - ')[0];
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const [time, period] = slotStart.split(' ');
+        const [hours, minutes] = time.split(':');
+        let hour = parseInt(hours);
+        if (period === 'PM' && hour !== 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+        tomorrow.setHours(hour, parseInt(minutes), 0, 0);
+        scheduledDeliveryAt = tomorrow.toISOString();
+      }
+
       const order = placeOrder(
         orderItems,
         address,
         deliveryOption,
         deliveryOption === 'Scheduled' ? selectedTimeSlot : 'ASAP',
-        { subtotal, deliveryFee, discount: discountAmount, total }
+        { subtotal, deliveryFee, discount: discountAmount, total },
+        paymentMethod,
+        scheduledDeliveryAt || undefined
       );
-      
-      showToast('Order placed successfully! 🎉', 'success');
-      clearCart();
-      router.push(`/order/${order.id}`);
+
+      const paymentRes = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          customerId: order.customerId,
+          amount: total,
+          paymentMethod: paymentMethod,
+        }),
+      });
+
+      if (!paymentRes.ok) {
+        const errorData = await paymentRes.json() as { error?: string };
+        throw new Error(errorData.error || 'Failed to create payment');
+      }
+
+      const paymentData = await paymentRes.json() as { success: boolean; payment?: { id: string } };
+      if (!paymentData.success || !paymentData.payment) {
+        throw new Error('Payment creation failed');
+      }
+
+      const qrRes = await fetch(`/api/payments/qr?orderId=${encodeURIComponent(order.id)}&amount=${encodeURIComponent(String(total))}`);
+      const qrData = await qrRes.json() as { success?: boolean; upiId?: string; amount?: number; uri?: string; merchantName?: string; note?: string; error?: string };
+      if (!qrRes.ok || !qrData.success || !qrData.upiId || !qrData.uri) {
+        throw new Error(qrData.error || 'Failed to load live UPI details');
+      }
+
+      setManualUpi({
+        paymentId: paymentData.payment.id,
+        orderId: order.id,
+        amount: total,
+      });
+      setUpiDetails({
+        upiId: qrData.upiId,
+        amount: Number(qrData.amount ?? total),
+        uri: qrData.uri,
+        merchantName: qrData.merchantName || 'FATAFAT',
+        note: qrData.note || 'Pay the exact amount and submit the proof for admin verification.'
+      });
+      setPaymentStatus('NOT_STARTED');
+      showToast('Pay via the live UPI details below and submit your screenshot for admin verification.', 'success');
+      setCurrentStep(4);
     } catch (err) {
-      showToast('Error placing order.', 'error');
+      setPaymentStatus('FAILED');
+      const errorMsg = err instanceof Error ? err.message : 'Payment processing failed. Please try again.';
+      showToast(errorMsg, 'error');
+      console.error('Payment error:', err);
     }
   };
 
@@ -319,7 +474,7 @@ export default function CheckoutPage() {
                         <div>
                           <h4 className="font-bold text-zinc-800 text-sm">Deliver ASAP (Quick Commerce)</h4>
                           <p className="text-zinc-500 mt-1 leading-relaxed">
-                            Our runner will carry and deliver your products immediately. Est. delivery time: 30–60 mins.
+                            Our runner will carry and deliver your products immediately. Est. delivery time: Within 12 hours.
                           </p>
                         </div>
                       </div>
@@ -367,16 +522,25 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* STEP 3: MOCK PAYMENT METHODS */}
+                {/* STEP 3: ONLINE PAYMENT */}
                 {currentStep === 3 && (
                   <div className="space-y-6">
                     <div>
-                      <h2 className="text-lg font-serif font-extrabold text-zinc-800">Select Payment Method</h2>
-                      <p className="text-xs text-zinc-500">Real processing is disabled. Select mock options to place order.</p>
+                      <h2 className="text-lg font-serif font-extrabold text-zinc-800">Online Payment Required</h2>
+                      <p className="text-xs text-zinc-500">Complete online payment to confirm your order.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* UPI */}
+                    <div className="p-4 bg-brand-burgundy/10 border border-brand-burgundy/30 rounded-2xl flex gap-3">
+                      <div className="flex-shrink-0 text-brand-burgundy">
+                        <CreditCard className="h-5 w-5 mt-0.5" />
+                      </div>
+                      <div className="text-xs">
+                        <p className="font-bold text-brand-burgundy">Online Payment Only</p>
+                        <p className="text-zinc-600 mt-1">Your order must be paid online to confirm. Cash on Delivery is not available. Choose a payment method below.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
                       <div
                         onClick={() => setPaymentMethod('UPI')}
                         className={`p-4 rounded-2xl border text-xs cursor-pointer select-none transition-all flex items-center gap-3 ${
@@ -391,71 +555,103 @@ export default function CheckoutPage() {
                           className="accent-brand-burgundy h-4 w-4"
                         />
                         <div>
-                          <h4 className="font-bold text-zinc-800">UPI (GPay / PhonePe / Paytm)</h4>
-                          <p className="text-[10px] text-zinc-400 mt-0.5">Pay using mock UPI QR handles</p>
+                          <h4 className="font-bold text-zinc-800">Manual UPI Verification</h4>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">Only active online payment option. Admin verifies before order confirmation.</p>
                         </div>
                       </div>
 
-                      {/* Card */}
-                      <div
-                        onClick={() => setPaymentMethod('Card')}
-                        className={`p-4 rounded-2xl border text-xs cursor-pointer select-none transition-all flex items-center gap-3 ${
-                          paymentMethod === 'Card' ? 'border-brand-burgundy bg-brand-burgundy/[0.02]' : 'border-zinc-200 bg-white'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="payment_select"
-                          checked={paymentMethod === 'Card'}
-                          onChange={() => setPaymentMethod('Card')}
-                          className="accent-brand-burgundy h-4 w-4"
-                        />
-                        <div>
-                          <h4 className="font-bold text-zinc-800">Credit / Debit Card</h4>
-                          <p className="text-[10px] text-zinc-400 mt-0.5">Visa, Mastercard, RuPay cards</p>
+                      <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50 opacity-70">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-zinc-600">Cash on Delivery</h4>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">COMING SOON</p>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase text-zinc-500 bg-zinc-200 px-2 py-1 rounded-full">Disabled</span>
                         </div>
                       </div>
 
-                      {/* Net Banking */}
-                      <div
-                        onClick={() => setPaymentMethod('NetBanking')}
-                        className={`p-4 rounded-2xl border text-xs cursor-pointer select-none transition-all flex items-center gap-3 ${
-                          paymentMethod === 'NetBanking' ? 'border-brand-burgundy bg-brand-burgundy/[0.02]' : 'border-zinc-200 bg-white'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="payment_select"
-                          checked={paymentMethod === 'NetBanking'}
-                          onChange={() => setPaymentMethod('NetBanking')}
-                          className="accent-brand-burgundy h-4 w-4"
-                        />
-                        <div>
-                          <h4 className="font-bold text-zinc-800">Net Banking</h4>
-                          <p className="text-[10px] text-zinc-400 mt-0.5">All major Indian banks supported</p>
+                      <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50 opacity-70">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-zinc-600">Credit / Debit Card</h4>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">COMING SOON</p>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase text-zinc-500 bg-zinc-200 px-2 py-1 rounded-full">Disabled</span>
                         </div>
                       </div>
 
-                      {/* Cash On Delivery */}
-                      <div
-                        onClick={() => setPaymentMethod('COD')}
-                        className={`p-4 rounded-2xl border text-xs cursor-pointer select-none transition-all flex items-center gap-3 ${
-                          paymentMethod === 'COD' ? 'border-brand-burgundy bg-brand-burgundy/[0.02]' : 'border-zinc-200 bg-white'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="payment_select"
-                          checked={paymentMethod === 'COD'}
-                          onChange={() => setPaymentMethod('COD')}
-                          className="accent-brand-burgundy h-4 w-4"
-                        />
-                        <div>
-                          <h4 className="font-bold text-zinc-800">Cash on Delivery (COD)</h4>
-                          <p className="text-[10px] text-zinc-400 mt-0.5">Pay in cash/UPI upon delivery runner arrival</p>
+                      <div className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50 opacity-70">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-zinc-600">Net Banking</h4>
+                            <p className="text-[10px] text-zinc-400 mt-0.5">COMING SOON</p>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase text-zinc-500 bg-zinc-200 px-2 py-1 rounded-full">Disabled</span>
                         </div>
                       </div>
                     </div>
+
+                    {paymentMethod === 'UPI' && (
+                      <div className="rounded-3xl border border-brand-burgundy/20 bg-brand-burgundy/[0.03] p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500">{upiDetails?.merchantName || 'FATAFAT'} UPI ID</p>
+                            <h4 className="mt-2 text-xl font-serif font-black text-zinc-900">{upiDetails?.upiId || 'Loading live UPI ID...'}</h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleCopyUpi}
+                              className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider border border-zinc-200 rounded-lg bg-white text-zinc-700 hover:bg-zinc-50"
+                            >
+                              Copy
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => upiDetails?.uri && (window.location.href = upiDetails.uri)}
+                              className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider border border-brand-burgundy text-brand-burgundy rounded-lg bg-white hover:bg-brand-burgundy/5 disabled:opacity-50"
+                              disabled={!upiDetails?.uri}
+                            >
+                              Pay
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-xs text-zinc-700">
+                          <p><strong>1.</strong> Open any UPI app and send the exact amount of ₹{upiDetails?.amount ?? total}.</p>
+                          <p><strong>2.</strong> Use UPI ID: <span className="font-bold text-zinc-900">{upiDetails?.upiId || 'Loading...'}</span>.</p>
+                          <p><strong>3.</strong> Save the payment screenshot and enter the transaction UTR below.</p>
+                          <p className="text-zinc-500">{upiDetails?.note || 'Transfer the exact amount to the UPI ID above. Your order is confirmed only after admin verifies the payment reference and proof.'}</p>
+                        </div>
+
+                        <div className="space-y-3 pt-2">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">UTR / Transaction Reference</label>
+                          <input
+                            value={utr}
+                            onChange={(e) => setUtr(e.target.value)}
+                            placeholder="Enter UTR from the UPI transfer"
+                            className="w-full border border-zinc-200 rounded-xl p-3 text-xs bg-white"
+                          />
+
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Payment proof screenshot</label>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                            className="w-full border border-zinc-200 rounded-xl p-3 text-xs bg-white"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={handleManualUpiSubmit}
+                            disabled={isSubmittingProof || !upiDetails}
+                            className="w-full bg-brand-burgundy text-white font-bold rounded-xl px-4 py-3 text-xs uppercase tracking-wider disabled:opacity-60"
+                          >
+                            {isSubmittingProof ? 'Submitting Proof...' : 'Submit Proof for Verification'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -490,16 +686,21 @@ export default function CheckoutPage() {
                         <h4 className="font-bold uppercase tracking-wider text-[10px] text-zinc-400 mb-1">Delivery Time Slot</h4>
                         <p className="text-zinc-700">
                           {deliveryOption === 'ASAP' 
-                            ? 'Deliver ASAP (Runner delivers in 30–60 mins)' 
+                            ? 'Deliver ASAP (Within 12 hours)' 
                             : `Scheduled delivery for slot: ${selectedTimeSlot}`}
                         </p>
                       </div>
 
                       {/* Payment summary */}
                       <div className="p-4 bg-zinc-50 rounded-2xl border">
-                        <h4 className="font-bold uppercase tracking-wider text-[10px] text-zinc-400 mb-1">Selected Payment Method</h4>
+                        <h4 className="font-bold uppercase tracking-wider text-[10px] text-zinc-400 mb-1">Payment Method</h4>
                         <p className="text-zinc-700 font-bold uppercase">
-                          {paymentMethod === 'NetBanking' ? 'Net Banking' : paymentMethod === 'COD' ? 'Cash on Delivery (COD)' : paymentMethod}
+                          {paymentMethod === 'NetBanking' ? 'Net Banking' : paymentMethod}
+                        </p>
+                        <p className="text-[10px] text-zinc-500 mt-1">
+                          {paymentMethod === 'UPI'
+                            ? 'Manual UPI verification is active. Order confirmation occurs after admin approval.'
+                            : 'Payment required to confirm order'}
                         </p>
                       </div>
 
