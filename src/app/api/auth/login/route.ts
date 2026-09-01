@@ -1,33 +1,25 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
-import { hashPassword, createSession } from '../../../../data/auth';
+import { verifyPassword, createSession } from '../../../../data/auth';
 
 // Trigger route reload
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    if (process.env.NODE_ENV === 'production' && !process.env['AUTH_SECRET']) {
-      console.error('Configuration Error: AUTH_SECRET is not configured on the server.');
-      return NextResponse.json(
-        { error: 'Server configuration error: AUTH_SECRET is missing.' },
-        { status: 500 }
-      );
-    }
-
     const { emailOrId, password } = await request.json();
 
     if (!emailOrId || !password) {
       return NextResponse.json({ error: 'Email/ID and password are required' }, { status: 400 });
     }
 
-    const hashedInput = hashPassword(password);
+    const cleanInput = String(emailOrId).trim().toLowerCase();
 
-    // 1. Check Admin Account (only one admin configuration exists in admin.json)
+    // 1. Check Admin Account (admin.json)
     const admins = await db.readTable<any>('admin') || [];
-    const adminObj = admins.find(a => a.email.toLowerCase() === emailOrId.toLowerCase().trim());
+    const adminObj = admins.find(a => (a.email && a.email.toLowerCase().trim() === cleanInput));
     if (adminObj) {
-      if (adminObj.passwordHash === hashedInput) {
+      if (verifyPassword(password, adminObj.passwordHash)) {
         const session = await createSession(adminObj.email, adminObj.email, 'admin');
         const response = NextResponse.json({
           success: true,
@@ -57,8 +49,9 @@ export async function POST(request: Request) {
     // 2. Check Delivery Partner Accounts
     const partners = await db.readTable<any>('partners') || [];
     const partnerObj = partners.find(
-      p => p.id.toLowerCase() === emailOrId.toLowerCase().trim() ||
-           p.email.toLowerCase() === emailOrId.toLowerCase().trim()
+      p => (p.id && p.id.toLowerCase().trim() === cleanInput) ||
+           (p.email && p.email.toLowerCase().trim() === cleanInput) ||
+           (p.phone && p.phone.replace(/\D/g, '') === cleanInput.replace(/\D/g, ''))
     );
 
     if (partnerObj) {
@@ -66,7 +59,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Your delivery partner account is currently inactive. Contact admin.' }, { status: 403 });
       }
 
-      if (partnerObj.passwordHash === hashedInput) {
+      if (verifyPassword(password, partnerObj.passwordHash)) {
         const session = await createSession(partnerObj.id, partnerObj.email, 'delivery_partner');
         const response = NextResponse.json({
           success: true,
@@ -92,11 +85,11 @@ export async function POST(request: Request) {
 
         return response;
       } else {
-        return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+        return NextResponse.json({ error: 'Invalid ID/Email or password' }, { status: 401 });
       }
     }
 
-    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    return NextResponse.json({ error: 'Invalid ID/Email or password' }, { status: 401 });
   } catch (err) {
     console.error('Error in auth login endpoint:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

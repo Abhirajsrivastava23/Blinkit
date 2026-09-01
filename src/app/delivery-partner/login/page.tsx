@@ -102,11 +102,55 @@ export default function DeliveryPartnerLoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 bg-brand-charcoal hover:bg-zinc-800 text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-1.5 text-[10px]"
+            className="w-full py-3.5 bg-brand-charcoal hover:bg-zinc-800 text-white rounded-xl font-serif font-bold uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-1.5 text-[10px] cursor-pointer"
           >
             {isLoading ? 'Decrypting Rider Session...' : 'Sign In Rider Console'}
           </button>
         </form>
+
+        {/* Quick-fill Credentials Card */}
+        <div className="pt-2 border-t border-zinc-100 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400">Default Partner Credentials</span>
+            <span className="text-[8px] bg-green-50 text-green-700 font-bold px-1.5 py-0.5 rounded border border-green-200">Active</span>
+          </div>
+
+          <div 
+            onClick={() => {
+              setEmailOrId('DP-001');
+              setPassword('rider123');
+            }}
+            className="p-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 rounded-xl cursor-pointer transition-colors space-y-1 text-left"
+          >
+            <div className="flex items-center justify-between text-[10px] font-bold text-zinc-800">
+              <span>Rider 1: Rahul (Nawabganj)</span>
+              <span className="text-brand-burgundy text-[9px] underline">Click to fill</span>
+            </div>
+            <div className="text-[9px] font-mono text-zinc-500 flex items-center gap-2">
+              <span>ID: <strong className="text-zinc-700">DP-001</strong></span>
+              <span>•</span>
+              <span>Pass: <strong className="text-zinc-700">rider123</strong></span>
+            </div>
+          </div>
+
+          <div 
+            onClick={() => {
+              setEmailOrId('DP-002');
+              setPassword('rider123');
+            }}
+            className="p-2.5 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 rounded-xl cursor-pointer transition-colors space-y-1 text-left"
+          >
+            <div className="flex items-center justify-between text-[10px] font-bold text-zinc-800">
+              <span>Rider 2: Aman (Chandigarh Univ)</span>
+              <span className="text-brand-burgundy text-[9px] underline">Click to fill</span>
+            </div>
+            <div className="text-[9px] font-mono text-zinc-500 flex items-center gap-2">
+              <span>ID: <strong className="text-zinc-700">DP-002</strong></span>
+              <span>•</span>
+              <span>Pass: <strong className="text-zinc-700">rider123</strong></span>
+            </div>
+          </div>
+        </div>
 
       </div>
     </div>
