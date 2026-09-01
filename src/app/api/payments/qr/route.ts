@@ -17,9 +17,10 @@ export async function GET(request: Request) {
     let amountNumber = Number(paramAmount);
 
     if (orderId) {
+      const cleanOrderId = decodeURIComponent(String(orderId)).trim();
       let order: any = null;
       try {
-        const orderQuery = await db.query<any>('SELECT total FROM orders WHERE id = $1 LIMIT 1', [orderId]);
+        const orderQuery = await db.query<any>('SELECT total FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanOrderId]);
         if (orderQuery.rows.length > 0 && orderQuery.rows[0].total) {
           order = orderQuery.rows[0];
         }
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
       }
       if (!order) {
         const orders = await db.readTable<any>('orders') || [];
-        order = orders.find((o: any) => o.id === orderId);
+        order = orders.find((o: any) => String(o.id || o.ID || '').trim().toLowerCase() === cleanOrderId.toLowerCase());
       }
       if (order && order.total) {
         amountNumber = Number(order.total);

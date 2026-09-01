@@ -85,13 +85,14 @@ export async function POST(
     // =========================================
     // 3. FETCH ORDER AND VERIFY
     // =========================================
-    const orderId = payment.orderId as string;
+    const orderId = (payment.orderId as string) || '';
+    const cleanOrderId = decodeURIComponent(String(orderId)).trim();
     let order: Record<string, unknown> | null = null;
 
     try {
       const orderQuery = await db.query<Record<string, unknown>>(
-        'SELECT * FROM orders WHERE id = $1 LIMIT 1',
-        [orderId]
+        'SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1',
+        [cleanOrderId]
       );
       if (orderQuery.rows.length === 0) {
         return Response.json(

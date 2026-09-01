@@ -46,7 +46,7 @@ export default function OrderConfirmationPage() {
   const fetchOrderDetails = useCallback(async () => {
     if (!orderId) return;
     try {
-      const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data && !data.error) {

@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     let rawOrder: any = null;
 
     try {
-      const orderQuery = await db.query<any>('SELECT * FROM orders WHERE id = $1 LIMIT 1', [cleanId]);
+      const orderQuery = await db.query<any>('SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanId]);
       if (orderQuery.rows.length > 0) {
         rawOrder = orderQuery.rows[0];
       }
@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     if (!rawOrder) {
       const orders = await db.readTable<any>('orders') || [];
-      rawOrder = orders.find((o: any) => String(o.id).trim().toLowerCase() === cleanId.toLowerCase());
+      rawOrder = orders.find((o: any) => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
     }
 
     if (!rawOrder) {

@@ -233,7 +233,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const getOrderById = (orderId: string) => {
-    return orders.find((o) => o.id === orderId);
+    if (!orderId) return undefined;
+    const clean = String(orderId).trim().toLowerCase();
+    return orders.find((o) => String(o.id || '').trim().toLowerCase() === clean);
   };
 
   return (
