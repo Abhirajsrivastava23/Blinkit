@@ -1,25 +1,28 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
-import AgeGate from '../../../../components/AgeGate';
 import ProductCard from '../../../../components/ProductCard';
-import { useWellness } from '../../../../context/WellnessContext';
 import { useAuth } from '../../../../context/AuthContext';
 import { useCart } from '../../../../context/CartContext';
 import { useWishlist } from '../../../../context/WishlistContext';
 import { useToast } from '../../../../components/Toast';
 import { PRODUCTS as fallbackProducts, Product } from '../../../../data/mockData';
-import { Star, Truck, ShieldCheck, Heart, ShoppingBag, EyeOff, ArrowLeft, Info, HelpCircle } from 'lucide-react';
+import { Star, Truck, Heart, ShoppingBag, EyeOff, ArrowLeft } from 'lucide-react';
 import { useProducts } from '../../../../context/ProductContext';
 
 export default function WellnessProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user, isLoading, wellnessPublished } = useAuth();
+  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const { showToast } = useToast();
+  const { products } = useProducts();
+  const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
   useEffect(() => {
     if (!isLoading) {
@@ -33,6 +36,22 @@ export default function WellnessProductDetailPage() {
     }
   }, [user, isLoading, wellnessPublished, router]);
 
+  const slug = params.slug as string;
+  const product = useMemo(
+    () => PRODUCTS.find(
+      (p) => p.category === 'wellness' && p.wellnessVerified && (p.id === slug || p.name.toLowerCase().replace(/ /g, '-') === slug)
+    ),
+    [PRODUCTS, slug]
+  );
+  const [selectedVariant, setSelectedVariant] = useState<string>('');
+  const [activeImage, setActiveImage] = useState<string>('');
+  const [imageError, setImageError] = useState(false);
+
+  const currentVariant = product?.variants?.includes(selectedVariant)
+    ? selectedVariant
+    : product?.variants?.[0] ?? '';
+  const previewImage = activeImage || product?.image || '';
+
   if (isLoading || (!wellnessPublished && user?.role !== 'admin') || (user?.wellnessAccessStatus !== 'ACTIVE' && user?.role !== 'admin')) {
     return (
       <div className="min-h-screen bg-[#0B0B0E] flex items-center justify-center text-white text-xs">
@@ -40,33 +59,6 @@ export default function WellnessProductDetailPage() {
       </div>
     );
   }
-  const { addToCart } = useCart();
-  const { toggleWishlist, isInWishlist } = useWishlist();
-  const { showToast } = useToast();
-  const { products } = useProducts();
-  const PRODUCTS = products.length > 0 ? products : fallbackProducts;
-
-  const slug = params.slug as string;
-  const [product, setProduct] = useState<Product | undefined>(undefined);
-  const [quantity, setQuantity] = useState(1);
-  const [selectedVariant, setSelectedVariant] = useState<string>('');
-  const [activeImage, setActiveImage] = useState<string>('');
-  const [imageError, setImageError] = useState(false);
-
-  useEffect(() => {
-    // Find matching verified wellness product (by id or slug)
-    const found = PRODUCTS.find(
-      (p) => p.category === 'wellness' && p.wellnessVerified && (p.id === slug || p.name.toLowerCase().replace(/ /g, '-') === slug)
-    );
-    setProduct(found);
-    if (found) {
-      if (found.variants && found.variants.length > 0) {
-        setSelectedVariant(found.variants[0]);
-      }
-      setActiveImage(found.image);
-      setImageError(false);
-    }
-  }, [slug]);
 
 
 
@@ -89,8 +81,8 @@ export default function WellnessProductDetailPage() {
   }
 
   const handleAddToCart = () => {
-    addToCart(product, quantity, {
-      size: selectedVariant || undefined
+    addToCart(product, 1, {
+      size: currentVariant || undefined
     });
     showToast(`${product.name} added to cart!`, 'success');
   };
@@ -137,7 +129,7 @@ export default function WellnessProductDetailPage() {
                   </div>
                 ) : (
                   <img 
-                    src={activeImage || product.image} 
+                    src={previewImage} 
                     alt={product.name} 
                     onError={() => setImageError(true)}
                     className="w-full h-full object-cover" 
@@ -223,7 +215,7 @@ export default function WellnessProductDetailPage() {
                         key={v}
                         onClick={() => setSelectedVariant(v)}
                         className={`px-4 py-2 border rounded-xl font-bold transition-all ${
-                          selectedVariant === v
+                          currentVariant === v
                             ? 'border-wellness-bronze text-wellness-bronze bg-wellness-bronze/5'
                             : 'border-zinc-800 hover:border-zinc-700 text-zinc-400 bg-zinc-900'
                         }`}

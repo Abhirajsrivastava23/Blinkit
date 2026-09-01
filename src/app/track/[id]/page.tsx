@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, CheckCircle2, ChevronRight, RefreshCw, ShoppingBag, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Clock, ArrowLeft, AlertCircle, ShieldCheck, MapPin, ShoppingBag } from 'lucide-react';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
-import { useOrders, Order } from '../../../context/OrderContext';
+import { Order } from '../../../context/OrderContext';
 import { useToast } from '../../../components/Toast';
 
 const STATUS_PROGRESSION: Order['status'][] = [
@@ -24,7 +24,7 @@ export default function OrderTrackingPage() {
   const { showToast } = useToast();
 
   const orderId = params.id as string;
-  const [order, setOrder] = useState<any>(undefined);
+  const [order, setOrder] = useState<Order | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -48,9 +48,16 @@ export default function OrderTrackingPage() {
   };
 
   useEffect(() => {
-    fetchOrder();
-    const interval = setInterval(fetchOrder, 3000);
-    return () => clearInterval(interval);
+    const timer = window.setTimeout(() => {
+      void fetchOrder();
+    }, 0);
+    const interval = window.setInterval(() => {
+      void fetchOrder();
+    }, 3000);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
   }, [orderId]);
 
   const handleRegenerateOtp = async () => {
@@ -63,7 +70,7 @@ export default function OrderTrackingPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setOrder((prev: any) => prev ? { ...prev, deliveryOtp: data.deliveryOtp } : prev);
+        setOrder((prev) => (prev ? { ...prev, deliveryOtp: data.deliveryOtp } : prev));
         showToast('A new delivery OTP has been generated.', 'success');
       } else {
         showToast(data.error || 'Failed to regenerate OTP.', 'error');
@@ -108,6 +115,19 @@ export default function OrderTrackingPage() {
     );
   }
 
+  if (!order) {
+    return (
+      <>
+        <Header />
+        <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+          <Clock className="h-12 w-12 text-brand-burgundy mb-4 animate-spin" />
+          <h2 className="text-xl font-bold font-serif">Loading Order Details...</h2>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
   const mapActualStatusToStep = (actualStatus: string): string => {
     if (['Pending'].includes(actualStatus)) return 'Pending';
     if (['Confirmed'].includes(actualStatus)) return 'Confirmed';
@@ -145,7 +165,7 @@ export default function OrderTrackingPage() {
     
     const statuses = statusMapping[stepName] || [stepName];
     const match = [...order.statusHistory].reverse().find(
-      (h: any) => statuses.includes(h.newStatus)
+      (h: { newStatus: string }) => statuses.includes(h.newStatus)
     );
     
     if (match) {
@@ -338,7 +358,7 @@ export default function OrderTrackingPage() {
                 </h3>
                 
                 <div className="divide-y divide-zinc-50">
-                  {order.items.map((item: any, idx: number) => (
+                  {order.items.map((item: Order['items'][number], idx: number) => (
                     <div key={idx} className="py-2.5 flex items-center justify-between text-xs gap-3">
                       <div className="min-w-0">
                         <p className="font-bold truncate text-zinc-800">{item.name}</p>

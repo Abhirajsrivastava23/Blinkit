@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
@@ -17,38 +17,26 @@ function SearchPageContent() {
   const { products } = useProducts();
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
   
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const query = searchParams.get('q') || '';
+  const [inputValue, setInputValue] = useState(() => query);
+  const lowerQ = query.trim().toLowerCase();
+  const results = useMemo(() => {
+    if (!lowerQ) return [] as Product[];
 
-  useEffect(() => {
-    const q = searchParams.get('q') || '';
-    setQuery(q);
-    
-    if (q.trim()) {
-      setLoading(true);
-      const timer = setTimeout(() => {
-        const lowerQ = q.toLowerCase();
-        const filtered = PRODUCTS.filter(
-          (p) =>
-            p.name.toLowerCase().includes(lowerQ) ||
-            p.category.toLowerCase().includes(lowerQ) ||
-            p.description.toLowerCase().includes(lowerQ) ||
-            p.occasions.some((o) => o.toLowerCase().includes(lowerQ))
-        );
-        setResults(filtered);
-        setLoading(false);
-      }, 400);
-      return () => clearTimeout(timer);
-    } else {
-      setResults([]);
-    }
-  }, [searchParams]);
+    return PRODUCTS.filter(
+      (p) =>
+        p.name.toLowerCase().includes(lowerQ) ||
+        p.category.toLowerCase().includes(lowerQ) ||
+        p.description.toLowerCase().includes(lowerQ) ||
+        p.occasions.some((o) => o.toLowerCase().includes(lowerQ))
+    );
+  }, [PRODUCTS, lowerQ]);
+  const loading = false;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query)}`);
+    if (inputValue.trim()) {
+      router.push(`/search?q=${encodeURIComponent(inputValue.trim())}`);
     }
   };
 
@@ -71,8 +59,8 @@ function SearchPageContent() {
             <input
               type="text"
               placeholder="Search e.g. Chocolate truffle, Birthday, Roses..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-zinc-200 rounded-xl text-xs focus:outline-none focus:border-brand-burgundy/40"
             />
             <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-zinc-400" />

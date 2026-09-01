@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import ProductCard from '../../components/ProductCard';
@@ -9,16 +9,12 @@ import { PRODUCTS, Product } from '../../data/mockData';
 import { ProductGridSkeleton } from '../../components/LoadingSkeleton';
 
 export default function PastriesPage() {
-  const [pastries, setPastries] = useState<Product[]>([]);
+  const pastries = useMemo(() => PRODUCTS.filter(
+    (p) => p.category === 'bakery' && p.subCategory === 'Pastries'
+  ), []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Filter out pastries from bakery category
-    const items = PRODUCTS.filter(
-      (p) => p.category === 'bakery' && p.subCategory === 'Pastries'
-    );
-    setPastries(items);
-    
     const timer = setTimeout(() => setLoading(false), 450);
     return () => clearTimeout(timer);
   }, []);

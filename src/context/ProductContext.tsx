@@ -17,7 +17,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProducts = async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch('/api/products', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
@@ -33,7 +33,11 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    refreshProducts();
+    const timer = window.setTimeout(() => {
+      void refreshProducts();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (

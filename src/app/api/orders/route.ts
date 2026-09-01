@@ -114,11 +114,10 @@ export async function POST(request: Request) {
         }
       }
 
-      // Securely generate OTP on the server for new orders
-      const deliveryOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      body.deliveryOtp = deliveryOtp;
+      // OTP generation is intentionally deferred until the assigned rider requests it for delivery.
+      body.deliveryOtp = null;
       body.otpFailedAttempts = 0;
-      body.otpExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+      body.otpExpiresAt = null;
       
       // Force customerId to be the server-side session userId (never trust client)
       body.customerId = session.userId;

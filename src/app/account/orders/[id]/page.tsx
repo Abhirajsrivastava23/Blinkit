@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, ArrowLeft, RefreshCw, ShoppingBag } from 'lucide-react';
+import { Truck, MapPin, Clock, ArrowLeft, RefreshCw, ShoppingBag, X, AlertTriangle } from 'lucide-react';
 import { useOrders, Order } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
@@ -18,11 +18,13 @@ const STATUS_PROGRESSION: Order['status'][] = [
 export default function AccountOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { getOrderById, updateOrderStatus } = useOrders();
+  const { getOrderById, updateOrderStatus, refreshOrders } = useOrders();
   const { showToast } = useToast();
 
   const orderId = params.id as string;
   const [order, setOrder] = useState<Order | undefined>(undefined);
+  const [cancellationInProgress, setCancellationInProgress] = useState(false);
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
 
   useEffect(() => {
     const found = getOrderById(orderId);
@@ -50,13 +52,81 @@ export default function AccountOrderDetailPage() {
     }
   };
 
+  // Check if order can be cancelled (only Pending and Confirmed statuses)
+  const canCancelOrder = (order: Order): boolean => {
+    const cancellableStatuses = ['Pending', 'Confirmed'];
+    return cancellableStatuses.includes(order.status);
+  };
+
+  // Get delivery promise text
+  const getDeliveryPromise = (order: Order): string => {
+    if (order.deliveryOption === 'Scheduled' && order.scheduledDeliveryAt) {
+      const date = new Date(order.scheduledDeliveryAt);
+      return `Scheduled for ${date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    }
+    return 'Within 12 hours';
+  };
+
+  // Handle order cancellation
+  const handleCancelOrder = async () => {
+    if (!order || !confirm('Are you sure you want to cancel this order? This action cannot be undone.')) {
+      return;
+    }
+
+    setCancellationInProgress(true);
+    setCancellationError(null);
+
+    try {
+      const response = await fetch('/api/orders/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          reason: 'Customer requested cancellation'
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        setCancellationError(errData.error || `Failed to cancel order (HTTP ${response.status})`);
+        setCancellationInProgress(false);
+        return;
+      }
+
+      // Refresh and show success
+      await refreshOrders();
+      showToast('Order cancelled successfully', 'success');
+      router.push('/account/orders');
+    } catch (err) {
+      setCancellationError(err instanceof Error ? err.message : 'Failed to cancel order');
+      setCancellationInProgress(false);
+    }
+  };
+
   const getStepStatus = (stepName: Order['status']) => {
+    if (!order) return 'pending';
     const currentIndex = STATUS_PROGRESSION.indexOf(order.status);
     const stepIndex = STATUS_PROGRESSION.indexOf(stepName);
 
     if (stepIndex < currentIndex) return 'completed';
     if (stepIndex === currentIndex) return 'active';
     return 'pending';
+  };
+
+  const getPaymentStatusLabel = (paymentStatus?: string) => {
+    switch (paymentStatus) {
+      case 'PENDING':
+        return 'Payment Required';
+      case 'PAYMENT_VERIFICATION_PENDING':
+        return 'Payment Under Review';
+      case 'PAID':
+      case 'COMPLETED':
+        return 'Payment Successful';
+      case 'REJECTED':
+        return 'Payment Rejected';
+      default:
+        return 'Payment Required';
+    }
   };
 
   return (
@@ -151,6 +221,53 @@ export default function AccountOrderDetailPage() {
               <span className="text-brand-burgundy">₹{order.total}</span>
             </div>
           </div>
+
+          {/* Payment & Delivery Info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 border rounded-xl bg-zinc-50">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Payment</p>
+              <p className="font-bold text-zinc-800 mt-2">{getPaymentStatusLabel(order.paymentStatus)}</p>
+            </div>
+            <div className="p-4 border rounded-xl bg-zinc-50">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Delivery</p>
+              <p className="font-bold text-zinc-800 mt-2">{getDeliveryPromise(order)}</p>
+            </div>
+          </div>
+
+          {/* Cancellation Info / Error */}
+          {cancellationError && (
+            <div className="p-4 bg-red-100 border border-red-300 text-red-700 text-xs rounded-xl flex items-start gap-3">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <div>{cancellationError}</div>
+            </div>
+          )}
+
+          {/* Cancellation Status */}
+          {order.status === 'Cancelled' && (
+            <div className="p-4 bg-amber-100 border border-amber-300 text-amber-900 text-xs rounded-xl">
+              <p className="font-bold">Order Cancelled</p>
+              {order.cancellationReason && (
+                <p className="mt-1">{order.cancellationReason}</p>
+              )}
+              {order.cancelledAt && (
+                <p className="mt-1 text-[10px] opacity-75">
+                  Cancelled on {new Date(order.cancelledAt).toLocaleDateString('en-IN')}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Cancel Button - Only show if cancellable */}
+          {canCancelOrder(order) && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={cancellationInProgress}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-red-300 text-red-600 font-bold text-sm rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <X className="h-4 w-4" />
+              <span>{cancellationInProgress ? 'Cancelling...' : 'Cancel This Order'}</span>
+            </button>
+          )}
 
         </div>
 

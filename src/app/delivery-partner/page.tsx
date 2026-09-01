@@ -24,7 +24,10 @@ export default function DeliveryPartnerPage() {
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'home' | 'deliveries' | 'photos' | 'issues' | 'history' | 'profile'>('home');
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('fatafat_rider_online') === 'true';
+  });
 
   // Active delivery sub-states
   const [otpCode, setOtpCode] = useState('');
@@ -54,7 +57,16 @@ export default function DeliveryPartnerPage() {
   const [selectedInvProduct, setSelectedInvProduct] = useState<any>(null);
   const [physicalCount, setPhysicalCount] = useState<number>(0);
   const [updateReason, setUpdateReason] = useState('Physical count');
-  const [reportsLog, setReportsLog] = useState<any[]>([]);
+  const [reportsLog, setReportsLog] = useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const storedReports = localStorage.getItem('fatafat_rider_reports');
+    if (!storedReports) return [];
+    try {
+      return JSON.parse(storedReports);
+    } catch {
+      return [];
+    }
+  });
 
   // Photo upload states for active delivery
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState('');
@@ -77,15 +89,6 @@ export default function DeliveryPartnerPage() {
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   useEffect(() => {
-    const storedOnline = localStorage.getItem('fatafat_rider_online');
-    if (storedOnline !== null) {
-      setIsOnline(storedOnline === 'true');
-    }
-    const storedReports = localStorage.getItem('fatafat_rider_reports');
-    if (storedReports) {
-      setReportsLog(JSON.parse(storedReports));
-    }
-
     const checkRiderAuth = async () => {
       try {
         const res = await fetch('/api/auth/me');
@@ -101,7 +104,6 @@ export default function DeliveryPartnerPage() {
           return;
         }
 
-        // Store user in localStorage (Legacy matching)
         localStorage.setItem('fatafat_user', JSON.stringify(data.user));
         setVerifyingSession(false);
       } catch (err) {
@@ -110,8 +112,12 @@ export default function DeliveryPartnerPage() {
       }
     };
 
-    checkRiderAuth();
-  }, [router]);
+    const timer = window.setTimeout(() => {
+      void checkRiderAuth();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [router, showToast]);
 
   const fetchRiderOrders = async () => {
     try {
@@ -129,10 +135,19 @@ export default function DeliveryPartnerPage() {
 
   useEffect(() => {
     if (verifyingSession) return;
-    fetchRiderOrders();
-    // Poll every 3 seconds to get real-time rider dispatch notifications
-    const interval = setInterval(fetchRiderOrders, 3000);
-    return () => clearInterval(interval);
+
+    const timer = window.setTimeout(() => {
+      void fetchRiderOrders();
+    }, 0);
+
+    const interval = window.setInterval(() => {
+      void fetchRiderOrders();
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
   }, [verifyingSession, user]);
 
   // Find current active assigned order (not delivered)
@@ -404,6 +419,24 @@ export default function DeliveryPartnerPage() {
     showToast('Notification sent: Arrived at destination.', 'success');
   };
 
+  const handleRequestDeliveryOtp = async () => {
+    if (!activeOrder) return;
+    try {
+      const res = await fetch(`/api/delivery/orders/${activeOrder.id}/request-otp`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Delivery OTP requested. Please ask the customer to open their tracking page.', 'success');
+      } else {
+        showToast(data.error || 'Unable to request delivery OTP.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error requesting delivery OTP.', 'error');
+    }
+  };
+
   const handleCompleteDelivery = async () => {
     if (!activeOrder) return;
     if (otpCode.length !== 6) {
@@ -413,6 +446,19 @@ export default function DeliveryPartnerPage() {
     
     setOtpError('');
     try {
+      const verifyRes = await fetch(`/api/delivery/orders/${activeOrder.id}/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: otpCode })
+      });
+      const verifyData = await verifyRes.json();
+
+      if (!verifyRes.ok || !verifyData.success) {
+        setOtpError(verifyData.error || 'Invalid OTP code.');
+        showToast(verifyData.error || 'Failed to verify delivery OTP.', 'error');
+        return;
+      }
+
       const res = await fetch('/api/orders/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -420,7 +466,9 @@ export default function DeliveryPartnerPage() {
           id: activeOrder.id,
           updates: {
             status: 'Delivered',
-            otpCode: otpCode
+            otpCode: otpCode,
+            otp_verified: true,
+            otp_verified_at: new Date().toISOString()
           }
         })
       });
@@ -908,6 +956,13 @@ export default function DeliveryPartnerPage() {
                           <MessageSquare className="h-4 w-4 text-brand-burgundy" /> SEND TEXT
                         </button>
                       </div>
+
+                      <button
+                        onClick={handleRequestDeliveryOtp}
+                        className="w-full py-3 bg-brand-charcoal text-white rounded-xl font-bold uppercase tracking-wider text-[10px]"
+                      >
+                        REQUEST DELIVERY OTP
+                      </button>
 
                       {!arrivedNotify ? (
                         <button

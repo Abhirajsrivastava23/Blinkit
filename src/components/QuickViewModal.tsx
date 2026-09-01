@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { X, Star, Sparkles, Check, Heart, Shield, ArrowRight } from 'lucide-react';
+import { X, Star, Sparkles, Check, Heart, ArrowRight } from 'lucide-react';
 import { Product } from '../data/mockData';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -14,7 +14,7 @@ export default function QuickViewModal() {
   const [isOpen, setIsOpen] = useState(false);
   
   const { cartItems, addToCart, updateQuantity } = useCart();
-  const { wishlist, toggleWishlist, isInWishlist } = useWishlist();
+  const { toggleWishlist, isInWishlist } = useWishlist();
   const { showToast } = useToast();
 
   const [selectedSize, setSelectedSize] = useState('');
@@ -23,8 +23,9 @@ export default function QuickViewModal() {
   const [location, setLocation] = useState('Nawabganj, Unnao');
 
   useEffect(() => {
-    const handleQuickView = (e: any) => {
-      const prod = e.detail as Product;
+    const handleQuickView = (e: Event) => {
+      const detail = (e as CustomEvent<Product>).detail;
+      const prod = detail as Product;
       setProduct(prod);
       setSelectedSize(prod.variants?.[0] || '');
       setSelectedType(prod.egglessAvailable ? (prod.isEgglessDefault ? 'Eggless' : 'Egg') : 'Eggless');

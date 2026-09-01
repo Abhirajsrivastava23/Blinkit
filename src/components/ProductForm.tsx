@@ -23,6 +23,16 @@ const CATEGORIES = [
 ];
 
 const TAX_RATES = ['5% GST', '12% GST', '18% GST', '28% GST', 'Exempt'];
+type ProductStatus = 'Active' | 'Draft' | 'Hidden' | 'Out of Stock';
+
+type ImageHistoryItem = {
+  id: string;
+  imageUrl: string;
+  uploadedBy?: string;
+  uploadedByRole?: string;
+  uploadedAt?: string;
+  createdAt?: string;
+};
 
 export default function ProductForm({ initialProduct }: ProductFormProps) {
   const router = useRouter();
@@ -37,7 +47,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const [sku, setSku] = useState(initialProduct?.wellnessSku || '');
   const [barcode, setBarcode] = useState('');
   const [brand, setBrand] = useState(initialProduct?.wellnessBrand || 'FATAFAT');
-  const [category, setCategory] = useState<any>(initialProduct?.category || 'cakes');
+  const [category, setCategory] = useState<Product['category'] | 'wellness'>(initialProduct?.category || 'cakes');
   const [subCategory, setSubCategory] = useState(initialProduct?.subCategory || '');
   const [description, setDescription] = useState(initialProduct?.description || '');
   const [shortDescription, setShortDescription] = useState('');
@@ -52,7 +62,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const [primaryImage, setPrimaryImage] = useState(initialProduct?.image || '');
   const [galleryImages, setGalleryImages] = useState<string[]>(initialProduct?.gallery || []);
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
-  const [imageHistory, setImageHistory] = useState<any[]>([]);
+  const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [adminUploadingPhoto, setAdminUploadingPhoto] = useState(false);
   const [restoringImage, setRestoringImage] = useState(false);
@@ -60,7 +70,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   // Inventory
   const [stockQuantity, setStockQuantity] = useState(initialProduct?.inStock ? '25' : '0');
   const [lowStockThreshold, setLowStockThreshold] = useState('5');
-  const [status, setStatus] = useState<any>(initialProduct?.inStock ? 'Active' : 'Out of Stock');
+  const [status, setStatus] = useState<ProductStatus>(initialProduct?.inStock ? 'Active' : 'Out of Stock');
 
   // Multi-Store levels
   const [storeAStock, setStoreAStock] = useState('10');
@@ -76,7 +86,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
 
   // Wellness fields
   const [wellnessVerified, setWellnessVerified] = useState<boolean>(initialProduct?.wellnessVerified ?? true);
-  const [wellnessType, setWellnessType] = useState<any>(initialProduct?.wellnessType || 'Condoms');
+  const [wellnessType, setWellnessType] = useState<string>(initialProduct?.wellnessType || 'Condoms');
   const [wellnessMaterial, setWellnessMaterial] = useState(initialProduct?.wellnessMaterial || 'Natural Rubber Latex');
   const [wellnessTexture, setWellnessTexture] = useState(initialProduct?.wellnessTexture || 'Smooth');
   const [wellnessFlavor, setWellnessFlavor] = useState(initialProduct?.wellnessFlavor || '');
@@ -114,9 +124,15 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   };
 
   useEffect(() => {
-    if (initialProduct?.id) {
-      fetchImageHistory();
+    if (!initialProduct?.id) {
+      return;
     }
+
+    const timer = window.setTimeout(() => {
+      void fetchImageHistory();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [initialProduct?.id]);
 
   const handleAdminPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,7 +201,11 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   // Auto slug generation
   useEffect(() => {
     if (!initialProduct && name) {
-      setSlug(name.toLowerCase().trim().replace(/ /g, '-').replace(/[^\w-]+/g, ''));
+      const timer = window.setTimeout(() => {
+        setSlug(name.toLowerCase().trim().replace(/ /g, '-').replace(/[^\w-]+/g, ''));
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
   }, [name, initialProduct]);
 
@@ -349,7 +369,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                 <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px]">Category *</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => setCategory(e.target.value as Product['category'] | 'wellness')}
                   className="w-full p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none"
                 >
                   {CATEGORIES.map(c => (
@@ -554,7 +574,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                             )}
                           </div>
                           <p className="text-[8px] text-zinc-400">
-                            By {item.uploadedBy} • {new Date(item.uploadedAt).toLocaleString()}
+                            By {item.uploadedBy ?? 'System'} • {item.uploadedAt || item.createdAt ? new Date(item.uploadedAt ?? item.createdAt ?? '').toLocaleString() : 'Unknown time'}
                           </p>
                         </div>
                       </div>
@@ -644,7 +664,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                 <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px]">Publish Status</label>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  onChange={(e) => setStatus(e.target.value as ProductStatus)}
                   className="w-full p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none"
                 >
                   <option value="Active">Active / Visible</option>

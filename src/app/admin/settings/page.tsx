@@ -34,6 +34,10 @@ export default function AdminSettingsPage() {
   // Wellness Config state
   const [wellnessPublished, setWellnessPublished] = useState(false);
 
+  // Payment Config state
+  const [paymentUpiId, setPaymentUpiId] = useState('8081988627@pthdfc');
+  const [savingPaymentConfig, setSavingPaymentConfig] = useState(false);
+
   const fetchConfig = async () => {
     try {
       setLoading(true);
@@ -55,6 +59,12 @@ export default function AdminSettingsPage() {
       if (wRes.ok) {
         const wData = await wRes.json();
         setWellnessPublished(wData.published ?? false);
+      }
+
+      const pRes = await fetch('/api/admin/payment-settings');
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setPaymentUpiId(pData.upiId || '8081988627@pthdfc');
       }
     } catch (err) {
       console.error(err);
@@ -93,6 +103,29 @@ export default function AdminSettingsPage() {
       showToast('Error saving settings.', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSavePaymentConfig = async () => {
+    try {
+      setSavingPaymentConfig(true);
+      const res = await fetch('/api/admin/payment-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upiId: paymentUpiId.trim() || '8081988627@pthdfc' })
+      });
+
+      if (res.ok) {
+        showToast('UPI configuration updated successfully.', 'success');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to save payment configuration.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error saving payment configuration.', 'error');
+    } finally {
+      setSavingPaymentConfig(false);
     }
   };
 
@@ -189,6 +222,29 @@ export default function AdminSettingsPage() {
               className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all select-none"
             >
               Update Wellness Settings
+            </button>
+          </div>
+
+          <div className="bg-white border border-zinc-200/20 p-6 rounded-3xl space-y-4 shadow-sm">
+            <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2">Payment Configuration</h4>
+            <div className="space-y-1">
+              <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px]">Receiving UPI ID</label>
+              <input
+                type="text"
+                value={paymentUpiId}
+                onChange={(e) => setPaymentUpiId(e.target.value)}
+                className="w-full p-2.5 border rounded-xl bg-zinc-50/5 focus:bg-white focus:outline-none"
+                placeholder="8081988627@pthdfc"
+              />
+            </div>
+            <p className="text-[10px] text-zinc-500">Used for customer UPI QR creation. This is the only payment credential shown to customers.</p>
+            <button
+              type="button"
+              onClick={handleSavePaymentConfig}
+              disabled={savingPaymentConfig}
+              className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all"
+            >
+              {savingPaymentConfig ? 'Saving...' : 'Save Payment Settings'}
             </button>
           </div>
 

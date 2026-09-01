@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Star, Truck, Calendar, Sparkles, Heart, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
@@ -30,12 +30,12 @@ export default function ProductDetailPage() {
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
   const productId = params.id as string;
-  const [product, setProduct] = useState<Product | null>(null);
+  const product = useMemo(() => PRODUCTS.find((p) => p.id === productId) ?? null, [PRODUCTS, productId]);
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients' | 'storage'>('desc');
 
   // Customization States
-  const [selectedSize, setSelectedSize] = useState<string>('');
-  const [selectedType, setSelectedType] = useState<string>('Eggless');
+  const [selectedSizeState, setSelectedSizeState] = useState<string>('');
+  const [selectedTypeState, setSelectedTypeState] = useState<string>('Eggless');
   const [cakeMessage, setCakeMessage] = useState<string>('');
   const [deliveryType, setDeliveryType] = useState<'ASAP' | 'Scheduled'>('ASAP');
   const [timeSlot, setTimeSlot] = useState<string>('06:00 PM - 08:00 PM');
@@ -43,19 +43,15 @@ export default function ProductDetailPage() {
   // Selected Add-ons
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
 
-  useEffect(() => {
-    const found = PRODUCTS.find((p) => p.id === productId);
-    if (found) {
-      setProduct(found);
-      // Pre-select default size variant
-      if (found.variants && found.variants.length > 0) {
-        setSelectedSize(found.variants[0]);
-      }
-      if (found.egglessAvailable) {
-        setSelectedType(found.isEgglessDefault ? 'Eggless' : 'Egg');
-      }
-    }
-  }, [productId]);
+  const selectedSize = product?.variants?.includes(selectedSizeState)
+    ? selectedSizeState
+    : product?.variants?.[0] ?? '';
+
+  const selectedType = product?.egglessAvailable
+    ? (selectedTypeState === 'Eggless' || selectedTypeState === 'Egg'
+        ? selectedTypeState
+        : product.isEgglessDefault ? 'Eggless' : 'Egg')
+    : 'Eggless';
 
   if (!product) {
     return (
@@ -291,7 +287,7 @@ export default function ProductDetailPage() {
                         {product.variants.map((v) => (
                           <button
                             key={v}
-                            onClick={() => setSelectedSize(v)}
+                            onClick={() => setSelectedSizeState(v)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
                               selectedSize === v
                                 ? isWellness
@@ -319,7 +315,7 @@ export default function ProductDetailPage() {
                         {['Eggless', 'Contain Egg'].map((type) => (
                           <button
                             key={type}
-                            onClick={() => setSelectedType(type)}
+                            onClick={() => setSelectedTypeState(type)}
                             className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
                               selectedType === type
                                 ? type === 'Eggless'

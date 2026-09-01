@@ -36,12 +36,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ) {
         return NextResponse.json({ error: 'Forbidden: You do not own this order.' }, { status: 403 });
       }
-      // Sanitise: mask deliveryOtp if not Out for Delivery or later
-      if (order.status !== 'Out for Delivery' && order.status !== 'Delivered') {
+
+      const otpActive = order.deliveryOtp && order.otpExpiresAt && new Date(order.otpExpiresAt) > new Date();
+      if (order.status !== 'Out for Delivery' && order.status !== 'Delivered' && !otpActive) {
         const masked = { ...order, deliveryOtp: '******' };
         return NextResponse.json(masked);
       }
-      return NextResponse.json(order);
+
+      if (order.status === 'Out for Delivery' || order.status === 'Delivered' || otpActive) {
+        return NextResponse.json(order);
+      }
+
+      return NextResponse.json({ ...order, deliveryOtp: '******' });
     }
 
     return NextResponse.json({ error: 'Unauthorized role' }, { status: 403 });

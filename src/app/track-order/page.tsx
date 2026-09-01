@@ -26,17 +26,8 @@ function TrackOrderContent() {
   const { showToast } = useToast();
 
   const queryId = searchParams.get('id') || '';
-  const [orderIdInput, setOrderIdInput] = useState(queryId);
-  const [order, setOrder] = useState<Order | undefined>(undefined);
-
-  useEffect(() => {
-    if (queryId) {
-      const found = getOrderById(queryId);
-      setOrder(found);
-    } else {
-      setOrder(undefined);
-    }
-  }, [queryId, getOrderById]);
+  const [orderIdInput, setOrderIdInput] = useState(() => queryId);
+  const order = queryId ? getOrderById(queryId) : undefined;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -43,16 +43,18 @@ export default function ProductListingPage({ categoryKey, title, description }: 
 
   // Sync with search URL parameter changes
   useEffect(() => {
-    const s = searchParams.get('search');
-    if (s !== null) {
-      setSearchVal(s);
-    }
+    const timer = window.setTimeout(() => {
+      const s = searchParams.get('search') || '';
+      setSearchVal((prev) => (prev === s ? prev : s));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [searchParams]);
 
   // Handle Filtering
   useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
+      setLoading(true);
       let result = [...categoryProducts];
 
       // 1. Text Search Filter
@@ -104,8 +106,8 @@ export default function ProductListingPage({ categoryKey, title, description }: 
       setLoading(false);
     }, 350);
 
-    return () => clearTimeout(timer);
-  }, [categoryKey, searchVal, selectedSubCategory, maxPrice, minRating, sortBy, egglessOnly, initialOccasion]);
+    return () => window.clearTimeout(timer);
+  }, [categoryKey, categoryProducts, searchVal, selectedSubCategory, maxPrice, minRating, sortBy, egglessOnly, initialOccasion]);
 
   const hasEgglessOption = categoryKey === 'cakes' || categoryKey === 'bakery';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 interface WellnessContextType {
   isAgeVerified: boolean;
@@ -11,14 +11,13 @@ interface WellnessContextType {
 const WellnessContext = createContext<WellnessContextType | undefined>(undefined);
 
 export const WellnessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isAgeVerified, setIsAgeVerified] = useState<boolean>(false);
-
-  useEffect(() => {
-    const verified = localStorage.getItem('fatafat_wellness_verified');
-    if (verified === 'true') {
-      setIsAgeVerified(true);
+  const [isAgeVerified, setIsAgeVerified] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return false;
     }
-  }, []);
+
+    return localStorage.getItem('fatafat_wellness_verified') === 'true';
+  });
 
   const verifyAge = () => {
     setIsAgeVerified(true);

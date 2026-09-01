@@ -12,7 +12,11 @@ export default function SafeImage({ src, alt, className, fallbackSrc, ...props }
 
   // Reset error state if src changes
   useEffect(() => {
-    setError(false);
+    const timer = window.setTimeout(() => {
+      setError(false);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [src]);
 
   const handleError = () => {
@@ -20,6 +24,18 @@ export default function SafeImage({ src, alt, className, fallbackSrc, ...props }
   };
 
   if (error || !src) {
+    if (fallbackSrc) {
+      return (
+        <img
+          src={fallbackSrc}
+          alt={alt}
+          className={className}
+          loading="lazy"
+          {...props}
+        />
+      );
+    }
+
     return (
       <div 
         className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#FFF0EE] to-[#FDFBF7] text-[#6B1D2F]/50 border border-[#E58B75]/10 font-sans p-4 text-center select-none ${className}`}
@@ -34,6 +50,7 @@ export default function SafeImage({ src, alt, className, fallbackSrc, ...props }
 
   return (
     <img 
+      key={typeof src === 'string' ? src : undefined}
       src={src} 
       alt={alt} 
       className={className} 

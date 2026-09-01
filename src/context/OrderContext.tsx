@@ -34,15 +34,23 @@ export interface Order {
   total: number;
   address: OrderAddress;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Packed' | 'Ready for Delivery' | 'Waiting for Partner' | 'Assigned' | 'Accepted' | 'Picked Up' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+  paymentStatus: 'PENDING' | 'PAYMENT_VERIFICATION_PENDING' | 'COMPLETED' | 'FAILED' | 'PAID' | 'PROCESSING' | 'REJECTED';
+  paymentMethod?: 'UPI' | 'Card' | 'NetBanking';
   deliveryOption: 'ASAP' | 'Scheduled';
   deliveryTimeSlot?: string;
+  scheduledDeliveryAt?: string;
   eta: string;
   createdAt: string;
+  statusHistory?: Array<{ newStatus: string; timestamp: string }>;
+  delivery_completed_at?: string;
+  deliveryOtp?: string;
   deliveryLocationId: 'nawabganj-unnao' | 'chandigarh-university-up';
   deliveryLocationName: string;
   assignedPartnerId?: string;
   assignedPartnerName?: string;
   assignedAt?: string;
+  cancellationReason?: string;
+  cancelledAt?: string;
 }
 
 interface OrderContextType {
@@ -52,7 +60,9 @@ interface OrderContextType {
     address: OrderAddress,
     deliveryOption: 'ASAP' | 'Scheduled',
     deliveryTimeSlot: string,
-    pricing: { subtotal: number; deliveryFee: number; discount: number; total: number }
+    pricing: { subtotal: number; deliveryFee: number; discount: number; total: number },
+    paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
+    scheduledDeliveryAt?: string
   ) => Order;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   updateOrderDetails: (orderId: string, updates: Partial<Order>) => void;
@@ -94,10 +104,19 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
-    refreshOrders();
+    const timer = window.setTimeout(() => {
+      void refreshOrders();
+    }, 0);
+
     // Poll for order changes every 5 seconds to ensure real-time updates across screens
-    const interval = setInterval(refreshOrders, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      void refreshOrders();
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, []);
 
   const placeOrder = (
@@ -105,7 +124,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     address: OrderAddress,
     deliveryOption: 'ASAP' | 'Scheduled',
     deliveryTimeSlot: string,
-    pricing: { subtotal: number; deliveryFee: number; discount: number; total: number }
+    pricing: { subtotal: number; deliveryFee: number; discount: number; total: number },
+    paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
+    scheduledDeliveryAt?: string
   ): Order => {
     const randomId = Math.floor(10000 + Math.random() * 90000);
     
@@ -144,13 +165,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       total: pricing.total,
       address,
       status: 'Pending',
+      paymentStatus: 'PENDING',
+      paymentMethod: paymentMethod || 'UPI',
       deliveryOption,
       deliveryTimeSlot: deliveryOption === 'Scheduled' ? deliveryTimeSlot : undefined,
+      scheduledDeliveryAt: scheduledDeliveryAt || undefined,
       eta: '35 mins',
       createdAt: new Date().toISOString(),
       deliveryLocationId: locId,
       deliveryLocationName: locName
-    };
+    }
 
     // Save to local state
     const updated = [newOrder, ...orders];

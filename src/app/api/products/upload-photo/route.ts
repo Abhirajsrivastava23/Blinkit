@@ -3,6 +3,8 @@ import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
 import { Product } from '../../../../data/mockData';
 
+export const dynamic = 'force-dynamic';
+
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB
 
@@ -160,7 +162,14 @@ export async function POST(request: Request) {
     } else {
       products[productIdx].gallery = [imageUrl];
     }
-    await db.writeTable('products', products);
+
+    const writeSucceeded = await db.writeTable('products', products);
+    if (!writeSucceeded) {
+      return NextResponse.json(
+        { error: 'Product photo upload failed because the database update did not succeed.' },
+        { status: 500 }
+      );
+    }
 
     // 6. Insert record in `product_image_history` table
     try {

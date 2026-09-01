@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight } from 'lucide-react';
+import { ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight, X } from 'lucide-react';
 import { useOrders } from '../../../context/OrderContext';
 import { useAuth } from '../../../context/AuthContext';
 
 export default function AccountOrdersPage() {
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { orders, isLoading: isOrdersLoading, statusCode: orderStatusCode } = useOrders();
+  const { orders, isLoading: isOrdersLoading, statusCode: orderStatusCode, refreshOrders } = useOrders();
+  const [cancellationInProgress, setCancellationInProgress] = useState<string | null>(null);
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
 
   // Redirect to login if unauthenticated once auth finishes loading
   useEffect(() => {
@@ -115,6 +117,77 @@ export default function AccountOrdersPage() {
     }
   };
 
+  const getPaymentStatusLabel = (paymentStatus?: string) => {
+    switch (paymentStatus) {
+      case 'PENDING':
+        return 'Payment Required';
+      case 'PAYMENT_VERIFICATION_PENDING':
+        return 'Payment Under Review';
+      case 'PAID':
+      case 'COMPLETED':
+        return 'Payment Successful';
+      case 'REJECTED':
+        return 'Payment Rejected';
+      case 'FAILED':
+        return 'Payment Failed';
+      default:
+        return 'Payment Required';
+    }
+  };
+
+  // Check if order can be cancelled (only Pending and Confirmed statuses)
+  const canCancelOrder = (order: { status: string }): boolean => {
+    const cancellableStatuses = ['Pending', 'Confirmed'];
+    return cancellableStatuses.includes(order.status);
+  };
+
+  // Get delivery promise text
+  const getDeliveryPromise = (order: { deliveryOption: string; scheduledDeliveryAt?: string }): string => {
+    if (order.deliveryOption === 'Scheduled' && order.scheduledDeliveryAt) {
+      const date = new Date(order.scheduledDeliveryAt);
+      return `Scheduled for ${date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    }
+    return 'Within 12 hours';
+  };
+
+  // Handle order cancellation
+  const handleCancelOrder = async (e: React.MouseEvent, orderId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!confirm('Are you sure you want to cancel this order? This action cannot be undone.')) {
+      return;
+    }
+
+    setCancellationInProgress(orderId);
+    setCancellationError(null);
+
+    try {
+      const response = await fetch('/api/orders/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          reason: 'Customer requested cancellation'
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        setCancellationError(errData.error || `Failed to cancel order (HTTP ${response.status})`);
+        setCancellationInProgress(null);
+        return;
+      }
+
+      // Refresh orders list
+      await refreshOrders();
+      setCancellationInProgress(null);
+    } catch (err) {
+      setCancellationError(err instanceof Error ? err.message : 'Failed to cancel order');
+      setCancellationInProgress(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -156,14 +229,22 @@ export default function AccountOrdersPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <>
+          {cancellationError && (
+            <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 text-sm rounded-lg flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Cancellation Failed</p>
+                <p className="mt-1">{cancellationError}</p>
+              </div>
+            </div>
+          )}
+          <div className="space-y-4">
           {orders.map((order) => (
-            <Link
+            <div
               key={order.id}
-              href={`/account/orders/${order.id}`}
-              className="group"
+              className="border border-zinc-200 rounded-xl p-5 md:p-6 bg-white hover:shadow-md transition-all duration-200"
             >
-              <div className="border border-zinc-200 rounded-xl p-5 md:p-6 bg-white hover:border-brand-burgundy/30 hover:shadow-md transition-all duration-200 cursor-pointer">
                 
                 {/* Header: Order ID, Status, Date */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 pb-4 border-b border-zinc-100">
@@ -219,22 +300,47 @@ export default function AccountOrdersPage() {
                   ))}
                 </div>
 
-                {/* Footer: Total & Action */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pt-3 border-t border-zinc-100">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Total Charged</span>
-                    <span className="text-xl font-serif font-bold text-zinc-900">₹{order.total.toLocaleString('en-IN')}</span>
+                {/* Footer: Payment, Delivery & Actions */}
+                <div className="pt-4 space-y-3 border-t border-zinc-100">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="font-medium text-zinc-500 uppercase tracking-wide">Payment</span>
+                      <p className="font-bold text-zinc-900 mt-1">{getPaymentStatusLabel(order.paymentStatus)}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-zinc-500 uppercase tracking-wide">Delivery</span>
+                      <p className="font-bold text-zinc-900 mt-1">{getDeliveryPromise(order)}</p>
+                    </div>
+                    <div className="text-right md:text-left">
+                      <span className="font-medium text-zinc-500 uppercase tracking-wide">Total</span>
+                      <p className="font-bold text-zinc-900 mt-1">₹{order.total.toLocaleString('en-IN')}</p>
+                    </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2 text-brand-burgundy font-medium text-sm group-hover:gap-3 transition-all">
-                    <span>View Details & Track</span>
-                    <Truck className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <Link
+                      href={`/account/orders/${order.id}`}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-burgundy text-white font-medium text-sm rounded-lg hover:bg-brand-burgundy/90 transition-colors"
+                    >
+                      <span>View Details & Track</span>
+                      <Truck className="h-4 w-4" />
+                    </Link>
+                    {canCancelOrder(order) && (
+                      <button
+                        onClick={(e) => handleCancelOrder(e, order.id)}
+                        disabled={cancellationInProgress === order.id}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 font-medium text-sm rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <X className="h-4 w-4" />
+                        <span>{cancellationInProgress === order.id ? 'Cancelling...' : 'Cancel Order'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-            </Link>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

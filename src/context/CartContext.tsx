@@ -34,22 +34,27 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { wellnessPublished } = useAuth();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
+
+    const storedCart = localStorage.getItem('fatafat_cart');
+    if (!storedCart) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(storedCart) as CartItem[];
+    } catch {
+      return [];
+    }
+  });
   const [promoCode, setPromoCode] = useState<string>('');
   const [promoError, setPromoError] = useState<string>('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
 
   const freeDeliveryThreshold = 799;
-
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    const storedCart = localStorage.getItem('fatafat_cart');
-    if (storedCart) {
-      try {
-        setCartItems(JSON.parse(storedCart));
-      } catch (e) {}
-    }
-  }, []);
 
   // Listen for real-time product updates to keep cart item images and prices synchronized
   useEffect(() => {
@@ -86,7 +91,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Save cart to localStorage when it changes
   const saveCart = (items: CartItem[]) => {
     setCartItems(items);
-    localStorage.setItem('fatafat_cart', JSON.stringify(items));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fatafat_cart', JSON.stringify(items));
+    }
   };
 
   const addToCart = (
@@ -106,7 +113,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (stored) {
         try {
           status = JSON.parse(stored).wellnessAccessStatus || 'NOT_REQUESTED';
-        } catch (e) {}
+        } catch {
+          status = 'NOT_REQUESTED';
+        }
       }
       if (status !== 'ACTIVE' && status !== 'APPROVED') {
         alert('Access Denied: You must request and receive approval for Wellness 18+ products.');
@@ -121,7 +130,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         item.selectedType === (options?.type || (product.egglessAvailable ? (product.isEgglessDefault ? 'Eggless' : 'Egg') : ''))
     );
 
-    let updatedCart = [...cartItems];
+    const updatedCart = [...cartItems];
 
     if (existingIndex > -1) {
       updatedCart[existingIndex].quantity += quantity;
@@ -170,20 +179,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Recalculate promo discount if subtotal changes
   useEffect(() => {
-    if (promoCode === 'FATAFAT10') {
-      setDiscountAmount(Math.round(subtotal * 0.1));
-    } else if (promoCode === 'CELEBRATE200') {
-      if (subtotal >= 999) {
-        setDiscountAmount(200);
+    const timer = window.setTimeout(() => {
+      if (promoCode === 'FATAFAT10') {
+        setDiscountAmount(Math.round(subtotal * 0.1));
+      } else if (promoCode === 'CELEBRATE200') {
+        if (subtotal >= 999) {
+          setDiscountAmount(200);
+        } else {
+          setPromoCode('');
+          setDiscountAmount(0);
+          setPromoError('Promo code CELEBRATE200 removed: Subtotal fell below ₹999.');
+        }
       } else {
-        // Remove code if requirement is no longer met
-        setPromoCode('');
         setDiscountAmount(0);
-        setPromoError('Promo code CELEBRATE200 removed: Subtotal fell below ₹999.');
       }
-    } else {
-      setDiscountAmount(0);
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [subtotal, promoCode]);
 
   const applyPromoCode = (code: string): boolean => {

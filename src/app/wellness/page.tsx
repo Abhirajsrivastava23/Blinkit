@@ -88,7 +88,6 @@ export default function WellnessPage() {
   // Load and filter wellness products when entered & approved
   useEffect(() => {
     if (wellnessStatus !== 'ACTIVE') {
-      setLoading(false);
       return;
     }
 
@@ -153,18 +152,18 @@ export default function WellnessPage() {
             setFilteredProducts([]);
             showToast('Security Error: Failed to retrieve catalog. 403 Forbidden.', 'error');
           }
-        } catch (e) {
+        } catch {
           setFilteredProducts([]);
         } finally {
           setLoading(false);
         }
       };
 
-      fetchWellnessData();
+      void fetchWellnessData();
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchVal, selectedBrand, selectedCategory, selectedCondomType, selectedFlavor, priceRange, sortBy, wellnessStatus, user?.email]);
+  }, [searchVal, selectedBrand, selectedCategory, selectedCondomType, selectedFlavor, priceRange, sortBy, wellnessStatus, user?.email, showToast]);
 
   // Handler: Google Login Submission
   const handleGoogleSubmit = async (e: React.FormEvent) => {

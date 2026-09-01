@@ -9,6 +9,7 @@ import inventoryIssuesJson from './db/inventory_issues.json';
 import auditLogsJson from './db/audit_logs.json';
 import ordersJson from './db/orders.json';
 import sessionsJson from './db/sessions.json';
+import partnersJson from './db/partners.json';
 import usersJson from './db/users.json';
 
 
@@ -88,7 +89,7 @@ if (connectionString) {
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
   brands: ['id', 'name', 'slug', 'description', 'status', 'website', 'logo', 'itemCount'],
-  products: ['id', 'name', 'description', 'price', 'originalPrice', 'image', 'category', 'brand', 'rating', 'reviews', 'stock', 'unit', 'isWellness', 'wellnessAgeVerifyRequired', 'tags', 'inStock'],
+  products: ['id', 'name', 'description', 'price', 'originalPrice', 'image', 'gallery', 'category', 'brand', 'rating', 'reviews', 'stock', 'unit', 'isWellness', 'wellnessAgeVerifyRequired', 'tags', 'inStock'],
   users: ['userId', 'googleProviderId', 'name', 'email', 'profileImage', 'createdAt', 'lastLoginAt', 'wellnessAccessStatus', 'wellnessRequestId', 'wellnessApprovedAt', 'wellnessApprovedBy', 'phone', 'dob', 'gender', 'addresses'],
   sessions: ['sessionId', 'userId', 'email', 'role', 'expiresAt'],
   admin: ['email', 'passwordHash', 'name', 'phone', 'role'],
@@ -96,8 +97,9 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   config: ['key', 'data'],
   inventoryIssues: ['id', 'productId', 'productName', 'issue', 'status', 'createdAt'],
   auditLogs: ['id', 'adminUser', 'action', 'dateTime', 'product', 'previousValue', 'newValue'],
-  orders: ['id', 'customerId', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'address', 'status', 'deliveryOption', 'eta', 'createdAt', 'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt', 'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt'],
-  product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive']
+  orders: ['id', 'customerId', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'address', 'status', 'deliveryOption', 'eta', 'createdAt', 'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt', 'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt', 'paymentStatus', 'paymentMethod', 'scheduledDeliveryAt', 'cancellationReason', 'cancelledAt'],
+  product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive'],
+  payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata']
 };
 
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
@@ -120,7 +122,10 @@ async function insertRow(p: Pool, table: string, item: Record<string, unknown>) 
         k === 'statusHistory' || k === 'assignedPartnerId' || 
         k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock' ||
         k === 'storagePath' || k === 'imageUrl' || k === 'uploadedBy' || 
-        k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive') {
+        k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive' ||
+        k === 'orderId' || k === 'amount' || k === 'currency' || k === 'status' || k === 'method' ||
+        k === 'provider' || k === 'transactionReference' || k === 'updatedAt' || k === 'paidAt' ||
+        k === 'failureReason' || k === 'attemptCount' || k === 'lastAttemptAt' || k === 'metadata') {
       return `"${k}"`;
     }
     return k;
@@ -230,13 +235,13 @@ export const db = {
     };
   },
 
-  async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history'): Promise<T[]> {
+  async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions'): Promise<T[]> {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to read table ${key}`);
     }
     
     try {
-      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key;
+      const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
       const res = await pool.query(`SELECT * FROM "${tableName}"`);
       
       return res.rows.map(row => {
@@ -265,12 +270,12 @@ export const db = {
     }
   },
 
-  async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history', data: T[]): Promise<boolean> {
+  async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions', data: T[]): Promise<boolean> {
     if (!pool) {
       throw new Error(`Database connection URL is missing. Failed to write table ${key}`);
     }
     
-    const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key;
+    const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -298,7 +303,10 @@ export const db = {
               k === 'statusHistory' || k === 'assignedPartnerId' || 
               k === 'assignedPartnerName' || k === 'assignedAt' || k === 'inStock' ||
               k === 'storagePath' || k === 'imageUrl' || k === 'uploadedBy' || 
-              k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive') {
+              k === 'uploadedByRole' || k === 'previousImage' || k === 'isActive' ||
+              k === 'orderId' || k === 'amount' || k === 'currency' || k === 'status' || k === 'method' ||
+              k === 'provider' || k === 'transactionReference' || k === 'updatedAt' || k === 'paidAt' ||
+              k === 'failureReason' || k === 'attemptCount' || k === 'lastAttemptAt' || k === 'metadata') {
             return `"${k}"`;
           }
           return k;
@@ -326,6 +334,217 @@ export const db = {
       return false;
     } finally {
       client.release();
+    }
+  },
+
+  /**
+   * Payment Transaction Methods
+   */
+  async getPaymentByOrderId(orderId: string): Promise<Record<string, unknown> | null> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM payment_transactions WHERE "orderId" = $1 LIMIT 1',
+        [orderId]
+      );
+      if (res.rows.length === 0) return null;
+      return res.rows[0];
+    } catch (err) {
+      console.error('Error fetching payment by orderId:', err);
+      throw err;
+    }
+  },
+
+  async getPaymentById(paymentId: string): Promise<Record<string, unknown> | null> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM payment_transactions WHERE id = $1 LIMIT 1',
+        [paymentId]
+      );
+      if (res.rows.length === 0) return null;
+      return res.rows[0];
+    } catch (err) {
+      console.error('Error fetching payment by id:', err);
+      throw err;
+    }
+  },
+
+  async createPayment(payment: Record<string, unknown>): Promise<boolean> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const {
+        id,
+        orderId,
+        customerId,
+        amount,
+        currency,
+        status,
+        method,
+        provider,
+        createdAt,
+        updatedAt,
+        attemptCount,
+      } = payment;
+
+      await pool.query(
+        `INSERT INTO payment_transactions (id, "orderId", "customerId", amount, currency, status, method, provider, "createdAt", "updatedAt", "attemptCount")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          id,
+          orderId,
+          customerId,
+          amount,
+          currency || 'INR',
+          status,
+          method,
+          provider,
+          createdAt,
+          updatedAt,
+          attemptCount || 0,
+        ]
+      );
+      return true;
+    } catch (err) {
+      console.error('Error creating payment:', err);
+      throw err;
+    }
+  },
+
+  async updatePaymentStatus(
+    paymentId: string,
+    status: string,
+    metadata?: Record<string, unknown>
+  ): Promise<boolean> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const updatedAt = new Date().toISOString();
+      const paidAt = status === 'PAID' ? updatedAt : null;
+
+      let query = `UPDATE payment_transactions SET status = $1, "updatedAt" = $2`;
+      const params: unknown[] = [status, updatedAt];
+
+      if (paidAt) {
+        query += `, "paidAt" = $${params.length + 1}`;
+        params.push(paidAt);
+      }
+
+      if (metadata) {
+        query += `, metadata = $${params.length + 1}`;
+        params.push(JSON.stringify(metadata));
+      }
+
+      query += ` WHERE id = $${params.length + 1}`;
+      params.push(paymentId);
+
+      await pool.query(query, params);
+      return true;
+    } catch (err) {
+      console.error('Error updating payment status:', err);
+      throw err;
+    }
+  },
+
+  async updatePaymentWithReference(
+    paymentId: string,
+    transactionReference: string,
+    status: string
+  ): Promise<boolean> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const updatedAt = new Date().toISOString();
+      const paidAt = status === 'PAID' ? updatedAt : null;
+
+      let query = `UPDATE payment_transactions 
+                   SET "transactionReference" = $1, status = $2, "updatedAt" = $3`;
+      const params: unknown[] = [transactionReference, status, updatedAt];
+
+      if (paidAt) {
+        query += `, "paidAt" = $${params.length + 1}`;
+        params.push(paidAt);
+      }
+
+      query += ` WHERE id = $${params.length + 1}`;
+      params.push(paymentId);
+
+      await pool.query(query, params);
+      return true;
+    } catch (err) {
+      console.error('Error updating payment with reference:', err);
+      throw err;
+    }
+  },
+
+  async markPaymentFailed(
+    paymentId: string,
+    failureReason: string
+  ): Promise<boolean> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const updatedAt = new Date().toISOString();
+
+      await pool.query(
+        `UPDATE payment_transactions 
+         SET status = $1, "failureReason" = $2, "updatedAt" = $3
+         WHERE id = $4`,
+        ['FAILED', failureReason, updatedAt, paymentId]
+      );
+      return true;
+    } catch (err) {
+      console.error('Error marking payment as failed:', err);
+      throw err;
+    }
+  },
+
+  async incrementPaymentRetry(paymentId: string): Promise<boolean> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const updatedAt = new Date().toISOString();
+
+      await pool.query(
+        `UPDATE payment_transactions 
+         SET "attemptCount" = "attemptCount" + 1, "lastAttemptAt" = $1, "updatedAt" = $2
+         WHERE id = $3`,
+        [updatedAt, updatedAt, paymentId]
+      );
+      return true;
+    } catch (err) {
+      console.error('Error incrementing payment retry:', err);
+      throw err;
+    }
+  },
+
+  async getPaymentHistory(customerId: string, limit: number = 50): Promise<Record<string, unknown>[]> {
+    if (!pool) {
+      throw new Error('Database connection URL is missing');
+    }
+    try {
+      const res = await pool.query(
+        `SELECT * FROM payment_transactions 
+         WHERE "customerId" = $1 
+         ORDER BY "createdAt" DESC 
+         LIMIT $2`,
+        [customerId, limit]
+      );
+      return res.rows;
+    } catch (err) {
+      console.error('Error fetching payment history:', err);
+      throw err;
     }
   },
 
@@ -432,6 +651,7 @@ export const db = {
           price NUMERIC NOT NULL,
           "originalPrice" NUMERIC,
           image VARCHAR(255),
+          gallery JSONB,
           category VARCHAR(255) NOT NULL,
           brand VARCHAR(255),
           rating NUMERIC DEFAULT 0,
@@ -444,6 +664,7 @@ export const db = {
           "inStock" BOOLEAN DEFAULT TRUE
         );
       `);
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS gallery JSONB');
       await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "inStock" BOOLEAN DEFAULT TRUE');
 
       await client.query(`
@@ -586,7 +807,12 @@ export const db = {
           "statusHistory" JSONB,
           "assignedPartnerId" VARCHAR(255),
           "assignedPartnerName" VARCHAR(255),
-          "assignedAt" VARCHAR(255)
+          "assignedAt" VARCHAR(255),
+          "paymentStatus" VARCHAR(255) DEFAULT 'PENDING',
+          "paymentMethod" VARCHAR(255),
+          "scheduledDeliveryAt" VARCHAR(255),
+          "cancellationReason" TEXT,
+          "cancelledAt" VARCHAR(255)
         );
       `);
 
@@ -624,10 +850,56 @@ export const db = {
         );
       `);
 
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS payment_transactions (
+          id VARCHAR(255) PRIMARY KEY,
+          "orderId" VARCHAR(255) NOT NULL UNIQUE,
+          "customerId" VARCHAR(255) NOT NULL,
+          amount NUMERIC NOT NULL,
+          currency VARCHAR(3) DEFAULT 'INR',
+          status VARCHAR(50) NOT NULL,
+          method VARCHAR(50) NOT NULL,
+          provider VARCHAR(50) NOT NULL,
+          "transactionReference" VARCHAR(255),
+          utr VARCHAR(255),
+          "proofImageUrl" TEXT,
+          "submittedAt" VARCHAR(255),
+          "verifiedAt" VARCHAR(255),
+          "verifiedBy" VARCHAR(255),
+          "rejectedAt" VARCHAR(255),
+          "rejectedBy" VARCHAR(255),
+          "rejectionReason" TEXT,
+          "paymentProofType" VARCHAR(50),
+          "paymentProofSize" INTEGER,
+          "createdAt" VARCHAR(255) NOT NULL,
+          "updatedAt" VARCHAR(255) NOT NULL,
+          "paidAt" VARCHAR(255),
+          "failureReason" TEXT,
+          "attemptCount" INTEGER DEFAULT 0,
+          "lastAttemptAt" VARCHAR(255),
+          metadata JSONB
+        );
+      `);
+
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS utr VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "proofImageUrl" TEXT');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "submittedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "verifiedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "verifiedBy" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "rejectedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "rejectedBy" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "paymentProofType" VARCHAR(50)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "paymentProofSize" INTEGER');
+
       await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
       await client.query('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders("customerId")');
       await client.query('CREATE INDEX IF NOT EXISTS idx_orders_assigned_partner_id ON orders("assignedPartnerId")');
       await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions("userId")');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_customer_id ON payment_transactions("customerId")');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_order_id ON payment_transactions("orderId")');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status)');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_utr ON payment_transactions(utr)');
 
       await client.query('COMMIT');
       
@@ -650,11 +922,12 @@ export const db = {
       await client.query("DELETE FROM partners WHERE id IN ('DP-001', 'DP-002', 'DP-003')");
       await client.query("DELETE FROM sessions WHERE \"userId\" IN ('DP-001', 'DP-002', 'DP-003', 'DP-TEST-99')");
       
-      // Seed Categories, Brands, Products, Users, Sessions, InventoryIssues, AuditLogs
+      // Seed Categories, Brands, Products, Users, Partners, Sessions, InventoryIssues, AuditLogs
       await bulkInsert(client, 'categories', categoriesJson);
       await bulkInsert(client, 'brands', brandsJson);
       await bulkInsert(client, 'products', productsJson);
       await bulkInsert(client, 'users', usersJson);
+      await bulkInsert(client, 'partners', partnersJson);
       await bulkInsert(client, 'inventoryIssues', inventoryIssuesJson);
       await bulkInsert(client, 'auditLogs', auditLogsJson);
       await bulkInsert(client, 'sessions', sessionsJson);

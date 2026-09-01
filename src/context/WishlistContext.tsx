@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 interface WishlistContextType {
   wishlist: string[];
@@ -11,15 +11,22 @@ interface WishlistContextType {
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [wishlist, setWishlist] = useState<string[]>([]);
-
-  // Load wishlist on mount
-  useEffect(() => {
-    const storedWishlist = localStorage.getItem('fatafat_wishlist');
-    if (storedWishlist) {
-      setWishlist(JSON.parse(storedWishlist));
+  const [wishlist, setWishlist] = useState<string[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
     }
-  }, []);
+
+    const storedWishlist = localStorage.getItem('fatafat_wishlist');
+    if (!storedWishlist) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(storedWishlist) as string[];
+    } catch {
+      return [];
+    }
+  });
 
   const toggleWishlist = (productId: string) => {
     let updated: string[];

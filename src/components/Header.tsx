@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search, MapPin, User, Heart, ShoppingBag, Menu, X, ChevronDown, Sparkles, ArrowRight, Compass } from 'lucide-react';
@@ -35,24 +35,45 @@ export default function Header() {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   
   // Location States
-  const [selectedLocation, setSelectedLocation] = useState('Nawabganj, Unnao');
+  const [selectedLocation, setSelectedLocation] = useState<string>(() => {
+    if (typeof window === 'undefined') {
+      return 'Nawabganj, Unnao';
+    }
+    return localStorage.getItem('fatafat_location') || 'Nawabganj, Unnao';
+  });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [locSearchQuery, setLocSearchQuery] = useState('');
   
   // Live Search States
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  const searchResults = useMemo(() => {
+    if (searchQuery.trim() === '') {
+      return [] as Product[];
+    }
+
+    const query = searchQuery.toLowerCase();
+    const baseQuery = query.trim();
+
+    return PRODUCTS.filter((product) => {
+      if (product.category === 'wellness' && !pathname.startsWith('/wellness')) {
+        return false;
+      }
+
+      const matchesText =
+        product.name.toLowerCase().includes(baseQuery) ||
+        product.category.toLowerCase().includes(baseQuery) ||
+        (product.description && product.description.toLowerCase().includes(baseQuery)) ||
+        (product.occasions && product.occasions.some((o) => o.toLowerCase().includes(baseQuery)));
+      
+      return matchesText;
+    }).slice(0, 6);
+  }, [PRODUCTS, pathname, searchQuery]);
+
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const cartSubtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-
-  // Load initial location on mount
-  useEffect(() => {
-    const loc = localStorage.getItem('fatafat_location') || 'Nawabganj, Unnao';
-    setSelectedLocation(loc);
-  }, []);
 
   // Close search suggestions and profile dropdown on click outside
   useEffect(() => {
@@ -67,34 +88,6 @@ export default function Header() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Handle Search Input suggestions
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setSearchResults([]);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const baseQuery = query.trim();
-
-    const filtered = PRODUCTS.filter((product) => {
-      // Don't show wellness products in default header search for compliance unless on wellness pages
-      if (product.category === 'wellness' && !pathname.startsWith('/wellness')) {
-        return false;
-      }
-
-      const matchesText =
-        product.name.toLowerCase().includes(baseQuery) ||
-        product.category.toLowerCase().includes(baseQuery) ||
-        (product.description && product.description.toLowerCase().includes(baseQuery)) ||
-        (product.occasions && product.occasions.some((o) => o.toLowerCase().includes(baseQuery)));
-        
-      return matchesText;
-    });
-
-    setSearchResults(filtered.slice(0, 6)); // Cap suggestions at 6
-  }, [searchQuery, pathname, PRODUCTS]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -617,7 +610,7 @@ export default function Header() {
               <div className="space-y-2 mb-5">
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-450 block">Saved Delivery Addresses</span>
                 <div className="divide-y border rounded-2xl bg-white overflow-hidden text-xs">
-                  {savedAddresses.map((addr: any, idx: number) => (
+                  {savedAddresses.map((addr, idx) => (
                     <button
                       key={idx}
                       onClick={() => selectNewLocation(addr.city)}
