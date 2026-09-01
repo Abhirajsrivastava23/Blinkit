@@ -12,6 +12,7 @@ import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
 import Logo from './Logo';
+import SafeImage from './SafeImage';
 
 const LOCATIONS = [
   'Nawabganj, Unnao',
@@ -236,9 +237,10 @@ export default function Header() {
                             isWellness ? 'hover:bg-wellness-card' : 'hover:bg-zinc-50'
                           }`}
                         >
-                          <img
+                          <SafeImage
                             src={product.image}
                             alt={product.name}
+                            category={product.category}
                             className="h-8 w-8 object-cover rounded-lg border border-zinc-100"
                           />
                           <div className="flex-grow min-w-0">

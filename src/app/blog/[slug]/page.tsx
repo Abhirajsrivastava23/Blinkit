@@ -43,7 +43,7 @@ const BLOG_POSTS = [
     `,
     date: 'August 14, 2026',
     author: 'Chef Marc Andre',
-    image: 'https://images.unsplash.com/photo-1548907040-4d42b52125b0?w=800&auto=format&fit=crop&q=80'
+    image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=800&auto=format&fit=crop&q=80'
   },
   {
     slug: 'baking-perfect-bento',

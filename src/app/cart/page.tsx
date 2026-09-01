@@ -7,6 +7,7 @@ import { ShoppingBag, X, Plus, Minus, Trash2, Tag, ArrowRight, AlertCircle } fro
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import SafeImage from '../../components/SafeImage';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -102,9 +103,10 @@ export default function CartPage() {
                       key={`${item.product.id}-${item.selectedSize || ''}-${item.selectedType || ''}`}
                       className="py-6 first:pt-0 last:pb-0 flex gap-4"
                     >
-                      <img
+                      <SafeImage
                         src={item.product.image}
                         alt={item.product.name}
+                        category={item.product.category}
                         className="h-20 w-20 object-cover rounded-xl border border-zinc-100 shrink-0"
                       />
                       

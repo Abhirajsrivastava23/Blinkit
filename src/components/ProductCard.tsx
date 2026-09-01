@@ -88,6 +88,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         <SafeImage
           src={product.image}
           alt={product.name}
+          category={product.category}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-103"
         />
         

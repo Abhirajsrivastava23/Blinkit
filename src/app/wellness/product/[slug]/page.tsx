@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import ProductCard from '../../../../components/ProductCard';
+import SafeImage from '../../../../components/SafeImage';
 import { useAuth } from '../../../../context/AuthContext';
 import { useCart } from '../../../../context/CartContext';
 import { useWishlist } from '../../../../context/WishlistContext';
@@ -145,20 +146,12 @@ export default function WellnessProductDetailPage() {
             {/* Left: Product Images Gallery */}
             <div className="md:col-span-6 space-y-4">
               <div className="relative aspect-square w-full rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-lg flex items-center justify-center">
-                {imageError ? (
-                  <div className="text-center p-6 space-y-2">
-                    <EyeOff className="h-10 w-10 mx-auto text-zinc-650" />
-                    <p className="text-xs font-bold text-zinc-400">Product Image Unavailable</p>
-                    <p className="text-[9px] text-zinc-650">Logged for admin replacement</p>
-                  </div>
-                ) : (
-                  <img 
-                    src={previewImage} 
-                    alt={product.name} 
-                    onError={() => setImageError(true)}
-                    className="w-full h-full object-cover" 
-                  />
-                )}
+                <SafeImage 
+                  src={previewImage} 
+                  alt={product.name} 
+                  category="wellness"
+                  className="w-full h-full object-cover" 
+                />
                 
                 {/* Floating Discreet tag */}
                 <span className="absolute top-4 left-4 text-[8px] font-extrabold uppercase tracking-widest bg-zinc-900/90 text-wellness-bronze px-2.5 py-1 rounded-full border border-wellness-bronze/20 shadow-md">
@@ -180,7 +173,7 @@ export default function WellnessProductDetailPage() {
                         activeImage === img ? 'border-wellness-bronze bg-wellness-bronze/5' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900'
                       }`}
                     >
-                      <img src={img} alt={`Thumbnail ${idx}`} className="w-full h-full object-cover" />
+                      <SafeImage src={img} alt={`Thumbnail ${idx}`} category="wellness" className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>
@@ -345,7 +338,7 @@ export default function WellnessProductDetailPage() {
                 <div className="flex flex-col sm:flex-row items-center gap-4 text-xs">
                   {/* Current product thumbnail */}
                   <div className="flex items-center gap-2">
-                    <img src={product.image} alt={product.name} className="h-14 w-14 object-cover rounded-xl border border-zinc-850" />
+                    <SafeImage src={product.image} alt={product.name} category="wellness" className="h-14 w-14 object-cover rounded-xl border border-zinc-850" />
                     <div>
                       <p className="font-bold text-white truncate max-w-[150px]">{product.name}</p>
                       <p className="text-wellness-bronze font-extrabold">₹{product.price}</p>
@@ -354,7 +347,7 @@ export default function WellnessProductDetailPage() {
                   <span className="text-zinc-500 font-bold text-sm select-none shrink-0">+</span>
                   {/* Bundle Product thumbnail */}
                   <Link href={`/wellness/product/${bundleProduct.id}`} className="flex items-center gap-2 group text-left">
-                    <img src={bundleProduct.image} alt={bundleProduct.name} className="h-14 w-14 object-cover rounded-xl border border-zinc-850 group-hover:border-wellness-bronze transition-colors" />
+                    <SafeImage src={bundleProduct.image} alt={bundleProduct.name} category="wellness" className="h-14 w-14 object-cover rounded-xl border border-zinc-850 group-hover:border-wellness-bronze transition-colors" />
                     <div>
                       <p className="font-bold text-white group-hover:text-wellness-bronze transition-colors truncate max-w-[150px]">{bundleProduct.name}</p>
                       <p className="text-wellness-bronze font-extrabold">₹{bundleProduct.price}</p>

@@ -114,6 +114,7 @@ export default function QuickViewModal() {
           <SafeImage
             src={product.image}
             alt={product.name}
+            category={product.category}
             className="w-full h-full object-cover"
           />
           {product.discount > 0 && (

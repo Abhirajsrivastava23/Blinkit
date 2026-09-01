@@ -7,6 +7,7 @@ import { Star, Truck, Calendar, Sparkles, Heart, CheckCircle2, ChevronRight, Ale
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import ProductCard from '../../../components/ProductCard';
+import SafeImage from '../../../components/SafeImage';
 import { PRODUCTS as fallbackProducts, MOCK_REVIEWS, Product } from '../../../data/mockData';
 import { useCart } from '../../../context/CartContext';
 import { useWishlist } from '../../../context/WishlistContext';
@@ -17,7 +18,7 @@ const ADDONS = [
   { id: 'addon-candles', name: 'Premium Sparkler Candles', price: 99, image: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=200&auto=format&fit=crop&q=80' },
   { id: 'addon-knife', name: 'Wooden Cake Knife & Server', price: 299, image: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=200&auto=format&fit=crop&q=80' },
   { id: 'addon-bouquet', name: 'Roses Bouquet (10 stems)', price: 499, image: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=200&auto=format&fit=crop&q=80' },
-  { id: 'addon-choco', name: 'Dark Truffles (Box of 9)', price: 499, image: 'https://images.unsplash.com/photo-1548907040-4d42b52125b0?w=200&auto=format&fit=crop&q=80' }
+  { id: 'addon-choco', name: 'Dark Truffles (Box of 9)', price: 499, image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=200&auto=format&fit=crop&q=80' }
 ];
 
 export default function ProductDetailPage() {
@@ -173,9 +174,10 @@ export default function ProductDetailPage() {
               <div className={`relative aspect-square rounded-3xl overflow-hidden border shadow-sm ${
                 isWellness ? 'bg-wellness-dark border-wellness-bronze/10' : 'bg-white border-zinc-100'
               }`}>
-                <img
+                <SafeImage
                   src={product.image}
                   alt={product.name}
+                  category={product.category}
                   className="h-full w-full object-cover"
                 />
                 

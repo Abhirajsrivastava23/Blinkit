@@ -4,55 +4,63 @@
     "name": "Cakes",
     "slug": "cakes",
     "description": "Freshly baked designer cakes",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-2",
     "name": "Bakery",
     "slug": "bakery",
     "description": "Artisanal breads and buns",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-3",
     "name": "Pastries",
     "slug": "pastries",
     "description": "Single-serve sweet pastries",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-4",
     "name": "Flowers",
     "slug": "flowers",
     "description": "Luxury fresh flower bouquets",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-5",
     "name": "Gifts & Hampers",
     "slug": "gifts",
     "description": "Custom styled gift boxes",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-6",
     "name": "Chocolates",
     "slug": "chocolates",
     "description": "Artisanal chocolate truffles",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1511381939415-e44015466834?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-7",
     "name": "Celebrations",
     "slug": "celebrations",
     "description": "Sparklers, banners and kits",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80"
   },
   {
     "id": "cat-8",
     "name": "Wellness (18+)",
     "slug": "wellness",
     "description": "Discreet and lawful adult-wellness items",
-    "status": "Active"
+    "status": "Active",
+    "image": "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop&q=80"
   }
 ]

@@ -8,6 +8,7 @@ import { useCart } from '../../../context/CartContext';
 import { useToast } from '../../../components/Toast';
 import { PRODUCTS as fallbackProducts, Product } from '../../../data/mockData';
 import { useProducts } from '../../../context/ProductContext';
+import SafeImage from '../../../components/SafeImage';
 
 export default function AccountWishlistPage() {
   const { wishlist, toggleWishlist } = useWishlist();
@@ -27,16 +28,16 @@ export default function AccountWishlistPage() {
   };
 
   return (
-    <div className="space-y-6 text-xs">
-      <div>
-        <h3 className="text-lg font-serif font-extrabold text-zinc-800">My Wishlist</h3>
-        <p className="text-xs text-zinc-500">Items you have favorited for future celebrations.</p>
+    <div className="space-y-6">
+      <div className="border-b pb-4">
+        <h3 className="text-lg font-serif font-black text-brand-charcoal">My Saved Favorites</h3>
+        <p className="text-xs text-zinc-500">Items you loved and saved for later checkout.</p>
       </div>
 
       {wishlistItems.length === 0 ? (
-        <div className="text-center py-12 space-y-3">
-          <div className="flex justify-center text-zinc-300">
-            <Heart className="h-12 w-12" />
+        <div className="text-center py-12 border rounded-2xl bg-zinc-50 border-dashed space-y-3">
+          <div className="h-12 w-12 rounded-full bg-zinc-100 flex items-center justify-center mx-auto text-zinc-400">
+            <Heart className="h-6 w-6" />
           </div>
           <h4 className="text-sm font-bold font-serif">Wishlist is empty</h4>
           <p className="text-xs text-zinc-400">Save items by clicking the heart icons on product cards.</p>
@@ -48,9 +49,10 @@ export default function AccountWishlistPage() {
               key={prod.id}
               className="border border-zinc-100 rounded-2xl p-4 flex gap-4 hover:border-brand-burgundy/10 transition-colors"
             >
-              <img
+              <SafeImage
                 src={prod.image}
                 alt={prod.name}
+                category={prod.category}
                 className="h-16 w-16 object-cover rounded-xl shrink-0"
               />
               

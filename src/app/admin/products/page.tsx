@@ -9,6 +9,7 @@ import {
 import { useToast } from '../../../components/Toast';
 import { useProducts } from '../../../context/ProductContext';
 import { Product } from '../../../data/mockData';
+import SafeImage from '../../../components/SafeImage';
 
 export default function AdminProductsPage() {
   const router = useRouter();
@@ -439,7 +440,7 @@ export default function AdminProductsPage() {
                   <tr key={p.id} className="hover:bg-zinc-50/30 transition-colors">
                     <td className="p-3.5">
                       <div className="h-10 w-10 rounded-xl overflow-hidden border bg-zinc-50">
-                        <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+                        <SafeImage src={p.image} alt={p.name} category={p.category} className="h-full w-full object-cover" />
                       </div>
                     </td>
                     <td className="p-3.5">

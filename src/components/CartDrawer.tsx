@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { X, Plus, Minus, Trash2, Tag, ArrowRight, AlertCircle, ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import SafeImage from './SafeImage';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -140,9 +141,10 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       key={`${item.product.id}-${item.selectedSize || ''}-${item.selectedType || ''}`}
                       className="py-4 flex gap-4"
                     >
-                      <img
+                      <SafeImage
                         src={item.product.image}
                         alt={item.product.name}
+                        category={item.product.category}
                         className="h-16 w-16 object-cover rounded-lg shrink-0 border border-zinc-200 border-opacity-10"
                       />
                       

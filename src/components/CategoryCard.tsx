@@ -3,6 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 
+import SafeImage from './SafeImage';
+
 interface CategoryCardProps {
   category: {
     id: string;
@@ -26,9 +28,10 @@ export default function CategoryCard({ category }: CategoryCardProps) {
     >
       {/* Background Image */}
       <div className="absolute inset-0 bg-zinc-950">
-        <img
+        <SafeImage
           src={category.image}
           alt={category.name}
+          category={category.id}
           className="h-full w-full object-cover opacity-60 transition-transform duration-500 group-hover:scale-105"
         />
       </div>

@@ -1,61 +1,59 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ImageOff } from 'lucide-react';
+import { resolveImageUrl, CATEGORY_FALLBACK_IMAGES } from '../utils/imageUtils';
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackSrc?: string;
+  category?: string;
 }
 
-export default function SafeImage({ src, alt, className, fallbackSrc, ...props }: SafeImageProps) {
-  const [error, setError] = useState(false);
+export default function SafeImage({ src, alt, className, fallbackSrc, category, ...props }: SafeImageProps) {
+  const [hasError, setHasError] = useState(false);
+  const [fallbackTried, setFallbackTried] = useState(false);
+
+  const initialResolved = resolveImageUrl(typeof src === 'string' ? src : undefined, category);
+  const effectiveFallback = fallbackSrc || (category ? CATEGORY_FALLBACK_IMAGES[category.toLowerCase()] : undefined) || CATEGORY_FALLBACK_IMAGES['default'];
 
   // Reset error state if src changes
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setError(false);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    setHasError(false);
+    setFallbackTried(false);
   }, [src]);
 
   const handleError = () => {
-    setError(true);
+    if (!fallbackTried && effectiveFallback && src !== effectiveFallback) {
+      setFallbackTried(true);
+    } else {
+      setHasError(true);
+    }
   };
 
-  if (error || !src) {
-    if (fallbackSrc) {
-      return (
-        <img
-          src={fallbackSrc}
-          alt={alt}
-          className={className}
-          loading="lazy"
-          {...props}
-        />
-      );
-    }
+  const currentSrc = fallbackTried ? effectiveFallback : initialResolved;
 
+  if (hasError || !currentSrc) {
     return (
       <div 
-        className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#FFF0EE] to-[#FDFBF7] text-[#6B1D2F]/50 border border-[#E58B75]/10 font-sans p-4 text-center select-none ${className}`}
+        className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#FFF0EE] to-[#FDFBF7] border border-brand-blush font-sans p-4 text-center select-none overflow-hidden relative ${className || ''}`}
       >
-        <ImageOff className="h-5 w-5 mb-1.5 opacity-60 text-[#6B1D2F]" />
-        <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#6B1D2F] line-clamp-2 px-2">
-          {alt || 'FATAFAT Item'}
-        </span>
+        <div className="absolute inset-0 bg-brand-gold/5 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-full bg-brand-burgundy/10 flex items-center justify-center text-brand-burgundy font-serif font-black text-xs">
+            F
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <img 
-      key={typeof src === 'string' ? src : undefined}
-      src={src} 
-      alt={alt} 
+      key={currentSrc}
+      src={currentSrc} 
+      alt={alt || 'FATAFAT Item'} 
       className={className} 
       onError={handleError}
       loading="lazy"
+      referrerPolicy="no-referrer"
       {...props}
     />
   );
