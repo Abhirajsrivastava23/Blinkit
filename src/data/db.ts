@@ -593,7 +593,7 @@ export const db = {
     }
   },
 
-  async getConfig<T = any>(key: string): Promise<T | null> {
+  async getConfig<T = unknown>(key: string): Promise<T | null> {
     if (pool) {
       try {
         const res = await pool.query('SELECT data FROM config WHERE key = $1', [key]);
@@ -608,7 +608,7 @@ export const db = {
     return (inMemoryConfig[key] as T) || null;
   },
 
-  async setConfig<T = any>(key: string, data: T): Promise<boolean> {
+  async setConfig<T = unknown>(key: string, data: T): Promise<boolean> {
     inMemoryConfig[key] = data;
     if (!pool) return true;
     try {
