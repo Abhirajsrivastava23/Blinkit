@@ -76,6 +76,8 @@ export default function DeliveryPartnerLoginPage() {
             <div className="relative">
               <input
                 type="text"
+                name="username"
+                autoComplete="username"
                 placeholder="Enter Rider ID, Email or Phone"
                 value={emailOrId}
                 onChange={(e) => setEmailOrId(e.target.value)}
@@ -90,6 +92,8 @@ export default function DeliveryPartnerLoginPage() {
             <div className="relative">
               <input
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
