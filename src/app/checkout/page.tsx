@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MapPin, Calendar, CreditCard, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
+import { MapPin, Calendar, CreditCard, ShoppingBag, ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { useCart } from '../../context/CartContext';
@@ -259,7 +260,7 @@ export default function CheckoutPage() {
       });
       setPaymentStatus('NOT_STARTED');
       showToast('Pay via the live UPI details below and submit your screenshot for admin verification.', 'success');
-      setCurrentStep(4);
+      setCurrentStep(5);
     } catch (err) {
       setPaymentStatus('FAILED');
       const errorMsg = err instanceof Error ? err.message : 'Payment processing failed. Please try again.';
@@ -286,6 +287,7 @@ export default function CheckoutPage() {
                 <span className={currentStep >= 2 ? 'text-brand-burgundy font-extrabold' : ''}>2. Schedule</span>
                 <span className={currentStep >= 3 ? 'text-brand-burgundy font-extrabold' : ''}>3. Payment</span>
                 <span className={currentStep >= 4 ? 'text-brand-burgundy font-extrabold' : ''}>4. Review</span>
+                <span className={currentStep >= 5 ? 'text-brand-burgundy font-extrabold' : ''}>5. Pay</span>
               </div>
 
               <div className="bg-white border border-zinc-100 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
@@ -590,68 +592,6 @@ export default function CheckoutPage() {
                         </div>
                       </div>
                     </div>
-
-                    {paymentMethod === 'UPI' && (
-                      <div className="rounded-3xl border border-brand-burgundy/20 bg-brand-burgundy/[0.03] p-5 space-y-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-zinc-500">{upiDetails?.merchantName || 'FATAFAT'} UPI ID</p>
-                            <h4 className="mt-2 text-xl font-serif font-black text-zinc-900">{upiDetails?.upiId || 'Loading live UPI ID...'}</h4>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handleCopyUpi}
-                              className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider border border-zinc-200 rounded-lg bg-white text-zinc-700 hover:bg-zinc-50"
-                            >
-                              Copy
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => upiDetails?.uri && (window.location.href = upiDetails.uri)}
-                              className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider border border-brand-burgundy text-brand-burgundy rounded-lg bg-white hover:bg-brand-burgundy/5 disabled:opacity-50"
-                              disabled={!upiDetails?.uri}
-                            >
-                              Pay
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 text-xs text-zinc-700">
-                          <p><strong>1.</strong> Open any UPI app and send the exact amount of ₹{upiDetails?.amount ?? total}.</p>
-                          <p><strong>2.</strong> Use UPI ID: <span className="font-bold text-zinc-900">{upiDetails?.upiId || 'Loading...'}</span>.</p>
-                          <p><strong>3.</strong> Save the payment screenshot and enter the transaction UTR below.</p>
-                          <p className="text-zinc-500">{upiDetails?.note || 'Transfer the exact amount to the UPI ID above. Your order is confirmed only after admin verifies the payment reference and proof.'}</p>
-                        </div>
-
-                        <div className="space-y-3 pt-2">
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">UTR / Transaction Reference</label>
-                          <input
-                            value={utr}
-                            onChange={(e) => setUtr(e.target.value)}
-                            placeholder="Enter UTR from the UPI transfer"
-                            className="w-full border border-zinc-200 rounded-xl p-3 text-xs bg-white"
-                          />
-
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Payment proof screenshot</label>
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-                            className="w-full border border-zinc-200 rounded-xl p-3 text-xs bg-white"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={handleManualUpiSubmit}
-                            disabled={isSubmittingProof || !upiDetails}
-                            className="w-full bg-brand-burgundy text-white font-bold rounded-xl px-4 py-3 text-xs uppercase tracking-wider disabled:opacity-60"
-                          >
-                            {isSubmittingProof ? 'Submitting Proof...' : 'Submit Proof for Verification'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -708,6 +648,148 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
+                {/* STEP 5: UPI PAYMENT & PROOF SUBMISSION */}
+                {currentStep === 5 && upiDetails && (
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-lg font-serif font-extrabold text-zinc-800">Pay & Submit Proof</h2>
+                      <p className="text-xs text-zinc-500">Scan the QR code, make the payment, and submit proof for admin verification.</p>
+                    </div>
+
+                    {/* UPI QR Code Card */}
+                    <div className="rounded-3xl border border-brand-burgundy/20 bg-gradient-to-br from-brand-burgundy/[0.05] to-brand-burgundy/[0.02] p-8 space-y-6">
+                      
+                      {/* QR Code Display */}
+                      <div className="flex flex-col items-center justify-center space-y-4 p-6 bg-white rounded-2xl border border-zinc-100">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Scan to Pay</p>
+                        <div className="border-4 border-white rounded-xl shadow-lg overflow-hidden">
+                          <QRCodeSVG 
+                            value={upiDetails.uri} 
+                            size={256} 
+                            level="H" 
+                            includeMargin={true}
+                          />
+                        </div>
+                        <p className="text-xs text-zinc-600 text-center font-semibold">
+                          Scan with any UPI app to pay ₹{upiDetails.amount}
+                        </p>
+                      </div>
+
+                      {/* UPI ID Display */}
+                      <div className="space-y-3 p-4 bg-white rounded-2xl border border-zinc-100">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">{upiDetails.merchantName} UPI ID</p>
+                            <h4 className="mt-2 text-2xl font-serif font-black text-zinc-900 break-all">{upiDetails.upiId}</h4>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyUpi}
+                            className="flex-shrink-0 px-4 py-3 text-[10px] font-bold uppercase tracking-wider border border-zinc-200 rounded-lg bg-white text-zinc-700 hover:bg-zinc-50 active:bg-zinc-100 transition-colors"
+                          >
+                            Copy ID
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Payment Instructions */}
+                      <div className="space-y-3 p-4 bg-white rounded-2xl border border-zinc-100">
+                        <h4 className="text-sm font-bold text-zinc-800">How to Pay</h4>
+                        <ol className="space-y-2 text-xs text-zinc-700 list-decimal list-inside">
+                          <li>Open your UPI app (Google Pay, Paytm, PhonePe, etc.)</li>
+                          <li>Scan the QR code above OR enter this UPI ID: <span className="font-bold text-zinc-900">{upiDetails.upiId}</span></li>
+                          <li>Confirm the amount: <span className="font-bold text-zinc-900">₹{upiDetails.amount}</span></li>
+                          <li>Complete the payment</li>
+                          <li>Save the payment confirmation screenshot</li>
+                          <li>Enter the UTR below and upload the screenshot</li>
+                        </ol>
+                        <p className="text-[10px] text-zinc-500 pt-2 border-t mt-3">
+                          ℹ️ {upiDetails.note}
+                        </p>
+                      </div>
+
+                      {/* Payment Details Summary */}
+                      <div className="grid grid-cols-2 gap-3 p-4 bg-white rounded-2xl border border-zinc-100">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Order Amount</p>
+                          <p className="mt-1 text-lg font-bold text-brand-burgundy">₹{upiDetails.amount}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Payment Status</p>
+                          <p className="mt-1 text-sm font-bold text-zinc-600">Awaiting Verification</p>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Proof Submission Section */}
+                    <div className="rounded-3xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-6 space-y-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-zinc-800">Submit Payment Proof</h4>
+                        <p className="text-xs text-zinc-500 mt-1">After making the payment, provide the details below for admin verification.</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">UTR / Transaction Reference *</label>
+                          <input
+                            type="text"
+                            value={utr}
+                            onChange={(e) => setUtr(e.target.value)}
+                            placeholder="e.g., 202609011234567890"
+                            className="w-full border border-zinc-200 rounded-xl p-3 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-burgundy/20"
+                          />
+                          <p className="text-[9px] text-zinc-400">You can find this in your UPI app payment confirmation</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">Payment Proof Screenshot *</label>
+                          <div className="border-2 border-dashed border-zinc-300 rounded-xl p-4 bg-white hover:bg-zinc-50 transition-colors cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                setProofFile(file || null);
+                              }}
+                              className="w-full cursor-pointer text-xs"
+                            />
+                            {proofFile && (
+                              <div className="mt-2 flex items-center gap-2 text-xs text-green-600 font-semibold">
+                                <Check className="h-4 w-4" /> {proofFile.name}
+                              </div>
+                            )}
+                            <p className="text-[10px] text-zinc-400 mt-1">PNG, JPEG, or WebP. Max 5MB. Show UTR in screenshot.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleManualUpiSubmit}
+                        disabled={isSubmittingProof || !utr.trim() || !proofFile}
+                        className="w-full bg-brand-burgundy text-white font-bold rounded-xl px-4 py-4 text-xs uppercase tracking-wider hover:bg-brand-burgundy-dark active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-burgundy/10"
+                      >
+                        {isSubmittingProof ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="animate-spin">⌛</span> Submitting Proof...
+                          </span>
+                        ) : (
+                          'Submit Proof for Verification'
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Admin Verification Info */}
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                      <p className="text-xs text-blue-900 leading-relaxed">
+                        <strong>ℹ️ What happens next?</strong> Your payment proof will be reviewed by our admin team within a few hours. You'll receive a notification once your payment is verified and your order is confirmed. Until then, your order status remains "Payment Verification Pending".
+                      </p>
+                    </div>
+
+                  </div>
+                )}
+
                 {/* Footer buttons */}
                 {!showNewAddressForm && (
                   <div className="flex gap-4 pt-6 border-t border-zinc-100 justify-between">
@@ -729,14 +811,14 @@ export default function CheckoutPage() {
                       >
                         Continue <ArrowRight className="h-4 w-4" />
                       </button>
-                    ) : (
+                    ) : currentStep === 4 ? (
                       <button
                         onClick={handlePlaceOrder}
                         className="px-8 py-3.5 bg-brand-burgundy text-white hover:bg-brand-burgundy-dark font-serif font-bold text-xs tracking-wider uppercase rounded-full shadow-lg shadow-brand-burgundy/20"
                       >
                         Place Order (₹{total})
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 )}
 
