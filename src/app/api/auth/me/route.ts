@@ -122,9 +122,9 @@ export async function GET(request: Request) {
         authenticated: true,
         wellnessPublished,
         user: {
-          name: userObj ? userObj.name : (session.email ? session.email.split('@')[0] : 'Valued Client'),
+          name: userObj ? userObj.name : (session.email ? session.email.split('@')[0] : 'Customer'),
           email: session.email,
-          phone: userObj ? (userObj.phone || '9876543210') : '9876543210',
+          phone: userObj ? (userObj.phone || session.userId || '') : (session.userId || ''),
           googleProviderId: userObj ? (userObj.googleProviderId || session.userId) : session.userId,
           profileImage: userObj ? (userObj.profileImage || '') : '',
           dob: userObj ? (userObj.dob || '') : '',

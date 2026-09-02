@@ -99,8 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (meData.user.role === 'customer') {
               // Update client context with active authenticated customer details
               const authedUser: User = {
-                phone: meData.user.phone || '9876543210',
-                name: meData.user.name || 'Valued Client',
+                phone: meData.user.phone || '',
+                name: meData.user.name || (meData.user.email ? meData.user.email.split('@')[0] : 'Customer'),
                 email: meData.user.email,
                 googleProviderId: meData.user.googleProviderId || meData.user.phone,
                 role: meData.user.role,
@@ -168,67 +168,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Failed to initialize session from server:', err);
       }
 
-      // Guest fallback if no active authenticated server session exists
-      if (typeof window !== 'undefined') {
-        const path = window.location.pathname;
-        if (path.startsWith('/admin') || path.startsWith('/delivery-partner')) {
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const storedUser = localStorage.getItem('fatafat_user');
-      let activeClientUser: User;
-
-      if (storedUser) {
-        activeClientUser = JSON.parse(storedUser);
-        if (activeClientUser.email && activeClientUser.email !== 'guest@fatafat.com') {
-          activeClientUser = { 
-            phone: '9876543210', 
-            name: 'Premium Guest', 
-            email: 'guest@fatafat.com',
-            wellnessAccessStatus: 'NOT_REQUESTED'
-          };
-          localStorage.setItem('fatafat_user', JSON.stringify(activeClientUser));
-        }
-        setUser(activeClientUser);
-      } else {
-        activeClientUser = { 
-          phone: '9876543210', 
-          name: 'Premium Guest', 
-          email: 'guest@fatafat.com',
-          wellnessAccessStatus: 'NOT_REQUESTED'
-        };
-        setUser(activeClientUser);
-        localStorage.setItem('fatafat_user', JSON.stringify(activeClientUser));
-      }
-
-      // Synchronise guest session to server cookie
-      try {
-        await fetch('/api/auth/customer-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: activeClientUser.email,
-            phone: activeClientUser.phone,
-            name: activeClientUser.name
-          })
-        });
-      } catch (e) {
-        console.error('Failed to sync guest session to server:', e);
-      }
-
+      // If unauthenticated on server, clear local user state cleanly (No fake guest auto-session)
+      setUser(null);
+      localStorage.removeItem('fatafat_user');
       setIsLoading(false);
     };
 
     initAuth();
   }, []);
 
-  const loginWithPhone = async (phone: string) => {
+  const loginWithPhone = async (phone: string, customerName?: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const defaultName = customerName || (cleanPhone ? `Customer ${cleanPhone.slice(-4)}` : 'Customer');
+    const email = `customer.${cleanPhone.slice(-6)}@fatafat.com`;
+
     const newUser: User = { 
-      phone, 
-      name: 'Valued Client', 
-      email: `client.${phone.slice(-4)}@fatafat.com`,
+      phone: cleanPhone, 
+      name: defaultName, 
+      email,
+      role: 'customer',
       wellnessAccessStatus: 'NOT_REQUESTED'
     };
 
@@ -310,18 +268,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.error('Failed to logout server session:', e);
     }
-    const guestUser: User = { 
-      phone: '9876543210', 
-      name: 'Premium Guest', 
-      email: 'guest@fatafat.com',
-      wellnessAccessStatus: 'NOT_REQUESTED'
-    };
-    setUser(guestUser);
-    localStorage.setItem('fatafat_user', JSON.stringify(guestUser));
+    setUser(null);
+    localStorage.removeItem('fatafat_user');
   };
 
   const updateProfile = async (details: Partial<User>): Promise<boolean> => {
-    if (!user || user.email === 'guest@fatafat.com') return false;
+    if (!user) return false;
     try {
       const res = await fetch('/api/profile', {
         method: 'POST',
@@ -362,7 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSavedAddresses(updated);
     localStorage.setItem('fatafat_addresses', JSON.stringify(updated));
 
-    if (user && user.email !== 'guest@fatafat.com') {
+    if (user) {
       try {
         await fetch('/api/profile', {
           method: 'POST',
@@ -380,7 +332,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSavedAddresses(updated);
     localStorage.setItem('fatafat_addresses', updated.length > 0 ? JSON.stringify(updated) : '[]');
 
-    if (user && user.email !== 'guest@fatafat.com') {
+    if (user) {
       try {
         await fetch('/api/profile', {
           method: 'POST',
@@ -396,7 +348,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user,
-      isLoggedIn: !!user && user.email !== 'guest@fatafat.com',
+      isLoggedIn: Boolean(user && user.role === 'customer'),
       isLoading,
       loginWithPhone,
       loginWithGoogle,

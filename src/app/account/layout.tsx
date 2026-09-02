@@ -61,8 +61,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
                     <div className="h-16 w-16 bg-brand-burgundy text-white flex items-center justify-center rounded-full font-serif font-black text-2xl shadow-md mb-3 ring-4 ring-white">
                       {user.name ? user.name[0].toUpperCase() : 'U'}
                     </div>
-                    <h2 className="text-base font-serif font-bold text-zinc-900 text-center truncate max-w-xs">{user.name || 'Valued Customer'}</h2>
-                    <p className="text-xs text-zinc-500 mt-1 text-center truncate max-w-xs">{user.email || 'client@fatafat.com'}</p>
+                    <h2 className="text-base font-serif font-bold text-zinc-900 text-center truncate max-w-xs">{user.name || (user.email ? user.email.split('@')[0] : 'Customer')}</h2>
+                    <p className="text-xs text-zinc-500 mt-1 text-center truncate max-w-xs">{user.email || ''}</p>
                     <div className="mt-3 px-3 py-1 bg-brand-burgundy/10 border border-brand-burgundy/20 rounded-full">
                       <span className="text-[10px] font-semibold text-brand-burgundy uppercase tracking-wide">FATAFAT Member</span>
                     </div>

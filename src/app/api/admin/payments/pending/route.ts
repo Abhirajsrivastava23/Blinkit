@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         id: paymentTx.id || `pay-${order.id}`,
         orderId: order.id,
         customerId: order.customerId,
-        customerName: orderAddr.name || user?.name || 'Valued Customer',
+        customerName: orderAddr.name || user?.name || (order.customerEmail ? order.customerEmail.split('@')[0] : 'Customer'),
         customerEmail: order.customerEmail || user?.email || '',
         customerPhone: orderAddr.mobile || orderAddr.phone || user?.phone || '',
         amount: Number(order.total || paymentTx.amount || 0),

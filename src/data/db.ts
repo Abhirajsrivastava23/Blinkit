@@ -857,7 +857,7 @@ export const db = {
         params.push(JSON.stringify(metadata));
       }
 
-      query += ` WHERE id = $${params.length + 1}`;
+      query += ` WHERE LOWER(id) = LOWER($${params.length + 1}) OR LOWER("orderId") = LOWER($${params.length + 1})`;
       params.push(paymentId);
 
       await pool.query(query, params);
