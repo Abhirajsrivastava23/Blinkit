@@ -26,31 +26,72 @@ export async function GET(request: Request) {
       userMap.set(String(user.userId || user.email).toLowerCase(), user);
     }
 
-    const rows = paymentList.map((payment: any) => {
+    const rowsMap = new Map<string, any>();
+
+    for (const payment of paymentList) {
       const order = orders.find((o: any) => String(o.id).toLowerCase() === String(payment.orderId).toLowerCase());
       const user = userMap.get(String(payment.customerId).toLowerCase()) || null;
+      const orderAddr = order?.address && typeof order.address === 'object' ? order.address : {};
 
-      return {
+      const row = {
         id: payment.id,
         orderId: payment.orderId,
         customerId: payment.customerId,
-        customerName: user?.name || (order?.address && typeof order.address === 'object' ? (order.address as any).name : 'Customer'),
-        customerEmail: user?.email || (order?.customerEmail) || payment.customerId,
-        customerPhone: user?.phone || (order?.address && typeof order.address === 'object' ? (order.address as any).mobile : ''),
+        customerName: user?.name || orderAddr.name || 'Customer',
+        customerEmail: user?.email || order?.customerEmail || payment.customerId,
+        customerPhone: user?.phone || orderAddr.mobile || orderAddr.phone || '',
         amount: Number(payment.amount || order?.total || 0),
-        status: payment.status,
-        utr: payment.utr,
-        proofImageUrl: payment.proofImageUrl,
-        submittedAt: payment.submittedAt || payment.createdAt,
-        verifiedAt: payment.verifiedAt,
+        status: payment.status || order?.paymentStatus || 'PENDING',
+        utr: payment.utr || order?.utr || '',
+        proofImageUrl: payment.proofImageUrl || order?.proofImageUrl || '',
+        submittedAt: payment.submittedAt || order?.paymentSubmittedAt || payment.createdAt,
+        verifiedAt: payment.verifiedAt || order?.paymentVerifiedAt,
         verifiedBy: payment.verifiedBy,
-        rejectedAt: payment.rejectedAt,
+        rejectedAt: payment.rejectedAt || order?.paymentRejectedAt,
         rejectedBy: payment.rejectedBy,
-        rejectionReason: payment.rejectionReason,
+        rejectionReason: payment.rejectionReason || order?.rejectionReason,
         orderStatus: order?.status || 'Pending',
         orderAmount: order?.total || payment.amount,
-        updatedAt: payment.updatedAt,
+        updatedAt: payment.updatedAt || order?.updatedAt,
       };
+      rowsMap.set(String(payment.orderId).toLowerCase(), row);
+    }
+
+    // Merge any orders with pending payment proof that may not have a payment_transactions row yet
+    for (const order of orders) {
+      const orderKey = String(order.id).toLowerCase();
+      const isPendingProof = order.paymentStatus === 'PAYMENT_VERIFICATION_PENDING' || (order.utr && order.paymentStatus !== 'PAID');
+      if (isPendingProof && !rowsMap.has(orderKey)) {
+        const user = userMap.get(String(order.customerId || '').toLowerCase()) || null;
+        const orderAddr = order.address && typeof order.address === 'object' ? order.address : {};
+        rowsMap.set(orderKey, {
+          id: `pay-${order.id}`,
+          orderId: order.id,
+          customerId: order.customerId,
+          customerName: user?.name || orderAddr.name || 'Customer',
+          customerEmail: user?.email || order.customerEmail || '',
+          customerPhone: user?.phone || orderAddr.mobile || orderAddr.phone || '',
+          amount: Number(order.total || 0),
+          status: 'PAYMENT_VERIFICATION_PENDING',
+          utr: order.utr || '',
+          proofImageUrl: order.proofImageUrl || '',
+          submittedAt: order.paymentSubmittedAt || order.createdAt,
+          verifiedAt: order.paymentVerifiedAt,
+          verifiedBy: undefined,
+          rejectedAt: order.paymentRejectedAt,
+          rejectedBy: undefined,
+          rejectionReason: order.rejectionReason,
+          orderStatus: order.status || 'Pending',
+          orderAmount: order.total,
+          updatedAt: order.updatedAt,
+        });
+      }
+    }
+
+    const rows = Array.from(rowsMap.values()).sort((a: any, b: any) => {
+      const timeA = new Date(a.submittedAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.submittedAt || b.updatedAt || 0).getTime();
+      return timeB - timeA;
     });
 
     if (session.role === 'customer') {

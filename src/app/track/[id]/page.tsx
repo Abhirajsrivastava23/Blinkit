@@ -27,35 +27,61 @@ export default function OrderTrackingPage() {
   const [order, setOrder] = useState<Order | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const reqSeqRef = React.useRef(0);
+  const latestHandledSeqRef = React.useRef(0);
+  const isFetchingRef = React.useRef(false);
+
+  const isMonotonicallySafe = (current: Order | undefined, incoming: Order): boolean => {
+    if (!current) return true;
+    const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
+    const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
+
+    if (currentPaid && !incomingPaid) return false;
+    return true;
+  };
 
   const fetchOrder = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    const thisSeq = ++reqSeqRef.current;
     try {
-      const res = await fetch(`/api/orders/${orderId}`);
+      const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        setOrder(data);
-        setError(null);
+        if (thisSeq >= latestHandledSeqRef.current) {
+          latestHandledSeqRef.current = thisSeq;
+          setOrder((prev) => {
+            if (!isMonotonicallySafe(prev, data)) {
+              return prev;
+            }
+            return data;
+          });
+          setError(null);
+        }
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Failed to load order tracking details.');
+        if (!order) {
+          setError(data.error || 'Failed to load order tracking details.');
+        }
       }
     } catch (err) {
       console.error(err);
-      setError('Connection to server failed.');
+      if (!order) {
+        setError('Connection to server failed.');
+      }
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchOrder();
-    }, 0);
+    void fetchOrder();
     const interval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       void fetchOrder();
-    }, 3000);
+    }, 2000);
     return () => {
-      window.clearTimeout(timer);
       window.clearInterval(interval);
     };
   }, [orderId]);

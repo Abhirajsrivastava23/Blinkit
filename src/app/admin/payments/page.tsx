@@ -73,8 +73,14 @@ export default function AdminPaymentsPage() {
   // Action in-flight states
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
+  const isFetchingRef = useRef(false);
+  const seqRef = useRef(0);
+  const latestHandledSeqRef = useRef(0);
 
   const fetchPayments = useCallback(async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    const thisSeq = ++seqRef.current;
     try {
       if (!silent) setIsRefreshing(true);
       const res = await fetch('/api/payments', { cache: 'no-store' });
@@ -88,24 +94,26 @@ export default function AdminPaymentsPage() {
       }
 
       const data = await res.json();
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && thisSeq >= latestHandledSeqRef.current) {
+        latestHandledSeqRef.current = thisSeq;
         setRows(data);
       }
     } catch (err) {
       console.error('Error fetching payments in admin:', err);
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
       setIsRefreshing(false);
     }
   }, [router]);
 
-  // Initial fetch and auto-polling every 1.5 seconds when active/visible
+  // Initial fetch and fast auto-polling every 1.0s when active/visible
   useEffect(() => {
     void fetchPayments(false);
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void fetchPayments(true);
-    }, 1500);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [fetchPayments]);

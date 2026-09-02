@@ -27,6 +27,19 @@ export default function AccountOrderDetailPage() {
   const [cancellationInProgress, setCancellationInProgress] = useState(false);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
 
+  const reqSeqRef = React.useRef(0);
+  const latestHandledSeqRef = React.useRef(0);
+  const isFetchingRef = React.useRef(false);
+
+  const isMonotonicallySafe = (current: Order | undefined, incoming: Order): boolean => {
+    if (!current) return true;
+    const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
+    const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
+
+    if (currentPaid && !incomingPaid) return false;
+    return true;
+  };
+
   useEffect(() => {
     const found = getOrderById(orderId);
     if (found) {
@@ -35,19 +48,35 @@ export default function AccountOrderDetailPage() {
     }
 
     const fetchDetail = () => {
-      fetch(`/api/orders/${orderId}`)
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      const thisSeq = ++reqSeqRef.current;
+
+      fetch(`/api/orders/${orderId}`, { cache: 'no-store' })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (data && !data.error) {
-            setOrder(data);
+          if (data && !data.error && thisSeq >= latestHandledSeqRef.current) {
+            latestHandledSeqRef.current = thisSeq;
+            setOrder((prev) => {
+              if (!isMonotonicallySafe(prev, data)) {
+                return prev;
+              }
+              return data;
+            });
           }
         })
         .catch((err) => console.error(err))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          isFetchingRef.current = false;
+          setLoading(false);
+        });
     };
 
     fetchDetail();
-    const interval = setInterval(fetchDetail, 3500);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchDetail();
+    }, 2000);
     return () => clearInterval(interval);
   }, [orderId, getOrderById]);
 

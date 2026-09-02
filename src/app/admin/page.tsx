@@ -33,18 +33,27 @@ export default function AdminDashboardPage() {
   const [previewProofModal, setPreviewProofModal] = useState<any | null>(null);
   const [rejectModalTarget, setRejectModalTarget] = useState<any | null>(null);
   const [dashboardRejectReason, setDashboardRejectReason] = useState('');
+  const isFetchingPendingRef = React.useRef(false);
+  const pendingSeqRef = React.useRef(0);
+  const latestPendingSeqRef = React.useRef(0);
 
   const fetchPendingPayments = React.useCallback(async () => {
+    if (isFetchingPendingRef.current) return;
+    isFetchingPendingRef.current = true;
+    const thisSeq = ++pendingSeqRef.current;
     try {
       const res = await fetch('/api/admin/payments/pending', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && Array.isArray(data.pendingPayments)) {
+        if (data.success && Array.isArray(data.pendingPayments) && thisSeq >= latestPendingSeqRef.current) {
+          latestPendingSeqRef.current = thisSeq;
           setPendingPayments(data.pendingPayments);
         }
       }
     } catch (e) {
       console.warn('Dashboard pending payments fetch warning:', e);
+    } finally {
+      isFetchingPendingRef.current = false;
     }
   }, []);
 
@@ -53,7 +62,7 @@ export default function AdminDashboardPage() {
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void fetchPendingPayments();
-    }, 2000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [fetchPendingPayments]);
 

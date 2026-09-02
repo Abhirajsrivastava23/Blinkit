@@ -62,6 +62,8 @@ export default function OrderPaymentPage() {
 
   const activeOrderRef = useRef<Order | null>(contextOrder || null);
   const isFetchingRef = useRef(false);
+  const reqSeqRef = useRef(0);
+  const latestHandledSeqRef = useRef(0);
 
   // Dynamic UPI QR details from backend
   const [qrDetails, setQrDetails] = useState<QrResponse | null>(null);
@@ -73,20 +75,61 @@ export default function OrderPaymentPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSubmittingProof, setIsSubmittingProof] = useState(false);
 
+  // Monotonic state-safety: prevent out-of-order stale poll responses from reverting approved states
+  const isMonotonicallySafe = useCallback((current: Order | null, incoming: Order): boolean => {
+    if (!current) return true;
+
+    const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
+    const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
+
+    // Rule 1: Once confirmed/paid, NEVER revert to pending or under review
+    if (currentPaid && !incomingPaid) {
+      return false;
+    }
+
+    // Rule 2: If current has verified timestamp and incoming is older, reject
+    if (current.paymentVerifiedAt && incoming.paymentVerifiedAt) {
+      if (new Date(incoming.paymentVerifiedAt).getTime() < new Date(current.paymentVerifiedAt).getTime()) {
+        return false;
+      }
+    }
+
+    // Rule 3: If current state has newer updatedAt timestamp, reject older payment status
+    if (current.updatedAt && incoming.updatedAt) {
+      if (new Date(incoming.updatedAt).getTime() < new Date(current.updatedAt).getTime()) {
+        if (current.paymentStatus !== incoming.paymentStatus && incoming.paymentStatus === 'PAYMENT_VERIFICATION_PENDING') {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }, []);
+
   // Fetch order details from API with cache: 'no-store'
   const fetchOrderDetails = useCallback(async (silent = false) => {
     if (!orderId || isFetchingRef.current) return;
     isFetchingRef.current = true;
+    const thisSeq = ++reqSeqRef.current;
     try {
       if (!silent && !activeOrderRef.current) setLoading(true);
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
       const data = await res.json().catch(() => null);
 
       if (res.ok && data && !data.error && data.id) {
-        setFetchedOrder(data);
-        activeOrderRef.current = data;
-        setFetchError(null);
-        setIsConfirmedNotFound(false);
+        if (thisSeq >= latestHandledSeqRef.current) {
+          latestHandledSeqRef.current = thisSeq;
+          setFetchedOrder((prev) => {
+            const current = prev || activeOrderRef.current;
+            if (!isMonotonicallySafe(current, data)) {
+              return prev;
+            }
+            activeOrderRef.current = data;
+            return data;
+          });
+          setFetchError(null);
+          setIsConfirmedNotFound(false);
+        }
       } else if (res.status === 404) {
         // Only set confirmed not-found if there is genuinely no existing order loaded
         if (!activeOrderRef.current) {
@@ -104,15 +147,15 @@ export default function OrderPaymentPage() {
       isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, isMonotonicallySafe]);
 
-  // Initial load + steady live polling every 2.0s for instant admin-approve sync (no storm)
+  // Initial load + fast live polling every 1.2s for instant admin-approve sync (with strict sequence/monotonic guard)
   useEffect(() => {
     void fetchOrderDetails(false);
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       void fetchOrderDetails(true);
-    }, 2000);
+    }, 1200);
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
