@@ -55,14 +55,20 @@ const rawConnectionString = (
   ''
 ).trim();
 
-// Clean connection string to prevent pg parser from overriding custom SSL options
-const connectionString = rawConnectionString
-  ? rawConnectionString
-      .replace(/[?&]sslmode=[^&]+/gi, '')
-      .replace(/[?&]ssl=[^&]+/gi, '')
-      .replace(/\?&/, '?')
-      .replace(/\?$/, '')
-  : '';
+// Clean connection string using URL parser to preserve query params while removing sslmode
+function getSanitizedConnectionString(raw: string): string {
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    url.searchParams.delete('sslmode');
+    url.searchParams.delete('ssl');
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
+const connectionString = getSanitizedConnectionString(rawConnectionString);
 
 let pool: Pool | null = null;
 let dbInitError = '';
