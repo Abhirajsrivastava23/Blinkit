@@ -70,14 +70,48 @@ export async function GET(request: Request) {
     }
 
     if (session.role === 'customer') {
-      // Filter orders owned by this customer and mask deliveryOtp if not Out for Delivery or Delivered
+      const sId = String(session.userId || '').toLowerCase().trim();
+      const sEmail = String(session.email || '').toLowerCase().trim();
+      const sPhoneDigits = sId.replace(/\D/g, '');
+
+      // Lookup user's profile phone if available
+      let profilePhone = '';
+      try {
+        const users = await db.readTable<any>('users') || [];
+        const userObj = users.find((u: any) => 
+          (u.userId && String(u.userId).toLowerCase() === sId) ||
+          (u.email && String(u.email).toLowerCase() === sEmail)
+        );
+        if (userObj?.phone) {
+          profilePhone = String(userObj.phone).replace(/\D/g, '');
+        }
+      } catch {}
+
+      // Filter orders owned by this customer with full cross-identifier matching (email, userId, mobile)
       const filtered = enrichedList.filter((o: any) => {
-        const cId = o.customerId ? String(o.customerId).toLowerCase() : '';
-        const cEmail = o.customerEmail ? String(o.customerEmail).toLowerCase() : '';
-        const sId = session.userId ? String(session.userId).toLowerCase() : '';
-        const sEmail = session.email ? String(session.email).toLowerCase() : '';
-        return (cId === sId || cId === sEmail || cEmail === sEmail || cEmail === sId);
+        const cId = String(o.customerId || '').toLowerCase().trim();
+        const cEmail = String(o.customerEmail || '').toLowerCase().trim();
+        const orderAddr = (o.address && typeof o.address === 'object') ? o.address : {};
+        const addrMobile = String(orderAddr.mobile || orderAddr.phone || '').replace(/\D/g, '');
+        const cPhoneDigits = cId.replace(/\D/g, '');
+
+        const isDirectMatch = (
+          (cId && cId === sId) ||
+          (cEmail && sEmail && cEmail === sEmail) ||
+          (cId && sEmail && cId === sEmail) ||
+          (cEmail && sId && cEmail === sId)
+        );
+
+        const isPhoneMatch = (
+          (addrMobile && sPhoneDigits && (addrMobile === sPhoneDigits || sPhoneDigits.includes(addrMobile) || addrMobile.includes(sPhoneDigits))) ||
+          (addrMobile && profilePhone && (addrMobile === profilePhone || profilePhone.includes(addrMobile) || addrMobile.includes(profilePhone))) ||
+          (cPhoneDigits && profilePhone && (cPhoneDigits === profilePhone || profilePhone.includes(cPhoneDigits) || cPhoneDigits.includes(profilePhone))) ||
+          (cPhoneDigits && sPhoneDigits && (cPhoneDigits === sPhoneDigits || sPhoneDigits.includes(cPhoneDigits) || cPhoneDigits.includes(sPhoneDigits)))
+        );
+
+        return Boolean(isDirectMatch || isPhoneMatch);
       });
+
       const sanitized = filtered.map((o: any) => {
         const otpActive = o.deliveryOtp && o.otpExpiresAt && new Date(o.otpExpiresAt) > new Date();
         if (o.status !== 'Out for Delivery' && o.status !== 'Delivered' && !otpActive) {

@@ -121,8 +121,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const prevMap = new Map<string, Order>();
             for (const o of prev) prevMap.set(String(o.id).toLowerCase(), o);
 
+            const serverIds = new Set<string>();
             // Merge server data with monotonic payment safety
             const updated = data.map((serverOrder: Order) => {
+              serverIds.add(String(serverOrder.id).toLowerCase());
               const existing = prevMap.get(String(serverOrder.id).toLowerCase());
               if (!existing) return serverOrder;
 
@@ -134,6 +136,20 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               }
               return serverOrder;
             });
+
+            // Preserve freshly created local orders placed in last 5 minutes
+            for (const prevOrder of prev) {
+              const key = String(prevOrder.id).toLowerCase();
+              if (!serverIds.has(key)) {
+                const ageMs = Date.now() - new Date(prevOrder.createdAt || 0).getTime();
+                if (ageMs < 5 * 60 * 1000) {
+                  updated.push(prevOrder);
+                }
+              }
+            }
+
+            // Sort newest first
+            updated.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
             if (typeof window !== 'undefined') {
               localStorage.setItem('fatafat_orders', JSON.stringify(updated));
