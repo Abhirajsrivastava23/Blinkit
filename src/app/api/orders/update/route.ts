@@ -12,33 +12,33 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { id, updates } = body;
     
-    if (!id || !updates) {
+    if (!id || !updates || typeof updates !== 'object') {
       return NextResponse.json({ error: 'Order id and updates are required' }, { status: 400 });
     }
 
-    const orders = await db.readTable<any>('orders') || [];
-    const idx = orders.findIndex((o: any) => o.id === id);
+    const cleanId = String(id).trim();
+    const targetOrder = await db.getOrderById(cleanId);
     
-    if (idx === -1) {
+    if (!targetOrder) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    const targetOrder = orders[idx];
+    const updatesToPersist: Record<string, unknown> = { ...updates };
 
     // Transition verification constraints (applies to both Partner and Admin status changes)
     if (updates.status && updates.status !== targetOrder.status) {
-      const currentStatus = targetOrder.status;
-      const targetStatus = updates.status;
+      const currentStatus = String(targetOrder.status);
+      const targetStatus = String(updates.status);
 
       const validTransitions: Record<string, string[]> = {
         'Pending': ['Confirmed', 'Cancelled'],
         'Confirmed': ['Preparing', 'Cancelled'],
         'Preparing': ['Packed', 'Cancelled'],
-        'Packed': ['Ready for Delivery', 'Cancelled'],
-        'Ready for Delivery': ['Waiting for Partner', 'Cancelled'],
+        'Packed': ['Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Cancelled'],
+        'Ready for Delivery': ['Waiting for Partner', 'Assigned', 'Cancelled'],
         'Waiting for Partner': ['Assigned', 'Cancelled'],
-        'Assigned': ['Accepted', 'Cancelled'],
-        'Accepted': ['Picked Up', 'Cancelled'],
+        'Assigned': ['Accepted', 'Waiting for Partner', 'Cancelled'],
+        'Accepted': ['Picked Up', 'Waiting for Partner', 'Cancelled'],
         'Picked Up': ['Out for Delivery', 'Cancelled'],
         'Out for Delivery': ['Delivered', 'Cancelled']
       };
@@ -56,7 +56,11 @@ export async function POST(request: Request) {
     // Enforce role checks and status progression security
     if (session.role === 'delivery_partner') {
       // 1. Is it assigned to this partner?
-      if (targetOrder.assignedPartnerId !== session.userId) {
+      const assignedId = String(targetOrder.assignedPartnerId || '').toLowerCase();
+      const sId = String(session.userId || '').toLowerCase();
+      const sEmail = String(session.email || '').toLowerCase();
+
+      if (!assignedId || (assignedId !== sId && assignedId !== sEmail)) {
         return NextResponse.json({ error: 'Forbidden: You cannot modify orders assigned to other partners.' }, { status: 403 });
       }
 
@@ -76,14 +80,15 @@ export async function POST(request: Request) {
 
       // 4. Pickup verification validations
       if (updates.status === 'Picked Up') {
-        const validPickupStatuses = ['Accepted', 'Pending', 'Confirmed', 'Preparing', 'Packed'];
-        if (!validPickupStatuses.includes(targetOrder.status)) {
+        const validPickupStatuses = ['Accepted', 'Assigned', 'Pending', 'Confirmed', 'Preparing', 'Packed', 'Ready for Delivery', 'Waiting for Partner'];
+        if (!validPickupStatuses.includes(String(targetOrder.status))) {
           return NextResponse.json({ error: 'Order status has changed. Refresh and try again.' }, { status: 400 });
         }
 
-        const requiredItemIds = targetOrder.items.map((item: any) => item.productId);
+        const itemsList = Array.isArray(targetOrder.items) ? targetOrder.items : [];
+        const requiredItemIds = itemsList.map((item: any) => item.productId);
         const verifiedItemIds = updates.verifiedItemIds || [];
-        const allItemsVerified = requiredItemIds.every((id: string) => verifiedItemIds.includes(id));
+        const allItemsVerified = requiredItemIds.every((prodId: string) => verifiedItemIds.includes(prodId));
         if (!allItemsVerified) {
           return NextResponse.json({ error: 'All items must be verified before pickup.' }, { status: 400 });
         }
@@ -93,9 +98,9 @@ export async function POST(request: Request) {
         }
 
         // Add additional server-derived metadata
-        updates.pickupTimestamp = new Date().toISOString();
-        updates.pickupPartnerId = session.userId;
-        updates.pickupVerificationStatus = 'Verified';
+        updatesToPersist.pickupTimestamp = new Date().toISOString();
+        updatesToPersist.pickupPartnerId = session.userId;
+        updatesToPersist.pickupVerificationStatus = 'Verified';
       }
 
       // 5. OTP verification validations for DELIVERED status
@@ -104,7 +109,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Order status has changed. Refresh and try again.' }, { status: 400 });
         }
 
-        const failedAttempts = targetOrder.otpFailedAttempts || 0;
+        const failedAttempts = Number(targetOrder.otpFailedAttempts || 0);
         if (failedAttempts >= 5) {
           return NextResponse.json({ error: 'Too many incorrect attempts. Please contact support/admin.' }, { status: 429 });
         }
@@ -114,27 +119,29 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Delivery OTP is required for completion.' }, { status: 400 });
         }
 
-        if (clientOtp !== targetOrder.deliveryOtp) {
+        if (String(clientOtp).trim() !== String(targetOrder.deliveryOtp).trim()) {
           // Increment failed attempts and save immediately
-          orders[idx].otpFailedAttempts = failedAttempts + 1;
-          await db.writeTable('orders', orders);
+          await db.updateOrder(cleanId, { otpFailedAttempts: failedAttempts + 1 });
           return NextResponse.json({ 
             error: 'Incorrect OTP. Please ask the customer to confirm the delivery OTP.' 
           }, { status: 400 });
         }
 
         // Check OTP expiration
-        const expiresAt = targetOrder.otpExpiresAt ? new Date(targetOrder.otpExpiresAt) : new Date(new Date(targetOrder.createdAt).getTime() + 24 * 60 * 60 * 1000);
+        const expiresAt = targetOrder.otpExpiresAt 
+          ? new Date(String(targetOrder.otpExpiresAt)) 
+          : new Date(new Date(String(targetOrder.createdAt)).getTime() + 24 * 60 * 60 * 1000);
+        
         if (new Date() > expiresAt) {
           return NextResponse.json({ error: 'OTP has expired. Please ask the customer to regenerate a new OTP.' }, { status: 400 });
         }
 
         // OTP verified successfully
-        updates.delivery_otp_verified = true;
-        updates.otp_verified_at = new Date().toISOString();
-        updates.verified_by_partner_id = session.userId;
-        updates.delivery_completed_at = new Date().toISOString();
-        updates.otpFailedAttempts = 0;
+        updatesToPersist.delivery_otp_verified = true;
+        updatesToPersist.otp_verified_at = new Date().toISOString();
+        updatesToPersist.verified_by_partner_id = session.userId;
+        updatesToPersist.delivery_completed_at = new Date().toISOString();
+        updatesToPersist.otpFailedAttempts = 0;
       }
     } else if (session.role === 'admin') {
       // Admin overrides
@@ -144,12 +151,12 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Admin override requires a reason.' }, { status: 400 });
         }
 
-        updates.delivery_otp_verified = true;
-        updates.otp_verified_at = new Date().toISOString();
-        updates.verified_by_partner_id = 'ADMIN_OVERRIDE';
-        updates.delivery_completed_at = new Date().toISOString();
-        updates.otpFailedAttempts = 0;
-        updates.adminOverride = {
+        updatesToPersist.delivery_otp_verified = true;
+        updatesToPersist.otp_verified_at = new Date().toISOString();
+        updatesToPersist.verified_by_partner_id = 'ADMIN_OVERRIDE';
+        updatesToPersist.delivery_completed_at = new Date().toISOString();
+        updatesToPersist.otpFailedAttempts = 0;
+        updatesToPersist.adminOverride = {
           adminId: session.userId || session.email,
           reason,
           timestamp: new Date().toISOString()
@@ -158,16 +165,46 @@ export async function POST(request: Request) {
         db.logActivity(
           session.email, 
           `Overrode Delivery Verification for Order #${targetOrder.id}`, 
-          targetOrder.id, 
-          targetOrder.status, 
+          String(targetOrder.id), 
+          String(targetOrder.status), 
           'Delivered'
         );
       }
+
+      // Admin partner assignment change handling
+      if (updates.assignedPartnerId !== undefined) {
+        if (updates.assignedPartnerId) {
+          updatesToPersist.assignedPartnerId = String(updates.assignedPartnerId).trim();
+          updatesToPersist.assignedPartnerName = updates.assignedPartnerName || targetOrder.assignedPartnerName || 'Delivery Partner';
+          updatesToPersist.assignedAt = updates.assignedAt || new Date().toISOString();
+          if (!updates.status && (targetOrder.status === 'Pending' || targetOrder.status === 'Confirmed' || targetOrder.status === 'Preparing' || targetOrder.status === 'Packed' || targetOrder.status === 'Ready for Delivery' || targetOrder.status === 'Waiting for Partner')) {
+            updatesToPersist.status = 'Assigned';
+          }
+          db.logActivity(
+            session.email,
+            `Assigned Partner for Order #${targetOrder.id}`,
+            String(targetOrder.id),
+            String(targetOrder.assignedPartnerName || 'Unassigned'),
+            String(updatesToPersist.assignedPartnerName)
+          );
+        } else {
+          // Unassigned
+          updatesToPersist.assignedPartnerId = null;
+          updatesToPersist.assignedPartnerName = null;
+          updatesToPersist.assignedAt = null;
+          if (targetOrder.status === 'Assigned') {
+            updatesToPersist.status = 'Waiting for Partner';
+          }
+        }
+      }
     } else if (session.role === 'customer') {
       // Customer can only cancel their own order, and only if it's currently 'Pending'
-      const isOwner = (targetOrder.customerId && targetOrder.customerId.toLowerCase() === session.userId.toLowerCase()) ||
-                      (targetOrder.customerEmail && targetOrder.customerEmail.toLowerCase() === session.email.toLowerCase()) ||
-                      (targetOrder.customerId && targetOrder.customerId.toLowerCase() === session.email.toLowerCase());
+      const cId = String(targetOrder.customerId || '').toLowerCase();
+      const cEmail = String(targetOrder.customerEmail || '').toLowerCase();
+      const sId = String(session.userId || '').toLowerCase();
+      const sEmail = String(session.email || '').toLowerCase();
+
+      const isOwner = (!cId || cId === sId || cId === sEmail || (cEmail && sEmail && cEmail === sEmail));
       if (!isOwner) {
         return NextResponse.json({ error: 'Forbidden: You cannot modify orders belonging to other accounts.' }, { status: 403 });
       }
@@ -192,31 +229,26 @@ export async function POST(request: Request) {
     }
 
     // Append Status transitions History
-    const prevStatus = targetOrder.status;
-    const newStatus = updates.status;
+    const prevStatus = String(targetOrder.status);
+    const newStatus = updatesToPersist.status ? String(updatesToPersist.status) : prevStatus;
+    const historyList = Array.isArray(targetOrder.statusHistory) ? [...targetOrder.statusHistory] : [];
+
     if (newStatus && newStatus !== prevStatus) {
-      if (!targetOrder.statusHistory) {
-        targetOrder.statusHistory = [];
-      }
-      targetOrder.statusHistory.push({
+      historyList.push({
         previousStatus: prevStatus,
         newStatus,
         changedByUserId: session.userId || session.email,
         changedByRole: session.role,
         timestamp: new Date().toISOString()
       });
-      updates.statusHistory = targetOrder.statusHistory;
+      updatesToPersist.statusHistory = historyList;
     }
     
-    orders[idx] = {
-      ...targetOrder,
-      ...updates
-    };
-    
-    await db.writeTable('orders', orders);
-    return NextResponse.json({ success: true, order: orders[idx] });
+    const updatedOrder = await db.updateOrder(cleanId, updatesToPersist);
+    return NextResponse.json({ success: true, order: updatedOrder });
   } catch (err) {
     console.error('Error updating order on server:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

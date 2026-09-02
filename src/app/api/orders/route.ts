@@ -44,7 +44,12 @@ export async function GET(request: Request) {
 
     if (session.role === 'delivery_partner') {
       // Filter orders assigned to this partner and strip deliveryOtp
-      const filtered = enrichedList.filter((o: any) => o.assignedPartnerId === session.userId);
+      const cleanPartnerId = String(session.userId || '').toLowerCase().trim();
+      const cleanPartnerEmail = String(session.email || '').toLowerCase().trim();
+      const filtered = enrichedList.filter((o: any) => {
+        const aId = String(o.assignedPartnerId || '').toLowerCase().trim();
+        return aId && (aId === cleanPartnerId || aId === cleanPartnerEmail);
+      });
       const sanitized = filtered.map((o: any) => {
         const { deliveryOtp, ...rest } = o;
         return rest;

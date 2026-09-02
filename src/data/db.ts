@@ -119,49 +119,231 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   config: ['key', 'data'],
   inventoryIssues: ['id', 'productId', 'productName', 'issue', 'status', 'createdAt'],
   auditLogs: ['id', 'adminUser', 'action', 'dateTime', 'product', 'previousValue', 'newValue'],
-  orders: ['id', 'customerId', 'customerEmail', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'address', 'status', 'deliveryOption', 'eta', 'createdAt', 'updatedAt', 'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt', 'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt', 'paymentStatus', 'paymentMethod', 'scheduledDeliveryAt', 'cancellationReason', 'cancelledAt', 'delivery_otp_verified', 'otp_verified_at', 'verified_by_partner_id', 'delivery_completed_at', 'adminOverride', 'paymentId'],
+  orders: [
+    'id', 'customerId', 'customerEmail', 'items', 'subtotal', 'deliveryFee', 'discount', 'total',
+    'address', 'status', 'deliveryOption', 'deliveryTimeSlot', 'eta', 'createdAt', 'updatedAt',
+    'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt',
+    'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt',
+    'paymentStatus', 'paymentMethod', 'paymentId', 'scheduledDeliveryAt',
+    'cancellationReason', 'cancelledAt', 'delivery_otp_verified', 'otp_verified_at',
+    'verified_by_partner_id', 'delivery_completed_at', 'adminOverride',
+    'utr', 'proofImageUrl', 'paymentSubmittedAt', 'paymentVerifiedAt', 'paymentRejectedAt', 'rejectionReason'
+  ],
   product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive'],
   payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata']
 };
 
+export function normalizeOrderRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  // Parse JSON fields safely if stringified
+  for (const col of ['tags', 'addresses', 'items', 'statusHistory', 'address', 'adminOverride', 'metadata']) {
+    const val = parsed[col];
+    if (typeof val === 'string') {
+      try {
+        parsed[col] = JSON.parse(val);
+      } catch {
+        parsed[col] = val;
+      }
+    }
+  }
+
+  // Canonical ID normalization
+  parsed.id = String(parsed.id || parsed.ID || '').trim();
+
+  // Customer ID & email normalization
+  if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+  if (parsed.customeremail && !parsed.customerEmail) parsed.customerEmail = parsed.customeremail;
+
+  // Delivery & Location normalization
+  if (parsed.deliverylocationid && !parsed.deliveryLocationId) parsed.deliveryLocationId = parsed.deliverylocationid;
+  if (parsed.deliverylocationname && !parsed.deliveryLocationName) parsed.deliveryLocationName = parsed.deliverylocationname;
+  if (parsed.deliveryoption && !parsed.deliveryOption) parsed.deliveryOption = parsed.deliveryoption;
+  if (parsed.deliverytimeslot && !parsed.deliveryTimeSlot) parsed.deliveryTimeSlot = parsed.deliverytimeslot;
+  if (parsed.scheduleddeliveryat && !parsed.scheduledDeliveryAt) parsed.scheduledDeliveryAt = parsed.scheduleddeliveryat;
+  if (parsed.deliveryfee !== undefined && parsed.deliveryFee === undefined) parsed.deliveryFee = parsed.deliveryfee;
+
+  // Pricing numbers
+  parsed.total = Number(parsed.total || 0);
+  parsed.subtotal = Number(parsed.subtotal || 0);
+  parsed.deliveryFee = Number(parsed.deliveryFee ?? 0);
+  parsed.discount = Number(parsed.discount || 0);
+
+  // OTP fields
+  if (parsed.deliveryotp && !parsed.deliveryOtp) parsed.deliveryOtp = parsed.deliveryotp;
+  if (parsed.otpfailedattempts !== undefined && parsed.otpFailedAttempts === undefined) parsed.otpFailedAttempts = Number(parsed.otpfailedattempts || 0);
+  if (parsed.otpexpiresat && !parsed.otpExpiresAt) parsed.otpExpiresAt = parsed.otpexpiresat;
+  if (parsed.deliveryotpverified !== undefined && parsed.delivery_otp_verified === undefined) parsed.delivery_otp_verified = Boolean(parsed.deliveryotpverified);
+  if (parsed.otpverifiedat && !parsed.otp_verified_at) parsed.otp_verified_at = parsed.otpverifiedat;
+  if (parsed.verifiedbypartnerid && !parsed.verified_by_partner_id) parsed.verified_by_partner_id = parsed.verifiedbypartnerid;
+  if (parsed.deliverycompletedat && !parsed.delivery_completed_at) parsed.delivery_completed_at = parsed.deliverycompletedat;
+  if (parsed.adminoverride && !parsed.adminOverride) parsed.adminOverride = parsed.adminoverride;
+
+  // Assignment fields (CRITICAL CANONICAL NORMALIZATION)
+  if (parsed.assignedpartnerid !== undefined && parsed.assignedPartnerId === undefined) {
+    parsed.assignedPartnerId = parsed.assignedpartnerid || null;
+  }
+  if (parsed.assignedpartnername !== undefined && parsed.assignedPartnerName === undefined) {
+    parsed.assignedPartnerName = parsed.assignedpartnername || null;
+  }
+  if (parsed.assignedat !== undefined && parsed.assignedAt === undefined) {
+    parsed.assignedAt = parsed.assignedat || null;
+  }
+  if (parsed.statushistory && !parsed.statusHistory) parsed.statusHistory = parsed.statushistory;
+
+  // Payment fields
+  if (parsed.paymentstatus && !parsed.paymentStatus) parsed.paymentStatus = parsed.paymentstatus;
+  if (parsed.paymentmethod && !parsed.paymentMethod) parsed.paymentMethod = parsed.paymentmethod;
+  if (parsed.paymentid && !parsed.paymentId) parsed.paymentId = parsed.paymentid;
+  if (parsed.proofimageurl && !parsed.proofImageUrl) parsed.proofImageUrl = parsed.proofimageurl;
+  if (parsed.paymentsubmittedat && !parsed.paymentSubmittedAt) parsed.paymentSubmittedAt = parsed.paymentsubmittedat;
+  if (parsed.paymentverifiedat && !parsed.paymentVerifiedAt) parsed.paymentVerifiedAt = parsed.paymentverifiedat;
+  if (parsed.paymentrejectedat && !parsed.paymentRejectedAt) parsed.paymentRejectedAt = parsed.paymentrejectedat;
+  if (parsed.rejectionreason && !parsed.rejectionReason) parsed.rejectionReason = parsed.rejectionreason;
+  if (parsed.cancellationreason && !parsed.cancellationReason) parsed.cancellationReason = parsed.cancellationreason;
+  if (parsed.cancelledat && !parsed.cancelledAt) parsed.cancelledAt = parsed.cancelledat;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+
+  return parsed;
+}
+
+export function normalizePaymentRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  if (typeof parsed.metadata === 'string') {
+    try {
+      parsed.metadata = JSON.parse(parsed.metadata);
+    } catch {
+      // keep string
+    }
+  }
+
+  if (parsed.orderid && !parsed.orderId) parsed.orderId = parsed.orderid;
+  if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+  if (parsed.transactionreference && !parsed.transactionReference) parsed.transactionReference = parsed.transactionreference;
+  if (parsed.proofimageurl && !parsed.proofImageUrl) parsed.proofImageUrl = parsed.proofimageurl;
+  if (parsed.submittedat && !parsed.submittedAt) parsed.submittedAt = parsed.submittedat;
+  if (parsed.verifiedat && !parsed.verifiedAt) parsed.verifiedAt = parsed.verifiedat;
+  if (parsed.verifiedby && !parsed.verifiedBy) parsed.verifiedBy = parsed.verifiedby;
+  if (parsed.rejectedat && !parsed.rejectedAt) parsed.rejectedAt = parsed.rejectedat;
+  if (parsed.rejectedby && !parsed.rejectedBy) parsed.rejectedBy = parsed.rejectedby;
+  if (parsed.rejectionreason && !parsed.rejectionReason) parsed.rejectionReason = parsed.rejectionreason;
+  if (parsed.paymentprooftype && !parsed.paymentProofType) parsed.paymentProofType = parsed.paymentprooftype;
+  if (parsed.paymentproofsize !== undefined && parsed.paymentProofSize === undefined) parsed.paymentProofSize = parsed.paymentproofsize;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+  if (parsed.paidat && !parsed.paidAt) parsed.paidAt = parsed.paidat;
+  if (parsed.failurereason && !parsed.failureReason) parsed.failureReason = parsed.failurereason;
+  if (parsed.attemptcount !== undefined && parsed.attemptCount === undefined) parsed.attemptCount = Number(parsed.attemptcount || 0);
+  if (parsed.lastattemptat && !parsed.lastAttemptAt) parsed.lastAttemptAt = parsed.lastattemptat;
+
+  parsed.amount = Number(parsed.amount || 0);
+
+  return parsed;
+}
+
+export function normalizePartnerRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  if (parsed.passwordhash && !parsed.passwordHash) parsed.passwordHash = parsed.passwordhash;
+  if (parsed.locationid && !parsed.locationId) parsed.locationId = parsed.locationid;
+  if (parsed.locationname && !parsed.locationName) parsed.locationName = parsed.locationname;
+  if (parsed.isonline !== undefined && parsed.isOnline === undefined) parsed.isOnline = Boolean(parsed.isonline);
+
+  return parsed;
+}
+
+export function normalizeUserRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  if (typeof parsed.addresses === 'string') {
+    try {
+      parsed.addresses = JSON.parse(parsed.addresses);
+    } catch {
+      // keep
+    }
+  }
+
+  if (parsed.userid && !parsed.userId) parsed.userId = parsed.userid;
+  if (parsed.googleproviderid && !parsed.googleProviderId) parsed.googleProviderId = parsed.googleproviderid;
+  if (parsed.profileimage && !parsed.profileImage) parsed.profileImage = parsed.profileimage;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.lastloginat && !parsed.lastLoginAt) parsed.lastLoginAt = parsed.lastloginat;
+  if (parsed.wellnessaccessstatus && !parsed.wellnessAccessStatus) parsed.wellnessAccessStatus = parsed.wellnessaccessstatus;
+  if (parsed.wellnessrequestid && !parsed.wellnessRequestId) parsed.wellnessRequestId = parsed.wellnessrequestid;
+  if (parsed.wellnessapprovedat && !parsed.wellnessApprovedAt) parsed.wellnessApprovedAt = parsed.wellnessapprovedat;
+  if (parsed.wellnessapprovedby && !parsed.wellnessApprovedBy) parsed.wellnessApprovedBy = parsed.wellnessapprovedby;
+
+  return parsed;
+}
+
+export function normalizeSessionRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  if (parsed.sessionid && !parsed.sessionId) parsed.sessionId = parsed.sessionid;
+  if (parsed.userid && !parsed.userId) parsed.userId = parsed.userid;
+  if (parsed.expiresat && !parsed.expiresAt) parsed.expiresAt = parsed.expiresat;
+
+  return parsed;
+}
+
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
   const allowed = ALLOWED_COLUMNS[table];
-  const keys = Object.keys(item).filter(k => !allowed || allowed.includes(k));
-  if (keys.length === 0) return;
-  const cols = keys.map(k => `"${k}"`).join(', ');
-  
-  const vals = keys.map((_, i) => `$${i + 1}`).join(', ');
-  const queryText = `INSERT INTO "${table}" (${cols}) VALUES (${vals}) ON CONFLICT DO NOTHING`;
-  
-  const queryVals = keys.map(k => {
-    const v = item[k];
-    if (v && typeof v === 'object') {
-      return JSON.stringify(v);
-    }
-    return v;
-  });
-  
+  const allowedLowerMap = new Map<string, string>();
+  for (const col of allowed || []) {
+    allowedLowerMap.set(col.toLowerCase(), col);
+  }
+
+  const cols: string[] = [];
+  const vals: string[] = [];
+  const queryVals: unknown[] = [];
+
+  for (const [k, rawV] of Object.entries(item)) {
+    const canonicalCol = allowedLowerMap.get(k.toLowerCase());
+    if (!canonicalCol) continue;
+    if (cols.includes(`"${canonicalCol}"`)) continue;
+
+    cols.push(`"${canonicalCol}"`);
+    queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
+    vals.push(`$${queryVals.length}`);
+  }
+
+  if (cols.length === 0) return;
+  const queryText = `INSERT INTO "${table}" (${cols.join(', ')}) VALUES (${vals.join(', ')}) ON CONFLICT DO NOTHING`;
   await p.query(queryText, queryVals);
 }
 
 async function bulkInsert(client: PoolClient, table: string, items: Record<string, unknown>[]) {
   if (items.length === 0) return;
   const allowed = ALLOWED_COLUMNS[table];
+  const allowedLowerMap = new Map<string, string>();
+  for (const col of allowed || []) {
+    allowedLowerMap.set(col.toLowerCase(), col);
+  }
+
   for (const item of items) {
-    const keys = Object.keys(item).filter(k => !allowed || allowed.includes(k));
-    if (keys.length === 0) continue;
-    const cols = keys.map(k => `"${k}"`).join(', ');
-    
-    const vals = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const queryText = `INSERT INTO "${table}" (${cols}) VALUES (${vals}) ON CONFLICT DO NOTHING`;
-    
-    const queryVals = keys.map(k => {
-      const v = item[k];
-      if (v && typeof v === 'object') {
-        return JSON.stringify(v);
-      }
-      return v;
-    });
+    const cols: string[] = [];
+    const vals: string[] = [];
+    const queryVals: unknown[] = [];
+
+    for (const [k, rawV] of Object.entries(item)) {
+      const canonicalCol = allowedLowerMap.get(k.toLowerCase());
+      if (!canonicalCol) continue;
+      if (cols.includes(`"${canonicalCol}"`)) continue;
+
+      cols.push(`"${canonicalCol}"`);
+      queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
+      vals.push(`$${queryVals.length}`);
+    }
+
+    if (cols.length === 0) continue;
+    const queryText = `INSERT INTO "${table}" (${cols.join(', ')}) VALUES (${vals.join(', ')}) ON CONFLICT DO NOTHING`;
     await client.query(queryText, queryVals);
   }
 }
@@ -189,19 +371,75 @@ export const db = {
     if (!pool) {
       // Local fallback for basic queries if pool is not configured
       const lower = text.toLowerCase();
-      if (lower.includes('select') && lower.includes('orders') && lower.includes('id =') && params && params[0]) {
-        const orderId = String(params[0]);
+      if (lower.includes('insert into payment_transactions') && params && params.length >= 2) {
+        const id = String(params[0]);
+        const orderId = String(params[1]);
+        const customerId = params[2] ? String(params[2]) : '';
+        const amount = Number(params[3] || 0);
+        const status = params[5] ? String(params[5]) : 'PENDING';
+        const utr = params[8] ? String(params[8]) : (params[6] ? String(params[6]) : '');
+        const proofImageUrl = params[9] ? String(params[9]) : '';
+        const submittedAt = params[10] ? String(params[10]) : new Date().toISOString();
+
+        const list = inMemoryData['payment_transactions'] || [];
+        const existingIdx = list.findIndex(p => String(p.orderId || p.orderid).toLowerCase() === orderId.toLowerCase() || String(p.id).toLowerCase() === id.toLowerCase());
+        const record: Record<string, unknown> = {
+          id,
+          orderId,
+          customerId,
+          amount,
+          currency: 'INR',
+          status,
+          method: 'UPI',
+          provider: 'MANUAL_UPI',
+          utr,
+          proofImageUrl,
+          submittedAt,
+          createdAt: submittedAt,
+          updatedAt: submittedAt,
+          attemptCount: 1
+        };
+
+        if (existingIdx >= 0) {
+          list[existingIdx] = { ...list[existingIdx], ...record };
+        } else {
+          list.push(record);
+        }
+        inMemoryData['payment_transactions'] = list;
+        return { rows: [record as T] };
+      }
+      if (lower.includes('select') && lower.includes('orders') && (lower.includes('id =') || lower.includes('lower(id) =') || lower.includes('id) =')) && params && params[0]) {
+        const orderId = String(params[0]).toLowerCase();
         const list = inMemoryData['orders'] || [];
-        const found = list.filter((o: Record<string, unknown>) => String(o.id) === orderId);
-        return { rows: found as T[] };
+        const found = list.filter((o: Record<string, unknown>) => String(o.id || o.ID || '').toLowerCase() === orderId);
+        return { rows: found.map(normalizeOrderRecord) as T[] };
       }
       if (lower.includes('select') && lower.includes('payment_transactions') && params && params[0]) {
-        const idVal = String(params[0]);
+        const idVal = String(params[0]).toLowerCase();
         const list = inMemoryData['payment_transactions'] || [];
-        const found = list.filter((p: Record<string, unknown>) => String(p.id) === idVal || String(p.orderId) === idVal);
-        return { rows: found as T[] };
+        const found = list.filter((p: Record<string, unknown>) => String(p.id || '').toLowerCase() === idVal || String(p.orderId || p.orderid || '').toLowerCase() === idVal);
+        return { rows: found.map(normalizePaymentRecord) as T[] };
       }
       if (lower.includes('update payment_transactions') && params) {
+        const list = inMemoryData['payment_transactions'] || [];
+        const statusVal = String(params[0] || 'PAID');
+        const lastParam = String(params[params.length - 1] || '').toLowerCase();
+        for (let i = 0; i < list.length; i++) {
+          if (String(list[i].id || '').toLowerCase() === lastParam || String(list[i].orderId || '').toLowerCase() === lastParam) {
+            list[i].status = statusVal;
+            list[i].updatedAt = new Date().toISOString();
+            if (statusVal === 'PAID') {
+              list[i].paidAt = list[i].updatedAt;
+              if (params[1]) list[i].verifiedAt = String(params[1]);
+              if (params[2]) list[i].verifiedBy = String(params[2]);
+            }
+            if (statusVal === 'REJECTED') {
+              if (params[1]) list[i].rejectedAt = String(params[1]);
+              if (params[2]) list[i].rejectedBy = String(params[2]);
+              if (params[3]) list[i].rejectionReason = String(params[3]);
+            }
+          }
+        }
         return { rows: [] };
       }
       if (lower.includes('update orders') && params) {
@@ -236,7 +474,13 @@ export const db = {
 
   async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions'): Promise<T[]> {
     if (!pool) {
-      return (inMemoryData[key] || []) as unknown as T[];
+      const memList = (inMemoryData[key] || []) as unknown as Record<string, unknown>[];
+      if (key === 'orders') return memList.map(normalizeOrderRecord) as unknown as T[];
+      if (key === 'payment_transactions') return memList.map(normalizePaymentRecord) as unknown as T[];
+      if (key === 'partners') return memList.map(normalizePartnerRecord) as unknown as T[];
+      if (key === 'users') return memList.map(normalizeUserRecord) as unknown as T[];
+      if (key === 'sessions') return memList.map(normalizeSessionRecord) as unknown as T[];
+      return memList as unknown as T[];
     }
     
     try {
@@ -244,7 +488,7 @@ export const db = {
       const res = await pool.query(`SELECT * FROM "${tableName}"`);
       
       return res.rows.map(row => {
-        const parsed: Record<string, unknown> = {};
+        let parsed: Record<string, unknown> = {};
         for (const col of Object.keys(row)) {
           const val = row[col];
           if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address' || col === 'adminOverride' || col === 'metadata') {
@@ -262,17 +506,17 @@ export const db = {
           }
         }
 
-        // Normalize PostgreSQL lowercase column names to camelCase
-        if (parsed.passwordhash && !parsed.passwordHash) parsed.passwordHash = parsed.passwordhash;
-        if (parsed.locationid && !parsed.locationId) parsed.locationId = parsed.locationid;
-        if (parsed.locationname && !parsed.locationName) parsed.locationName = parsed.locationname;
-        if (parsed.isonline !== undefined && parsed.isOnline === undefined) parsed.isOnline = parsed.isonline;
-        if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
-        if (parsed.customeremail && !parsed.customerEmail) parsed.customerEmail = parsed.customeremail;
-        if (parsed.paymentstatus && !parsed.paymentStatus) parsed.paymentStatus = parsed.paymentstatus;
-
-        // Normalize and resolve image URLs
-        if (key === 'products') {
+        if (key === 'orders') {
+          parsed = normalizeOrderRecord(parsed);
+        } else if (key === 'payment_transactions') {
+          parsed = normalizePaymentRecord(parsed);
+        } else if (key === 'partners') {
+          parsed = normalizePartnerRecord(parsed);
+        } else if (key === 'users') {
+          parsed = normalizeUserRecord(parsed);
+        } else if (key === 'sessions') {
+          parsed = normalizeSessionRecord(parsed);
+        } else if (key === 'products') {
           parsed.image = resolveImageUrl(parsed.image as string, parsed.category as string);
         } else if (key === 'categories') {
           parsed.image = resolveImageUrl(parsed.image as string, parsed.id as string);
@@ -282,8 +526,13 @@ export const db = {
       }) as unknown as T[];
     } catch (err) {
       console.error(`PostgreSQL error reading table ${key}:`, err);
-      // Fallback to in-memory if DB read fails
-      return (inMemoryData[key] || []) as unknown as T[];
+      const memList = (inMemoryData[key] || []) as unknown as Record<string, unknown>[];
+      if (key === 'orders') return memList.map(normalizeOrderRecord) as unknown as T[];
+      if (key === 'payment_transactions') return memList.map(normalizePaymentRecord) as unknown as T[];
+      if (key === 'partners') return memList.map(normalizePartnerRecord) as unknown as T[];
+      if (key === 'users') return memList.map(normalizeUserRecord) as unknown as T[];
+      if (key === 'sessions') return memList.map(normalizeSessionRecord) as unknown as T[];
+      return memList as unknown as T[];
     }
   },
 
@@ -299,24 +548,30 @@ export const db = {
       await client.query('BEGIN');
       await client.query(`DELETE FROM "${tableName}"`);
       
+      const allowed = ALLOWED_COLUMNS[key];
+      const allowedLowerMap = new Map<string, string>();
+      for (const col of allowed || []) {
+        allowedLowerMap.set(col.toLowerCase(), col);
+      }
+
       for (const item of data) {
         const record = item as Record<string, unknown>;
-        const allowed = ALLOWED_COLUMNS[key];
-        const keys = Object.keys(record).filter(k => !allowed || allowed.includes(k));
-        if (keys.length === 0) continue;
-        
-        const cols = keys.map(k => `"${k}"`).join(', ');
-        const vals = keys.map((_, i) => `$${i + 1}`).join(', ');
-        const queryText = `INSERT INTO "${tableName}" (${cols}) VALUES (${vals})`;
-        
-        const queryVals = keys.map(k => {
-          const v = record[k];
-          if (v && typeof v === 'object') {
-            return JSON.stringify(v);
-          }
-          return v;
-        });
-        
+        const cols: string[] = [];
+        const vals: string[] = [];
+        const queryVals: unknown[] = [];
+
+        for (const [k, rawV] of Object.entries(record)) {
+          const canonicalCol = allowedLowerMap.get(k.toLowerCase());
+          if (!canonicalCol) continue;
+          if (cols.includes(`"${canonicalCol}"`)) continue;
+
+          cols.push(`"${canonicalCol}"`);
+          queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
+          vals.push(`$${queryVals.length}`);
+        }
+
+        if (cols.length === 0) continue;
+        const queryText = `INSERT INTO "${tableName}" (${cols.join(', ')}) VALUES (${vals.join(', ')})`;
         await client.query(queryText, queryVals);
       }
       
@@ -332,45 +587,124 @@ export const db = {
   },
 
   /**
+   * Dedicated Single Order Retrieval & Mutation Methods
+   */
+  async getOrderById(orderId: string): Promise<Record<string, unknown> | null> {
+    const cleanId = String(orderId || '').trim();
+    if (!cleanId) return null;
+
+    if (pool) {
+      try {
+        const res = await pool.query('SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanId]);
+        if (res.rows.length > 0) {
+          return normalizeOrderRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching order by ID from PostgreSQL:', err);
+      }
+    }
+
+    const list = inMemoryData['orders'] || [];
+    const found = list.find(o => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
+    return found ? normalizeOrderRecord(found) : null;
+  },
+
+  async updateOrder(orderId: string, updates: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+    const cleanId = String(orderId || '').trim();
+    if (!cleanId) return null;
+
+    const list = inMemoryData['orders'] || [];
+    const idx = list.findIndex(o => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
+    const now = new Date().toISOString();
+    const cleanUpdates = { ...updates, updatedAt: updates.updatedAt || now };
+
+    let merged: Record<string, unknown>;
+    if (idx >= 0) {
+      merged = normalizeOrderRecord({ ...list[idx], ...cleanUpdates });
+      list[idx] = merged;
+    } else {
+      merged = normalizeOrderRecord({ id: cleanId, ...cleanUpdates });
+      list.push(merged);
+    }
+    inMemoryData['orders'] = list;
+
+    if (!pool) {
+      return merged;
+    }
+
+    try {
+      const allowedOrderCols = ALLOWED_COLUMNS['orders'];
+      const allowedLowerMap = new Map<string, string>();
+      for (const col of allowedOrderCols) {
+        allowedLowerMap.set(col.toLowerCase(), col);
+      }
+
+      const setClauses: string[] = [];
+      const values: unknown[] = [];
+
+      for (const [key, val] of Object.entries(cleanUpdates)) {
+        if (key.toLowerCase() === 'id') continue;
+        const canonicalCol = allowedLowerMap.get(key.toLowerCase());
+        if (!canonicalCol) continue;
+
+        values.push(val && typeof val === 'object' ? JSON.stringify(val) : val);
+        setClauses.push(`"${canonicalCol}" = $${values.length}`);
+      }
+
+      if (setClauses.length > 0) {
+        values.push(cleanId);
+        const queryText = `UPDATE orders SET ${setClauses.join(', ')} WHERE LOWER(id) = LOWER($${values.length})`;
+        await pool.query(queryText, values);
+      }
+      return merged;
+    } catch (err) {
+      console.error('Error updating order row in database:', err);
+      return merged;
+    }
+  },
+
+  /**
    * Payment Transaction Methods
    */
   async getPaymentByOrderId(orderId: string): Promise<Record<string, unknown> | null> {
     if (!pool) {
       const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: Record<string, unknown>) => String(p.orderId) === String(orderId));
-      return found || null;
+      const found = list.find((p: Record<string, unknown>) => String(p.orderId || p.orderid).toLowerCase() === String(orderId).toLowerCase());
+      return found ? normalizePaymentRecord(found) : null;
     }
     try {
       const res = await pool.query(
-        'SELECT * FROM payment_transactions WHERE "orderId" = $1 LIMIT 1',
+        'SELECT * FROM payment_transactions WHERE LOWER("orderId") = LOWER($1) LIMIT 1',
         [orderId]
       );
       if (res.rows.length === 0) return null;
-      return res.rows[0];
+      return normalizePaymentRecord(res.rows[0]);
     } catch (err) {
       console.error('Error fetching payment by orderId:', err);
       const list = inMemoryData['payment_transactions'] || [];
-      return list.find((p: Record<string, unknown>) => String(p.orderId) === String(orderId)) || null;
+      const found = list.find((p: Record<string, unknown>) => String(p.orderId || p.orderid).toLowerCase() === String(orderId).toLowerCase());
+      return found ? normalizePaymentRecord(found) : null;
     }
   },
 
   async getPaymentById(paymentId: string): Promise<Record<string, unknown> | null> {
     if (!pool) {
       const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: Record<string, unknown>) => String(p.id) === String(paymentId));
-      return found || null;
+      const found = list.find((p: Record<string, unknown>) => String(p.id).toLowerCase() === String(paymentId).toLowerCase());
+      return found ? normalizePaymentRecord(found) : null;
     }
     try {
       const res = await pool.query(
-        'SELECT * FROM payment_transactions WHERE id = $1 LIMIT 1',
+        'SELECT * FROM payment_transactions WHERE LOWER(id) = LOWER($1) LIMIT 1',
         [paymentId]
       );
       if (res.rows.length === 0) return null;
-      return res.rows[0];
+      return normalizePaymentRecord(res.rows[0]);
     } catch (err) {
       console.error('Error fetching payment by id:', err);
       const list = inMemoryData['payment_transactions'] || [];
-      return list.find((p: Record<string, unknown>) => String(p.id) === String(paymentId)) || null;
+      const found = list.find((p: Record<string, unknown>) => String(p.id).toLowerCase() === String(paymentId).toLowerCase());
+      return found ? normalizePaymentRecord(found) : null;
     }
   },
 
@@ -910,12 +1244,19 @@ export const db = {
 
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "customerEmail" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "updatedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryTimeSlot" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "delivery_otp_verified" BOOLEAN DEFAULT FALSE');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "otp_verified_at" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "verified_by_partner_id" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "delivery_completed_at" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "adminOverride" JSONB');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "paymentId" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS utr VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "proofImageUrl" TEXT');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "paymentSubmittedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "paymentRejectedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS wellness_terms_acceptances (

@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
@@ -14,17 +15,30 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     
-    // Security: If partner, restrict to their verified session userId. If admin, trust header/param.
+    // Security: If partner, restrict strictly to their verified session userId. If admin, allow header/param filter.
     const partnerId = session.role === 'admin'
       ? (request.headers.get('x-partner-id') || searchParams.get('partnerId') || '')
       : session.userId;
 
-    if (!partnerId) {
-      return NextResponse.json({ error: 'partnerId is required.' }, { status: 400 });
-    }
-
     const orders = await db.readTable<any>('orders') || [];
-    const filtered = orders.filter((o: any) => o.assignedPartnerId === partnerId);
+
+    let filtered: any[] = [];
+    if (session.role === 'admin') {
+      if (partnerId) {
+        const cleanPartnerId = partnerId.toLowerCase().trim();
+        filtered = orders.filter((o: any) => String(o.assignedPartnerId || '').toLowerCase().trim() === cleanPartnerId);
+      } else {
+        filtered = orders;
+      }
+    } else {
+      // delivery_partner role
+      const cleanPartnerId = String(session.userId || '').toLowerCase().trim();
+      const cleanPartnerEmail = String(session.email || '').toLowerCase().trim();
+      filtered = orders.filter((o: any) => {
+        const aId = String(o.assignedPartnerId || '').toLowerCase().trim();
+        return aId && (aId === cleanPartnerId || aId === cleanPartnerEmail);
+      });
+    }
 
     const sanitized = filtered.map((o: any) => {
       const { deliveryOtp, ...rest } = o;
@@ -37,3 +51,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

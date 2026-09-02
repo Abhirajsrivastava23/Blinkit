@@ -16,7 +16,7 @@ import SafeImage from '../../components/SafeImage';
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { orders, updateOrderStatus, updateOrderDetails } = useOrders();
+  const { orders, updateOrderStatus, updateOrderDetails, refreshOrders } = useOrders();
   const { products, refreshProducts } = useProducts();
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
@@ -25,17 +25,9 @@ export default function AdminDashboardPage() {
   const [activeOrderTab, setActiveOrderTab] = useState<'All' | 'New' | 'Preparing' | 'Ready' | 'Out for Delivery' | 'Delivered' | 'Cancelled'>('All');
   const [selectedOrderForPartner, setSelectedOrderForPartner] = useState<string | null>(null);
   const [selectedAdminLocation, setSelectedAdminLocation] = useState<'All' | 'nawabganj-unnao' | 'chandigarh-university-up'>('All');
-  
-  // Persistent Partner Assignment States
-  const [partnerAssignments, setPartnerAssignments] = useState<Record<string, string>>({});
   const [customersCount, setCustomersCount] = useState(0);
 
   useEffect(() => {
-    const stored = localStorage.getItem('fatafat_partner_assignments');
-    if (stored) {
-      setPartnerAssignments(JSON.parse(stored));
-    }
-    
     // Fetch real customer count from database
     fetch('/api/users/list')
       .then(res => res.json())
@@ -179,24 +171,41 @@ export default function AdminDashboardPage() {
   };
 
   // Action: Assign Delivery Partner modal trigger
-  const handleAssignPartner = (orderId: string, partner: any) => {
+  const handleAssignPartner = async (orderId: string, partner: any) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
-    if (partner.locationId !== order.deliveryLocationId) {
+    if (partner.locationId && order.deliveryLocationId && partner.locationId !== order.deliveryLocationId) {
       showToast('This delivery partner is not assigned to this location.', 'error');
       return;
     }
 
-    updateOrderDetails(orderId, {
-      assignedPartnerId: partner.id,
-      assignedPartnerName: partner.name,
-      assignedAt: new Date().toISOString(),
-      status: 'Assigned'
-    });
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: orderId,
+          updates: {
+            assignedPartnerId: partner.id,
+            assignedPartnerName: partner.name,
+            assignedAt: new Date().toISOString(),
+            status: 'Assigned'
+          }
+        })
+      });
 
-    showToast(`Assigned ${partner.name} to order #${orderId}`, 'success');
-    setSelectedOrderForPartner(null);
+      if (res.ok) {
+        showToast(`Assigned ${partner.name} to order #${orderId}`, 'success');
+        setSelectedOrderForPartner(null);
+        await refreshOrders();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Failed to assign partner', 'error');
+      }
+    } catch (err) {
+      showToast('Error assigning delivery partner', 'error');
+    }
   };
 
   const handleUpdateStock = async (productId: string) => {
@@ -455,13 +464,17 @@ export default function AdminDashboardPage() {
                         </button>
                       )}
 
-                      {(!order.assignedPartnerId) && order.status !== 'Cancelled' && (
+                      {order.status !== 'Delivered' && order.status !== 'Cancelled' && (
                         <div className="relative">
                           <button
                             onClick={() => setSelectedOrderForPartner(selectedOrderForPartner === order.id ? null : order.id)}
-                            className="px-2.5 py-1 bg-brand-gold text-zinc-950 font-bold rounded-lg text-[10px] uppercase tracking-wider"
+                            className={`px-2.5 py-1 font-bold rounded-lg text-[10px] uppercase tracking-wider ${
+                              order.assignedPartnerId 
+                                ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 border' 
+                                : 'bg-brand-gold text-zinc-950 shadow-sm'
+                            }`}
                           >
-                            Assign Partner
+                            {order.assignedPartnerId ? 'Reassign' : 'Assign Partner'}
                           </button>
                           
                           {selectedOrderForPartner === order.id && (
@@ -471,14 +484,19 @@ export default function AdminDashboardPage() {
                               </div>
                               {deliveryPartnersList.map(p => {
                                 const activeOrdersCount = getActiveOrdersCount(p.id);
+                                const isCurrent = order.assignedPartnerId === p.id;
                                 return (
                                   <button
                                     key={p.id}
                                     onClick={() => handleAssignPartner(order.id, p)}
-                                    className="w-full text-left px-2 py-1.5 hover:bg-zinc-50 rounded-lg flex justify-between items-center text-[10px]"
+                                    className={`w-full text-left px-2 py-1.5 hover:bg-zinc-50 rounded-lg flex justify-between items-center text-[10px] ${
+                                      isCurrent ? 'bg-amber-50/60 font-black' : ''
+                                    }`}
                                   >
                                     <div>
-                                      <span className="block font-bold text-zinc-800">{p.name} · {p.id}</span>
+                                      <span className="block font-bold text-zinc-800">
+                                        {p.name} · {p.id} {isCurrent && '✓'}
+                                      </span>
                                       <span className="block text-[8px] text-zinc-400 font-medium">{p.locationName}</span>
                                     </div>
                                     <div className="text-right">
@@ -605,7 +623,7 @@ export default function AdminDashboardPage() {
               <div key={o.id} className="pt-3 first:pt-0 flex justify-between items-start gap-4">
                 <div>
                   <h5 className="font-extrabold text-zinc-800">Order #{o.id}</h5>
-                  <p className="text-[10px] text-zinc-500">Rider: <span className="font-bold text-zinc-800">{partnerAssignments[o.id] || 'Assigning...'}</span></p>
+                  <p className="text-[10px] text-zinc-500">Rider: <span className="font-bold text-zinc-800">{o.assignedPartnerName || o.assignedPartnerId || 'Assigning...'}</span></p>
                   <p className="text-[9px] text-emerald-700 font-black mt-0.5 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-ping" />
                     In Transit: Route coordinates locked

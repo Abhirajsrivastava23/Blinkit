@@ -32,44 +32,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'UTR is required.' }, { status: 400 });
     }
 
-    // 1. Fetch order with case-insensitive search
-    let rawOrder: any = null;
-    try {
-      const orderQuery = await db.query<any>('SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanOrderId]);
-      if (orderQuery.rows.length > 0) {
-        rawOrder = orderQuery.rows[0];
-      }
-    } catch (e) {
-      console.warn('Order SQL query warning in payment submit:', e);
-    }
+    // 1. Fetch order reliably with case-insensitive search
+    const order = await db.getOrderById(cleanOrderId);
 
-    if (!rawOrder) {
-      const orders = await db.readTable<any>('orders') || [];
-      rawOrder = orders.find((o: any) => String(o.id).trim().toLowerCase() === cleanOrderId.toLowerCase());
-    }
-
-    if (!rawOrder) {
+    if (!order) {
       console.warn(`[PAYMENT SUBMIT] Order genuinely not found for ID: "${cleanOrderId}"`);
       return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     }
 
-    // Normalize potential PostgreSQL lowercase column names
-    const order = {
-      ...rawOrder,
-      id: rawOrder.id || rawOrder.ID || cleanOrderId,
-      customerId: rawOrder.customerId || rawOrder.customerid || '',
-      customerEmail: rawOrder.customerEmail || rawOrder.customeremail || '',
-      total: Number(rawOrder.total || 0),
-      paymentStatus: rawOrder.paymentStatus || rawOrder.paymentstatus || 'PAYMENT_VERIFICATION_PENDING',
-      address: typeof rawOrder.address === 'string' ? JSON.parse(rawOrder.address) : (rawOrder.address || {}),
-    };
-
     // 2. Authorization check
-    const orderCustomer = String(order.customerId || '').toLowerCase();
-    const orderEmail = String(order.customerEmail || '').toLowerCase();
-    const sId = String(session.userId || '').toLowerCase();
-    const sEmail = String(session.email || '').toLowerCase();
-    const addrPhone = String(order.address?.mobile || '').replace(/\D/g, '');
+    const orderCustomer = String(order.customerId || '').toLowerCase().trim();
+    const orderEmail = String(order.customerEmail || '').toLowerCase().trim();
+    const sId = String(session.userId || '').toLowerCase().trim();
+    const sEmail = String(session.email || '').toLowerCase().trim();
+    const orderAddr = (order.address && typeof order.address === 'object') ? order.address as Record<string, unknown> : {};
+    const addrPhone = String(orderAddr.mobile || '').replace(/\D/g, '');
     const sPhone = sId.replace(/\D/g, '');
 
     const isAuthorized = (
@@ -90,7 +67,7 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
 
     // 3. Update or Insert payment transaction
-    let payment = await db.getPaymentByOrderId(order.id);
+    let payment = await db.getPaymentByOrderId(String(order.id));
     if (!payment && paymentId) {
       payment = await db.getPaymentById(paymentId);
     }
@@ -106,7 +83,7 @@ export async function POST(request: Request) {
                "updatedAt" = $5,
                "paymentProofType" = $6,
                metadata = COALESCE(metadata, '{}'::jsonb) || $7::jsonb
-           WHERE id = $8`,
+           WHERE LOWER(id) = LOWER($8)`,
           [
             trimmedUtr,
             proofImageUrl,
@@ -152,44 +129,20 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Update order payment status in PostgreSQL safely
-    try {
-      await db.query(
-        `UPDATE orders
-         SET "paymentStatus" = $1,
-             utr = $2,
-             "proofImageUrl" = $3,
-             "paymentSubmittedAt" = $4,
-             "updatedAt" = $5
-         WHERE LOWER(id) = LOWER($6)`,
-        ['PAYMENT_VERIFICATION_PENDING', trimmedUtr, proofImageUrl, now, now, order.id]
-      );
-    } catch (ordUpErr) {
-      console.warn('orders update warning:', ordUpErr);
-    }
-
-    // 5. Update in-memory record without destroying other records
-    try {
-      const allOrders = await db.readTable<any>('orders') || [];
-      const ordIdx = allOrders.findIndex((o: any) => String(o.id).trim().toLowerCase() === order.id.toLowerCase());
-      if (ordIdx >= 0) {
-        allOrders[ordIdx] = {
-          ...allOrders[ordIdx],
-          paymentStatus: 'PAYMENT_VERIFICATION_PENDING',
-          utr: trimmedUtr,
-          proofImageUrl,
-          paymentSubmittedAt: now,
-          updatedAt: now
-        };
-      }
-    } catch (inMemErr) {
-      console.warn('inMemory orders update warning:', inMemErr);
-    }
+    // 4. Update order payment status in database reliably
+    const updatedOrder = await db.updateOrder(cleanOrderId, {
+      paymentStatus: 'PAYMENT_VERIFICATION_PENDING',
+      utr: trimmedUtr,
+      proofImageUrl,
+      paymentSubmittedAt: now,
+      updatedAt: now,
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Payment proof submitted successfully. Your payment is under review by our team.',
       paymentStatus: 'PAYMENT_VERIFICATION_PENDING',
+      order: updatedOrder,
       orderId: order.id,
       utr: trimmedUtr,
       proofImageUrl,
@@ -199,4 +152,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to submit payment proof.' }, { status: 500 });
   }
 }
+
 

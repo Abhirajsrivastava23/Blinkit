@@ -12,39 +12,32 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized session.' }, { status: 401 });
     }
 
-    let paymentList: any[] = [];
-    try {
-      const paymentRows = await db.query<any>(
-        'SELECT * FROM payment_transactions ORDER BY "submittedAt" DESC NULLS LAST, "createdAt" DESC'
-      );
-      paymentList = paymentRows.rows || [];
-    } catch (e) {
-      console.warn('payment_transactions query fallback:', e);
-    }
-
-    if (paymentList.length === 0) {
-      paymentList = await db.readTable<any>('payment_transactions') || [];
-    }
+    const rawPayments = await db.readTable<any>('payment_transactions') || [];
+    const paymentList = [...rawPayments].sort((a: any, b: any) => {
+      const timeA = new Date(a.submittedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.submittedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
 
     const orders = await db.readTable<any>('orders') || [];
     const userMap = new Map<string, any>();
     const users = await db.readTable<any>('users') || [];
     for (const user of users) {
-      userMap.set(String(user.userId || user.email), user);
+      userMap.set(String(user.userId || user.email).toLowerCase(), user);
     }
 
     const rows = paymentList.map((payment: any) => {
-      const order = orders.find((o: any) => String(o.id) === String(payment.orderId));
-      const user = userMap.get(String(payment.customerId)) || null;
+      const order = orders.find((o: any) => String(o.id).toLowerCase() === String(payment.orderId).toLowerCase());
+      const user = userMap.get(String(payment.customerId).toLowerCase()) || null;
 
       return {
         id: payment.id,
         orderId: payment.orderId,
         customerId: payment.customerId,
-        customerName: user?.name || 'Customer',
-        customerEmail: user?.email || payment.customerId,
-        customerPhone: user?.phone || '',
-        amount: Number(payment.amount || 0),
+        customerName: user?.name || (order?.address && typeof order.address === 'object' ? (order.address as any).name : 'Customer'),
+        customerEmail: user?.email || (order?.customerEmail) || payment.customerId,
+        customerPhone: user?.phone || (order?.address && typeof order.address === 'object' ? (order.address as any).mobile : ''),
+        amount: Number(payment.amount || order?.total || 0),
         status: payment.status,
         utr: payment.utr,
         proofImageUrl: payment.proofImageUrl,
@@ -61,7 +54,9 @@ export async function GET(request: Request) {
     });
 
     if (session.role === 'customer') {
-      return NextResponse.json(rows.filter((row) => String(row.customerId) === session.userId || String(row.customerEmail) === session.email));
+      const sId = String(session.userId || '').toLowerCase();
+      const sEmail = String(session.email || '').toLowerCase();
+      return NextResponse.json(rows.filter((row) => String(row.customerId).toLowerCase() === sId || String(row.customerEmail).toLowerCase() === sEmail));
     }
 
     if (session.role !== 'admin') {
@@ -74,3 +69,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to retrieve payment submissions.' }, { status: 500 });
   }
 }
+

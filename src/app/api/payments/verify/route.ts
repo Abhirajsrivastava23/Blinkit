@@ -36,8 +36,11 @@ export async function POST(request: Request) {
 
     const cleanOrderId = decodeURIComponent(String(resolvedOrderId) || '').trim();
     const now = new Date().toISOString();
-    const orders = await db.readTable<any>('orders') || [];
-    const ordIdx = orders.findIndex((o: any) => String(o.id).trim().toLowerCase() === cleanOrderId.toLowerCase());
+    const targetOrder = await db.getOrderById(cleanOrderId);
+
+    if (!targetOrder) {
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+    }
 
     if (action === 'approve') {
       if (payment) {
@@ -49,49 +52,41 @@ export async function POST(request: Request) {
                  "verifiedBy" = $3,
                  "updatedAt" = $4,
                  "paidAt" = $5
-             WHERE id = $6`,
-            ['PAID', now, session.email, now, now, payment.id]
+             WHERE LOWER(id) = LOWER($6)`,
+            ['PAID', now, session.email, now, now, String(payment.id)]
           );
         } catch (e) {
           console.warn('payment_transactions approve query warning:', e);
         }
-        await db.updatePaymentStatus(payment.id as string, 'PAID', { verifiedBy: session.email, verifiedAt: now });
+        await db.updatePaymentStatus(String(payment.id), 'PAID', { verifiedBy: session.email, verifiedAt: now });
       }
 
-      try {
-        await db.query(
-          `UPDATE orders
-           SET status = $1,
-               "paymentStatus" = $2,
-               "updatedAt" = $3
-           WHERE LOWER(id) = LOWER($4)`,
-          ['Confirmed', 'PAID', now, cleanOrderId]
-        );
-      } catch (e) {
-        console.warn('orders approve query warning:', e);
-      }
+      const hist = Array.isArray(targetOrder.statusHistory) ? [...targetOrder.statusHistory] : [];
+      hist.push({
+        previousStatus: String(targetOrder.status),
+        newStatus: 'Confirmed',
+        changedByUserId: session.email,
+        changedByRole: 'admin',
+        timestamp: now,
+        action: 'Payment Verified and Order Confirmed'
+      });
 
-      if (ordIdx >= 0) {
-        const hist = orders[ordIdx].statusHistory || [];
-        hist.push({
-          previousStatus: orders[ordIdx].status,
-          newStatus: 'Confirmed',
-          changedByUserId: session.email,
-          changedByRole: 'admin',
-          timestamp: now,
-          action: 'Payment Verified and Order Confirmed'
-        });
-        orders[ordIdx] = {
-          ...orders[ordIdx],
-          status: 'Confirmed',
-          paymentStatus: 'PAID',
-          paymentVerifiedAt: now,
-          updatedAt: now,
-          statusHistory: hist
-        };
-      }
+      const updatedOrder = await db.updateOrder(cleanOrderId, {
+        status: 'Confirmed',
+        paymentStatus: 'PAID',
+        paymentVerifiedAt: now,
+        statusHistory: hist
+      });
 
-      return NextResponse.json({ success: true, status: 'PAID', message: 'Payment approved and order confirmed.' });
+      db.logActivity(
+        session.email,
+        `Approved Payment for Order #${targetOrder.id}`,
+        String(targetOrder.id),
+        String(targetOrder.paymentStatus || 'PENDING'),
+        'PAID'
+      );
+
+      return NextResponse.json({ success: true, status: 'PAID', order: updatedOrder, message: 'Payment approved and order confirmed.' });
     }
 
     if (action === 'reject') {
@@ -105,48 +100,41 @@ export async function POST(request: Request) {
                  "rejectedBy" = $3,
                  "rejectionReason" = $4,
                  "updatedAt" = $5
-             WHERE id = $6`,
-            ['REJECTED', now, session.email, rejectionReason, now, payment.id]
+             WHERE LOWER(id) = LOWER($6)`,
+            ['REJECTED', now, session.email, rejectionReason, now, String(payment.id)]
           );
         } catch (e) {
           console.warn('payment_transactions reject query warning:', e);
         }
-        await db.updatePaymentStatus(payment.id as string, 'REJECTED', { rejectedBy: session.email, rejectedAt: now, rejectionReason });
+        await db.updatePaymentStatus(String(payment.id), 'REJECTED', { rejectedBy: session.email, rejectedAt: now, rejectionReason });
       }
 
-      try {
-        await db.query(
-          `UPDATE orders
-           SET "paymentStatus" = $1,
-               "updatedAt" = $2
-           WHERE LOWER(id) = LOWER($3)`,
-          ['REJECTED', now, cleanOrderId]
-        );
-      } catch (e) {
-        console.warn('orders reject query warning:', e);
-      }
+      const hist = Array.isArray(targetOrder.statusHistory) ? [...targetOrder.statusHistory] : [];
+      hist.push({
+        previousStatus: String(targetOrder.status),
+        newStatus: String(targetOrder.status),
+        changedByUserId: session.email,
+        changedByRole: 'admin',
+        timestamp: now,
+        action: `Payment Proof Rejected: ${rejectionReason}`
+      });
 
-      if (ordIdx >= 0) {
-        const hist = orders[ordIdx].statusHistory || [];
-        hist.push({
-          previousStatus: orders[ordIdx].status,
-          newStatus: orders[ordIdx].status,
-          changedByUserId: session.email,
-          changedByRole: 'admin',
-          timestamp: now,
-          action: `Payment Proof Rejected: ${rejectionReason}`
-        });
-        orders[ordIdx] = {
-          ...orders[ordIdx],
-          paymentStatus: 'REJECTED',
-          paymentRejectedAt: now,
-          rejectionReason,
-          updatedAt: now,
-          statusHistory: hist
-        };
-      }
+      const updatedOrder = await db.updateOrder(cleanOrderId, {
+        paymentStatus: 'REJECTED',
+        paymentRejectedAt: now,
+        rejectionReason,
+        statusHistory: hist
+      });
 
-      return NextResponse.json({ success: true, status: 'REJECTED', message: 'Payment rejected and order payment status updated.' });
+      db.logActivity(
+        session.email,
+        `Rejected Payment for Order #${targetOrder.id}`,
+        String(targetOrder.id),
+        'PAYMENT_VERIFICATION_PENDING',
+        `REJECTED (${rejectionReason})`
+      );
+
+      return NextResponse.json({ success: true, status: 'REJECTED', order: updatedOrder, message: 'Payment rejected and order payment status updated.' });
     }
 
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
