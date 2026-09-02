@@ -101,6 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       title: 'Orders',
       links: [
         { href: '/admin/orders', label: 'Orders List', icon: ShoppingBag },
+        { href: '/admin/payments', label: 'Payment Verification', icon: CreditCard },
         { href: '/admin/returns', label: 'Returns & Refunds', icon: ShieldAlert }
       ]
     },

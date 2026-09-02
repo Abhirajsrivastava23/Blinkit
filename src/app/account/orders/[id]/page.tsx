@@ -33,15 +33,22 @@ export default function AccountOrderDetailPage() {
       setOrder(found);
       setLoading(false);
     }
-    fetch(`/api/orders/${orderId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && !data.error) {
-          setOrder(data);
-        }
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+
+    const fetchDetail = () => {
+      fetch(`/api/orders/${orderId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && !data.error) {
+            setOrder(data);
+          }
+        })
+        .catch((err) => console.error(err))
+        .finally(() => setLoading(false));
+    };
+
+    fetchDetail();
+    const interval = setInterval(fetchDetail, 3500);
+    return () => clearInterval(interval);
   }, [orderId, getOrderById]);
 
   if (loading && !order) {

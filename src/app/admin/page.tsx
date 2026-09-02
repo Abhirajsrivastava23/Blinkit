@@ -9,7 +9,7 @@ import { useToast } from '../../components/Toast';
 import { 
   DollarSign, ShoppingBag, Users, Percent, Sparkles, TrendingUp, AlertTriangle, 
   Plus, Calendar, ShieldCheck, Flame, ArrowUpRight, ArrowRight, CheckCircle2, 
-  MapPin, Clock, Edit3, ClipboardList, RefreshCw, Star, ShieldAlert
+  MapPin, Clock, Edit3, ClipboardList, RefreshCw, Star, ShieldAlert, Eye, XCircle
 } from 'lucide-react';
 import SafeImage from '../../components/SafeImage';
 
@@ -26,6 +26,35 @@ export default function AdminDashboardPage() {
   const [selectedOrderForPartner, setSelectedOrderForPartner] = useState<string | null>(null);
   const [selectedAdminLocation, setSelectedAdminLocation] = useState<'All' | 'nawabganj-unnao' | 'chandigarh-university-up'>('All');
   const [customersCount, setCustomersCount] = useState(0);
+
+  // Payment Verification Queue State
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState<string | null>(null);
+  const [previewProofModal, setPreviewProofModal] = useState<any | null>(null);
+  const [rejectModalTarget, setRejectModalTarget] = useState<any | null>(null);
+  const [dashboardRejectReason, setDashboardRejectReason] = useState('');
+
+  const fetchPendingPayments = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/payments/pending', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.pendingPayments)) {
+          setPendingPayments(data.pendingPayments);
+        }
+      }
+    } catch (e) {
+      console.warn('Dashboard pending payments fetch warning:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchPendingPayments();
+    const interval = setInterval(() => {
+      void fetchPendingPayments();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [fetchPendingPayments]);
 
   useEffect(() => {
     // Fetch real customer count from database
@@ -226,6 +255,66 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleApprovePendingPayment = async (item: any) => {
+    if (isVerifyingPayment) return;
+    try {
+      setIsVerifyingPayment(item.orderId);
+      const res = await fetch('/api/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentId: item.id,
+          orderId: item.orderId,
+          action: 'approve'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Payment approved for #${item.orderId}. Order confirmed!`, 'success');
+        setPreviewProofModal(null);
+        await Promise.all([fetchPendingPayments(), refreshOrders()]);
+      } else {
+        showToast(data.error || 'Failed to approve payment', 'error');
+      }
+    } catch {
+      showToast('Error approving payment', 'error');
+    } finally {
+      setIsVerifyingPayment(null);
+    }
+  };
+
+  const handleRejectPendingPayment = async () => {
+    if (!rejectModalTarget || isVerifyingPayment) return;
+    const reason = (dashboardRejectReason || 'Payment proof verification failed. Please resubmit.').trim();
+    try {
+      setIsVerifyingPayment(rejectModalTarget.orderId);
+      const res = await fetch('/api/payments/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentId: rejectModalTarget.id,
+          orderId: rejectModalTarget.orderId,
+          action: 'reject',
+          reason
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Payment rejected for #${rejectModalTarget.orderId}. Customer notified.`, 'info');
+        setRejectModalTarget(null);
+        setDashboardRejectReason('');
+        setPreviewProofModal(null);
+        await Promise.all([fetchPendingPayments(), refreshOrders()]);
+      } else {
+        showToast(data.error || 'Failed to reject payment', 'error');
+      }
+    } catch {
+      showToast('Error rejecting payment', 'error');
+    } finally {
+      setIsVerifyingPayment(null);
+    }
+  };
+
   return (
     <div className="space-y-6 text-xs text-left">
       
@@ -357,6 +446,104 @@ export default function AdminDashboardPage() {
             <span className="text-base font-extrabold text-emerald-700">{pipelineStats.delivered}</span>
           </div>
         </div>
+      </section>
+
+      {/* 3.5. DEDICATED PAYMENT VERIFICATION QUEUE SECTION */}
+      <section className="bg-white border border-amber-300 rounded-2xl shadow-sm text-left overflow-hidden ring-1 ring-amber-200/60">
+        <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b border-amber-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-500 text-zinc-950 rounded-xl font-bold">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-serif font-black uppercase tracking-wider text-zinc-900">
+                  Payment Verification Queue
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-zinc-950">
+                  {pendingPayments.length} PENDING
+                </span>
+              </div>
+              <p className="text-[10px] text-zinc-500 mt-0.5">
+                Review submitted UPI transaction proofs and 12-digit UTRs in real-time.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push('/admin/payments')}
+              className="px-3 py-1.5 bg-zinc-900 text-white rounded-lg text-[10px] font-bold hover:bg-zinc-800 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>Full Payment Console</span>
+              <ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+
+        {pendingPayments.length > 0 ? (
+          <div className="p-4 divide-y divide-zinc-100">
+            {pendingPayments.slice(0, 4).map((pay) => (
+              <div key={pay.id} className="py-3 first:pt-0 last:pb-0 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                {/* Meta */}
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-zinc-900 text-xs">#{pay.orderId}</span>
+                    <span className="text-[10px] font-bold text-zinc-500">· {pay.customerName}</span>
+                    <span className="text-[10px] text-zinc-400">({pay.customerPhone || pay.customerEmail || 'No contact'})</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-zinc-500">
+                    <span>Amount: <strong className="text-zinc-900 font-bold">₹{pay.amount}</strong></span>
+                    <span>UTR: <code className="bg-zinc-100 px-1.5 py-0.5 rounded font-mono font-bold text-zinc-800">{pay.utr || 'Pending'}</code></span>
+                    <span>Submitted: {pay.submittedAt ? new Date(pay.submittedAt).toLocaleTimeString('en-IN') : 'Just now'}</span>
+                  </div>
+                </div>
+
+                {/* Screenshot & Actions */}
+                <div className="flex items-center gap-3 self-end lg:self-auto">
+                  {pay.proofImageUrl ? (
+                    <button
+                      onClick={() => setPreviewProofModal(pay)}
+                      className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer border"
+                    >
+                      <Eye className="h-3 w-3 text-brand-burgundy" />
+                      <span>View Screenshot</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-zinc-400 italic">No image proof</span>
+                  )}
+
+                  <button
+                    onClick={() => handleApprovePendingPayment(pay)}
+                    disabled={isVerifyingPayment === pay.orderId}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isVerifyingPayment === pay.orderId ? <RefreshCw className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    <span>Approve</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setRejectModalTarget(pay);
+                      setDashboardRejectReason('');
+                    }}
+                    disabled={isVerifyingPayment === pay.orderId}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    <span>Reject</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-6 text-center text-zinc-400 text-xs space-y-1">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto" />
+            <p className="font-bold text-zinc-600">No Pending Payments</p>
+            <p className="text-[10px]">All customer UPI proofs have been verified.</p>
+          </div>
+        )}
       </section>
 
       {/* 4. LIVE ORDER OPERATIONS CARD/TABLE LIST */}
@@ -810,6 +997,107 @@ export default function AdminDashboardPage() {
         </div>
 
       </div>
+
+      {/* ========================================================================= */}
+      {/* PREVIEW PROOF MODAL (LIGHTBOX)                                            */}
+      {/* ========================================================================= */}
+      {previewProofModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b flex items-center justify-between bg-zinc-50">
+              <div>
+                <h4 className="font-serif font-black text-sm text-zinc-900">
+                  Payment Proof — Order #{previewProofModal.orderId}
+                </h4>
+                <p className="text-[11px] text-zinc-500">
+                  {previewProofModal.customerName} · ₹{previewProofModal.amount} · UTR: {previewProofModal.utr}
+                </p>
+              </div>
+              <button onClick={() => setPreviewProofModal(null)} className="text-zinc-500 hover:text-zinc-800 p-1">✕</button>
+            </div>
+
+            <div className="p-4 bg-zinc-950 flex items-center justify-center flex-1 overflow-auto min-h-[250px]">
+              {previewProofModal.proofImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img 
+                  src={previewProofModal.proofImageUrl} 
+                  alt="Proof" 
+                  className="max-h-[55vh] object-contain rounded-lg"
+                />
+              ) : (
+                <span className="text-zinc-500 text-xs">No image available</span>
+              )}
+            </div>
+
+            <div className="p-3 bg-white border-t flex justify-between items-center gap-2">
+              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                Submitted {previewProofModal.submittedAt ? new Date(previewProofModal.submittedAt).toLocaleTimeString('en-IN') : 'Recently'}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setRejectModalTarget(previewProofModal);
+                    setDashboardRejectReason('');
+                  }}
+                  className="px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100"
+                >
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleApprovePendingPayment(previewProofModal)}
+                  disabled={Boolean(isVerifyingPayment)}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs disabled:opacity-50"
+                >
+                  {isVerifyingPayment ? 'Approving...' : 'Approve Payment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* REJECTION MODAL                                                           */}
+      {/* ========================================================================= */}
+      {rejectModalTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h4 className="font-serif font-black text-sm text-zinc-900">
+                Reject Payment — Order #{rejectModalTarget.orderId}
+              </h4>
+              <button onClick={() => setRejectModalTarget(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-zinc-700 block">Rejection Reason *</label>
+              <textarea
+                value={dashboardRejectReason}
+                onChange={(e) => setDashboardRejectReason(e.target.value)}
+                rows={3}
+                placeholder="UTR not found in bank statement / incorrect amount / duplicate screenshot..."
+                className="w-full border rounded-xl p-2.5 text-xs text-zinc-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button
+                onClick={() => setRejectModalTarget(null)}
+                className="px-3 py-1.5 border rounded-lg text-xs font-bold hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectPendingPayment}
+                disabled={Boolean(isVerifyingPayment) || !dashboardRejectReason.trim()}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold disabled:opacity-50"
+              >
+                {isVerifyingPayment ? 'Rejecting...' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
