@@ -52,8 +52,9 @@ export default function OrderPaymentPage() {
   const { getOrderById } = useOrders();
   const { showToast } = useToast();
   
-  const orderId = (params.id as string || '').trim();
-  const contextOrder = getOrderById(orderId);
+  const rawParamId = (params.id as string || '').trim();
+  const orderId = rawParamId.replace(/^#+/, '').trim();
+  const contextOrder = getOrderById(orderId) || getOrderById(rawParamId);
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -229,7 +230,7 @@ export default function OrderPaymentPage() {
       setIsSubmittingProof(true);
 
       // Fast single-request atomic multipart submit
-      const targetOrderId = (order?.id || orderId || '').trim();
+      const targetOrderId = String(order?.id || orderId || rawParamId || '').replace(/^#+/, '').trim();
       const formData = new FormData();
       formData.append('orderId', targetOrderId);
       formData.append('paymentId', order?.paymentId || `pay-${targetOrderId}`);

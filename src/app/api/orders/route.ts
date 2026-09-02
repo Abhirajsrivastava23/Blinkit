@@ -137,36 +137,34 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const orders = await db.readTable<any>('orders') || [];
-    
     // Check if updating an existing order
-    const idx = orders.findIndex((o: any) => o.id === body.id);
-    if (idx > -1 && body.id) {
-      const prevStatus = orders[idx].status;
-      const newStatus = body.status;
-      
-      // Update history if status changes
-      if (newStatus && newStatus !== prevStatus) {
-        if (!body.statusHistory) {
-          body.statusHistory = orders[idx].statusHistory || [];
+    const cleanBodyId = body.id ? String(body.id).replace(/^#+/, '').trim() : '';
+    if (cleanBodyId) {
+      const existingOrder = await db.getOrderById(cleanBodyId);
+      if (existingOrder) {
+        const prevStatus = existingOrder.status;
+        const newStatus = body.status;
+        const hist = Array.isArray(existingOrder.statusHistory) ? [...existingOrder.statusHistory] : [];
+        
+        if (newStatus && newStatus !== prevStatus) {
+          hist.push({
+            previousStatus: prevStatus,
+            newStatus,
+            changedByUserId: session.userId || session.email || 'customer',
+            changedByRole: session.role,
+            timestamp: new Date().toISOString()
+          });
         }
-        body.statusHistory.push({
-          previousStatus: prevStatus,
-          newStatus,
-          changedByUserId: session.userId || session.email || 'customer',
-          changedByRole: session.role,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      orders[idx] = {
-        ...orders[idx],
-        ...body
-      };
 
-      await db.writeTable('orders', orders);
-      return NextResponse.json({ success: true, order: orders[idx], orderId: orders[idx].id });
-    } else {
+        const updated = await db.updateOrder(cleanBodyId, {
+          ...body,
+          id: cleanBodyId,
+          statusHistory: hist
+        });
+
+        return NextResponse.json({ success: true, order: updated, orderId: cleanBodyId });
+      }
+    }
       // 1. New Order Creation must require a customer session
       if (session.role !== 'customer' && session.role !== 'admin') {
         return NextResponse.json({ error: 'Only customers can place orders.' }, { status: 403 });
@@ -273,7 +271,6 @@ export async function POST(request: Request) {
         paymentId,
         total: newOrder.total
       });
-    }
   } catch (err) {
     console.error('Error saving order:', err);
     return NextResponse.json({ error: 'Server error processing order creation.' }, { status: 500 });

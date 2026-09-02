@@ -637,19 +637,20 @@ export const db = {
    * Dedicated Single Order Retrieval & Mutation Methods
    */
   async getOrderById(orderId: string): Promise<Record<string, unknown> | null> {
-    const cleanId = String(orderId || '').trim();
-    if (!cleanId || cleanId === 'undefined' || cleanId === 'null') return null;
+    const rawId = String(orderId || '').trim();
+    if (!rawId || rawId === 'undefined' || rawId === 'null') return null;
+    const cleanId = rawId.replace(/^#+/, '').trim();
 
     if (pool) {
       try {
         const res = await pool.query(
-          'SELECT * FROM orders WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) LIMIT 1',
-          [cleanId]
+          'SELECT * FROM orders WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) LIMIT 1',
+          [cleanId, rawId]
         );
         if (res.rows.length > 0) {
           const normalized = normalizeOrderRecord(res.rows[0]);
           const list = inMemoryData['orders'] || [];
-          const idx = list.findIndex(o => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
+          const idx = list.findIndex(o => String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase());
           if (idx >= 0) list[idx] = normalized;
           else list.unshift(normalized);
           inMemoryData['orders'] = list;
@@ -674,25 +675,29 @@ export const db = {
     }
 
     const list = inMemoryData['orders'] || [];
-    const found = list.find(o => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
+    const found = list.find(o => {
+      const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
+      return oid === cleanId.toLowerCase() || oid === rawId.toLowerCase() || (rawId.replace(/\D/g, '').length >= 4 && oid.includes(rawId.replace(/\D/g, '')));
+    });
     return found ? normalizeOrderRecord(found) : null;
   },
 
   async updateOrder(orderId: string, updates: Record<string, unknown>): Promise<Record<string, unknown> | null> {
-    const cleanId = String(orderId || '').trim();
-    if (!cleanId) return null;
+    const rawId = String(orderId || '').trim();
+    if (!rawId) return null;
+    const cleanId = rawId.replace(/^#+/, '').trim();
 
     const list = inMemoryData['orders'] || [];
-    const idx = list.findIndex(o => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
+    const idx = list.findIndex(o => String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase());
     const now = new Date().toISOString();
-    const cleanUpdates = { ...updates, updatedAt: updates.updatedAt || now };
+    const cleanUpdates = { ...updates, id: cleanId, updatedAt: updates.updatedAt || now };
 
     let merged: Record<string, unknown>;
     if (idx >= 0) {
       merged = normalizeOrderRecord({ ...list[idx], ...cleanUpdates });
       list[idx] = merged;
     } else {
-      merged = normalizeOrderRecord({ id: cleanId, ...cleanUpdates });
+      merged = normalizeOrderRecord({ ...cleanUpdates, id: cleanId });
       list.unshift(merged);
     }
     inMemoryData['orders'] = list;

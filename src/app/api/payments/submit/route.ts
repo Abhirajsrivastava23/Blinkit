@@ -105,13 +105,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payment proof screenshot is required.' }, { status: 400 });
     }
 
-    const cleanOrderId = decodeURIComponent(orderId).trim();
+    const cleanOrderId = decodeURIComponent(orderId).replace(/^#+/, '').trim();
 
     // 1. Fetch order reliably with case-insensitive search
-    const order = await db.getOrderById(cleanOrderId);
+    let order = await db.getOrderById(cleanOrderId);
+    if (!order) {
+      order = await db.getOrderById(orderId);
+    }
 
     if (!order) {
-      console.warn(`[PAYMENT SUBMIT] Order not found for ID: "${cleanOrderId}"`);
+      console.warn(`[PAYMENT SUBMIT] Order not found for ID: "${cleanOrderId}" (raw: "${orderId}")`);
       return NextResponse.json({ error: 'Order not found in records.' }, { status: 404 });
     }
 
