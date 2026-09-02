@@ -49,22 +49,37 @@ export interface PartnerRecord {
 
 
 // PostgreSQL pool connection caching for Serverless envs
-const connectionString = (
+const rawConnectionString = (
   process.env.POSTGRES_URL ||
   process.env.DATABASE_URL ||
   ''
 ).trim();
 
+// Clean connection string to prevent pg parser from overriding custom SSL options
+const connectionString = rawConnectionString
+  ? rawConnectionString
+      .replace(/[?&]sslmode=[^&]+/gi, '')
+      .replace(/[?&]ssl=[^&]+/gi, '')
+      .replace(/\?&/, '?')
+      .replace(/\?$/, '')
+  : '';
+
 let pool: Pool | null = null;
 let dbInitError = '';
 
-if (connectionString) {
+if (rawConnectionString) {
   try {
+    const isLocal = rawConnectionString.includes('localhost') || rawConnectionString.includes('127.0.0.1');
+
+    // Ensure Node.js TLS allows cloud provider private/self-signed CA certificate chains
+    if (!isLocal && typeof process !== 'undefined') {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
+
     const globalWithPg = global as typeof globalThis & {
       _pgPool?: Pool;
     };
     if (!globalWithPg._pgPool) {
-      const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
       globalWithPg._pgPool = new Pool({
         connectionString,
         connectionTimeoutMillis: 10000,

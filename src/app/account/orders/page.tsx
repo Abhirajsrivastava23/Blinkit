@@ -18,7 +18,7 @@ export default function AccountOrdersPage() {
   // Redirect to login if unauthenticated once auth finishes loading
   useEffect(() => {
     if (!isAuthLoading) {
-      if (!user || user.email === 'guest@fatafat.com' || orderStatusCode === 401) {
+      if (!user || orderStatusCode === 401) {
         router.push('/login?callback=/account/orders');
       }
     }
@@ -34,7 +34,7 @@ export default function AccountOrdersPage() {
     );
   }
 
-  if (!user || user.email === 'guest@fatafat.com') {
+  if (!user) {
     return null; // Let the redirect trigger
   }
 

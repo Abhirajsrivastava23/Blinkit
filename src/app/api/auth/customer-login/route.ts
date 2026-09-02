@@ -20,31 +20,16 @@ export async function POST(request: Request) {
     const phone = rawPhone || '9876543210';
     const name = rawName || (rawEmail ? rawEmail.split('@')[0] : `Customer ${phone.slice(-4)}`);
 
-    // Ensure user record exists in database
+    // Ensure user record exists in database atomically
     try {
-      const users = await db.readTable<any>('users') || [];
-      const existingUser = users.find((u: any) => 
-        (u.email && u.email.toLowerCase() === email) || 
-        (u.phone && String(u.phone).replace(/\D/g, '') === rawPhone) ||
-        (u.userId && u.userId === userId)
+      const now = new Date().toISOString();
+      await db.query(
+        `INSERT INTO users ("userId", name, email, phone, "createdAt", "lastLoginAt", "wellnessAccessStatus")
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT ("userId") DO UPDATE
+         SET name = $2, email = $3, phone = $4, "lastLoginAt" = $6`,
+        [userId, name, email, phone, now, now, 'NOT_REQUESTED']
       );
-
-      if (!existingUser) {
-        const now = new Date().toISOString();
-        const newUser = {
-          userId,
-          name,
-          email,
-          phone,
-          role: 'customer',
-          createdAt: now,
-          lastLoginAt: now,
-          wellnessAccessStatus: 'NOT_REQUESTED',
-          addresses: []
-        };
-        users.push(newUser);
-        await db.writeTable('users', users);
-      }
     } catch (dbErr) {
       console.warn('Customer user persistence warning:', dbErr);
     }

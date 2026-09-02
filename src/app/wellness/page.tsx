@@ -53,7 +53,7 @@ export default function WellnessPage() {
   const [submittingTerms, setSubmittingTerms] = useState(false);
 
   // 1. Identify authorization state from session context
-  const isGoogleAuthenticated = user && user.googleProviderId && user.email !== 'guest@fatafat.com';
+  const isGoogleAuthenticated = Boolean(user && user.googleProviderId);
   const wellnessStatus = user?.wellnessAccessStatus || 'NOT_REQUESTED';
 
   // Publication check redirect
@@ -65,7 +65,7 @@ export default function WellnessPage() {
 
   // 2. Fetch server user details on load
   useEffect(() => {
-    if (user?.email && user.email !== 'guest@fatafat.com') {
+    if (user?.email) {
       const fetchServerUser = async () => {
         try {
           const res = await fetch('/api/auth/me');
