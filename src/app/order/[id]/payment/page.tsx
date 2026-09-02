@@ -61,6 +61,7 @@ export default function OrderPaymentPage() {
   const [copied, setCopied] = useState(false);
 
   const activeOrderRef = useRef<Order | null>(contextOrder || null);
+  const isFetchingRef = useRef(false);
 
   // Dynamic UPI QR details from backend
   const [qrDetails, setQrDetails] = useState<QrResponse | null>(null);
@@ -73,9 +74,11 @@ export default function OrderPaymentPage() {
   const [isSubmittingProof, setIsSubmittingProof] = useState(false);
 
   // Fetch order details from API with cache: 'no-store'
-  const fetchOrderDetails = useCallback(async () => {
-    if (!orderId) return;
+  const fetchOrderDetails = useCallback(async (silent = false) => {
+    if (!orderId || isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
+      if (!silent && !activeOrderRef.current) setLoading(true);
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
       const data = await res.json().catch(() => null);
 
@@ -85,29 +88,31 @@ export default function OrderPaymentPage() {
         setFetchError(null);
         setIsConfirmedNotFound(false);
       } else if (res.status === 404) {
-        // Only set confirmed not-found if there is NO pre-existing active order at all
-        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
+        // Only set confirmed not-found if there is genuinely no existing order loaded
+        if (!activeOrderRef.current) {
           setIsConfirmedNotFound(true);
           setFetchError(data?.error || 'Order not found in records.');
         }
       } else {
-        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
+        if (!activeOrderRef.current) {
           setFetchError(data?.error || `Connecting to payment gateway (${res.status})...`);
         }
       }
     } catch (err) {
-      console.error("[PAYMENT] Network error during order fetch:", err);
+      console.warn("[PAYMENT] Network error during order fetch:", err);
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [orderId, contextOrder, fetchedOrder]);
+  }, [orderId]);
 
-  // Initial load + fast live polling every 1.5 seconds for instant admin-approve sync
+  // Initial load + steady live polling every 2.0s for instant admin-approve sync (no storm)
   useEffect(() => {
-    void fetchOrderDetails();
+    void fetchOrderDetails(false);
     const interval = setInterval(() => {
-      void fetchOrderDetails();
-    }, 1500);
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void fetchOrderDetails(true);
+    }, 2000);
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
@@ -180,51 +185,39 @@ export default function OrderPaymentPage() {
     try {
       setIsSubmittingProof(true);
 
-      // 1. Upload screenshot to backend storage with timeout guard
+      // Fast single-request atomic multipart submit
       const formData = new FormData();
+      formData.append('orderId', order.id);
+      formData.append('paymentId', order.paymentId || `pay-${order.id}`);
+      formData.append('amount', String(order.total));
+      formData.append('utr', trimmedUtr);
       formData.append('file', proofFile);
 
-      const uploadRes = await fetch('/api/payments/upload-proof', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const uploadData = await uploadRes.json() as { success?: boolean; url?: string; error?: string };
-      if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
-        throw new Error(uploadData.error || 'Failed to upload payment proof screenshot');
-      }
-
-      // 2. Submit UTR & proof URL to verification endpoint
       const submitRes = await fetch('/api/payments/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          paymentId: order.paymentId || `pay-${order.id}`,
-          amount: order.total,
-          utr: trimmedUtr,
-          proofImageUrl: uploadData.url,
-        }),
+        body: formData,
+        signal: AbortSignal.timeout(6000)
       });
 
-      const submitData = await submitRes.json() as { success?: boolean; error?: string; paymentStatus?: string; order?: Order };
+      const submitData = await submitRes.json().catch(() => ({})) as { success?: boolean; error?: string; paymentStatus?: string; order?: Order };
       if (!submitRes.ok || !submitData.success) {
         throw new Error(submitData.error || 'Failed to submit payment verification');
       }
 
-      // 3. Immediately transition UI to "Verification in Progress"
+      // Immediately transition UI to "Verification in Progress"
       const now = new Date().toISOString();
       const updatedOrderData: Order = submitData.order || {
         ...order,
         paymentStatus: 'PAYMENT_VERIFICATION_PENDING' as const,
         utr: trimmedUtr,
-        proofImageUrl: uploadData.url,
+        proofImageUrl: previewUrl || '',
         paymentSubmittedAt: now,
         updatedAt: now,
       };
 
       setFetchedOrder(updatedOrderData);
       activeOrderRef.current = updatedOrderData;
+      setIsConfirmedNotFound(false);
 
       showToast('Payment submitted successfully! Your payment is under review.', 'success');
       setUtr('');

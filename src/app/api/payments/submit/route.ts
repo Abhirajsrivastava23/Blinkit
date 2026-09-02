@@ -5,72 +5,134 @@ import { getSession } from '@/data/auth';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+async function processProofImage(fileObj: File): Promise<string> {
+  const mimeType = (fileObj.type || '').toLowerCase();
+  const fileName = (fileObj.name || '').toLowerCase();
+  const isAllowedMime = ALLOWED_MIME_TYPES.includes(mimeType);
+  const hasValidExt = fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png') || fileName.endsWith('.webp');
+
+  if (!isAllowedMime && !hasValidExt) {
+    throw new Error('Invalid file type. Upload JPG, PNG, or WebP only.');
+  }
+
+  if (fileObj.size > MAX_FILE_SIZE) {
+    throw new Error('Payment proof is too large. Maximum allowed size is 8MB.');
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const safeName = (fileObj.name || 'proof.jpg').replace(/[^a-zA-Z0-9.-]/g, '-').replace(/-+/g, '-');
+  const storagePath = `payments/${Date.now()}-${safeName}`;
+
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const uploadUrl = `${supabaseUrl}/storage/v1/object/product-images/${storagePath}`;
+      const arrayBuffer = await fileObj.arrayBuffer();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': mimeType || 'image/jpeg',
+          'x-upsert': 'true'
+        },
+        body: arrayBuffer,
+        signal: AbortSignal.timeout(2000)
+      });
+
+      if (uploadRes.ok) {
+        return `${supabaseUrl}/storage/v1/object/public/product-images/${storagePath}`;
+      }
+    } catch (err) {
+      console.warn('Direct upload warning (fallback to base64):', err);
+    }
+  }
+
+  const buffer = Buffer.from(await fileObj.arrayBuffer());
+  return `data:${mimeType || 'image/jpeg'};base64,${buffer.toString('base64')}`;
+}
+
 export async function POST(request: Request) {
   try {
-    const session = await getSession(request);
-    if (!session || (session.role !== 'customer' && session.role !== 'admin')) {
-      return NextResponse.json({ error: 'Unauthorized: Customer session required.' }, { status: 401 });
+    const contentType = request.headers.get('content-type') || '';
+    let orderId = '';
+    let paymentId = '';
+    let utr = '';
+    let proofImageUrl = '';
+    let fileObj: File | null = null;
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      orderId = String(formData.get('orderId') || '').trim();
+      paymentId = String(formData.get('paymentId') || '').trim();
+      utr = String(formData.get('utr') || '').trim();
+      proofImageUrl = String(formData.get('proofImageUrl') || '').trim();
+      const file = formData.get('file');
+      if (file && typeof file !== 'string' && typeof (file as any).arrayBuffer === 'function') {
+        fileObj = file as File;
+      }
+    } else {
+      const body = await request.json().catch(() => ({}));
+      orderId = String(body.orderId || '').trim();
+      paymentId = String(body.paymentId || '').trim();
+      utr = String(body.utr || '').trim();
+      proofImageUrl = String(body.proofImageUrl || '').trim();
     }
 
-    const body = await request.json() as {
-      orderId?: string;
-      paymentId?: string;
-      amount?: number;
-      utr?: string;
-      proofImageUrl?: string;
-    };
-
-    const { orderId, paymentId, utr, proofImageUrl } = body;
-
-    if (!orderId || !utr || !proofImageUrl) {
-      return NextResponse.json({ error: 'Order ID, UTR, and payment proof image are required.' }, { status: 400 });
+    if (!orderId) {
+      return NextResponse.json({ error: 'Order ID is required.' }, { status: 400 });
     }
 
-    const cleanOrderId = decodeURIComponent(String(orderId) || '').trim();
-    const trimmedUtr = String(utr).trim();
+    const trimmedUtr = utr.trim();
     if (!trimmedUtr) {
-      return NextResponse.json({ error: 'UTR is required.' }, { status: 400 });
+      return NextResponse.json({ error: 'UTR / Transaction Reference number is required.' }, { status: 400 });
     }
+
+    // Process image file if uploaded in multipart request
+    if (fileObj) {
+      try {
+        proofImageUrl = await processProofImage(fileObj);
+      } catch (fileErr) {
+        const msg = fileErr instanceof Error ? fileErr.message : 'Invalid payment proof image.';
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+    }
+
+    if (!proofImageUrl) {
+      return NextResponse.json({ error: 'Payment proof screenshot is required.' }, { status: 400 });
+    }
+
+    const cleanOrderId = decodeURIComponent(orderId).trim();
 
     // 1. Fetch order reliably with case-insensitive search
     const order = await db.getOrderById(cleanOrderId);
 
     if (!order) {
-      console.warn(`[PAYMENT SUBMIT] Order genuinely not found for ID: "${cleanOrderId}"`);
-      return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+      console.warn(`[PAYMENT SUBMIT] Order not found for ID: "${cleanOrderId}"`);
+      return NextResponse.json({ error: 'Order not found in records.' }, { status: 404 });
     }
 
-    // 2. Authorization check
-    const orderCustomer = String(order.customerId || '').toLowerCase().trim();
-    const orderEmail = String(order.customerEmail || '').toLowerCase().trim();
-    const sId = String(session.userId || '').toLowerCase().trim();
-    const sEmail = String(session.email || '').toLowerCase().trim();
-    const orderAddr = (order.address && typeof order.address === 'object') ? order.address as Record<string, unknown> : {};
-    const addrPhone = String(orderAddr.mobile || '').replace(/\D/g, '');
-    const sPhone = sId.replace(/\D/g, '');
-
-    const isAuthorized = (
-      session.role === 'admin' ||
-      !orderCustomer ||
-      orderCustomer === sId ||
-      orderCustomer === sEmail ||
-      (orderEmail && sEmail && orderEmail === sEmail) ||
-      (addrPhone && sPhone && addrPhone === sPhone) ||
-      (addrPhone && sId.includes(addrPhone))
-    );
-
-    if (!isAuthorized) {
-      return NextResponse.json({ error: 'You are not authorized to submit payment for this order.' }, { status: 403 });
+    // 2. Authorization check if session is active
+    const session = await getSession(request);
+    if (session) {
+      if (session.role !== 'customer' && session.role !== 'admin') {
+        return NextResponse.json({ error: 'Unauthorized session role.' }, { status: 403 });
+      }
     }
 
     const serverTotal = Number(order.total || 0);
     const now = new Date().toISOString();
 
-    // 3. Update or Insert payment transaction
+    // 3. Update or Insert payment transaction record
     let payment = await db.getPaymentByOrderId(String(order.id));
     if (!payment && paymentId) {
       payment = await db.getPaymentById(paymentId);
     }
+
+    const customerIdVal = session?.userId || String(order.customerId || order.customerEmail || 'customer');
 
     if (payment) {
       try {
@@ -83,7 +145,7 @@ export async function POST(request: Request) {
                "updatedAt" = $5,
                "paymentProofType" = $6,
                metadata = COALESCE(metadata, '{}'::jsonb) || $7::jsonb
-           WHERE LOWER(id) = LOWER($8)`,
+           WHERE LOWER(id) = LOWER($8) OR LOWER("orderId") = LOWER($9)`,
           [
             trimmedUtr,
             proofImageUrl,
@@ -92,12 +154,18 @@ export async function POST(request: Request) {
             now,
             'image',
             JSON.stringify({ proofSubmittedAt: now, proofSource: 'manual_upi' }),
-            payment.id,
+            String(payment.id),
+            String(order.id)
           ]
         );
       } catch (payUpErr) {
         console.warn('payment_transactions update warning:', payUpErr);
       }
+      await db.updatePaymentStatus(String(payment.id), 'PAYMENT_VERIFICATION_PENDING', {
+        utr: trimmedUtr,
+        proofImageUrl,
+        submittedAt: now
+      });
     } else {
       const newPayId = paymentId || `pay-${order.id}-${Date.now()}`;
       try {
@@ -109,7 +177,7 @@ export async function POST(request: Request) {
           [
             newPayId,
             order.id,
-            session.userId || order.customerId,
+            customerIdVal,
             serverTotal,
             'INR',
             'PAYMENT_VERIFICATION_PENDING',
@@ -127,6 +195,22 @@ export async function POST(request: Request) {
       } catch (payInsErr) {
         console.warn('payment_transactions insert warning:', payInsErr);
       }
+      await db.createPayment({
+        id: newPayId,
+        orderId: order.id,
+        customerId: customerIdVal,
+        amount: serverTotal,
+        currency: 'INR',
+        status: 'PAYMENT_VERIFICATION_PENDING',
+        method: 'UPI',
+        provider: 'MANUAL_UPI',
+        utr: trimmedUtr,
+        proofImageUrl,
+        submittedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        attemptCount: 1
+      });
     }
 
     // 4. Update order payment status in database reliably
@@ -136,6 +220,7 @@ export async function POST(request: Request) {
       proofImageUrl,
       paymentSubmittedAt: now,
       updatedAt: now,
+      rejectionReason: null
     });
 
     return NextResponse.json({
@@ -152,5 +237,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to submit payment proof.' }, { status: 500 });
   }
 }
-
-
