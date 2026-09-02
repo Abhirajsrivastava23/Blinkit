@@ -204,8 +204,7 @@ export async function POST(request: Request) {
         }]
       };
 
-      orders.unshift(newOrder);
-      await db.writeTable('orders', orders);
+      const savedOrder = await db.updateOrder(orderId, newOrder);
 
       // 3. Create or ensure payment transaction record in database
       const paymentId = `pay-${orderId}-${Date.now()}`;

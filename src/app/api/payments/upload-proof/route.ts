@@ -53,7 +53,8 @@ export async function POST(request: Request) {
             'Content-Type': mimeType || 'image/jpeg',
             'x-upsert': 'true'
           },
-          body: arrayBuffer
+          body: arrayBuffer,
+          signal: AbortSignal.timeout(2500)
         });
 
         if (uploadRes.status === 404) {
@@ -64,7 +65,8 @@ export async function POST(request: Request) {
                 'Authorization': `Bearer ${supabaseKey}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ id: 'product-images', name: 'product-images', public: true })
+              body: JSON.stringify({ id: 'product-images', name: 'product-images', public: true }),
+              signal: AbortSignal.timeout(2000)
             });
 
             uploadRes = await fetch(uploadUrl, {
@@ -74,7 +76,8 @@ export async function POST(request: Request) {
                 'Content-Type': mimeType || 'image/jpeg',
                 'x-upsert': 'true'
               },
-              body: arrayBuffer
+              body: arrayBuffer,
+              signal: AbortSignal.timeout(2500)
             });
           } catch (bucketErr) {
             console.warn('Supabase bucket retry error:', bucketErr);
@@ -84,10 +87,10 @@ export async function POST(request: Request) {
         if (uploadRes.ok) {
           publicUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${storagePath}`;
         } else {
-          console.warn('Supabase storage upload error:', await uploadRes.text());
+          console.warn('Supabase storage upload error:', await uploadRes.text().catch(() => ''));
         }
       } catch (err) {
-        console.error('Supabase direct upload error:', err);
+        console.warn('Supabase direct upload warning (fallback to base64):', err);
       }
     }
 

@@ -48,31 +48,23 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   return false;
 }
 
-// 2. Create session token and store it
+// 2. Create session token and store it atomically
 export async function createSession(userId: string, email: string, role: string): Promise<Session> {
   const sessionId = 'sess-' + crypto.randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
   const newSession: Session = {
     sessionId,
-    userId,
-    email,
-    role,
+    userId: String(userId).trim(),
+    email: String(email).trim().toLowerCase(),
+    role: String(role).trim().toLowerCase(),
     expiresAt
   };
 
   try {
-    const sessions = (await db.readTable<Session>('sessions')) || [];
-    sessions.push(newSession);
-    await db.writeTable('sessions', sessions);
-  } catch (e) {
-    console.warn('Session writeTable warning:', e);
-  }
-
-  try {
     await db.query(
-      'INSERT INTO sessions ("sessionId", "userId", email, role, "expiresAt") VALUES ($1, $2, $3, $4, $5)',
-      [sessionId, userId, email, role, expiresAt]
+      'INSERT INTO sessions ("sessionId", "userId", email, role, "expiresAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("sessionId") DO UPDATE SET "userId" = $2, email = $3, role = $4, "expiresAt" = $5',
+      [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
     );
   } catch (e) {
     console.warn('Session db.query warning:', e);
@@ -105,24 +97,38 @@ export async function getSession(request?: Request): Promise<Session | null> {
 
   if (!token) return null;
 
-  const sessions = await db.readTable<Session>('sessions') || [];
-  const session = sessions.find(s => s.sessionId === token);
-  if (!session) return null;
+  try {
+    const res = await db.query('SELECT * FROM sessions WHERE "sessionId" = $1 LIMIT 1', [token]);
+    if (res.rows && res.rows.length > 0) {
+      const raw = res.rows[0];
+      const session: Session = {
+        sessionId: String(raw.sessionId || raw.sessionid || token),
+        userId: String(raw.userId || raw.userid || ''),
+        email: String(raw.email || ''),
+        role: String(raw.role || ''),
+        expiresAt: String(raw.expiresAt || raw.expiresat || '')
+      };
 
-  // Validate expiration
-  if (new Date(session.expiresAt) < new Date()) {
-    // Delete expired session
-    await db.writeTable('sessions', sessions.filter(s => s.sessionId !== token));
-    return null;
+      if (session.expiresAt && new Date(session.expiresAt) > new Date()) {
+        return session;
+      }
+      return null;
+    }
+  } catch (err) {
+    console.warn('Error querying session from database:', err);
   }
 
-  return session;
+  return null;
 }
 
 // 4. Delete session (Logout)
 export async function deleteSession(sessionId: string): Promise<void> {
-  const sessions = await db.readTable<Session>('sessions') || [];
-  await db.writeTable('sessions', sessions.filter(s => s.sessionId !== sessionId));
+  if (!sessionId) return;
+  try {
+    await db.query('DELETE FROM sessions WHERE "sessionId" = $1', [sessionId]);
+  } catch (e) {
+    console.warn('Delete session error:', e);
+  }
 }
 
 // 5. Endpoint guard helper to check required roles

@@ -51,8 +51,9 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     void fetchPendingPayments();
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       void fetchPendingPayments();
-    }, 4000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [fetchPendingPayments]);
 

@@ -99,12 +99,13 @@ export default function AdminPaymentsPage() {
     }
   }, [router]);
 
-  // Initial fetch and auto-polling every 3.5 seconds
+  // Initial fetch and auto-polling every 1.5 seconds when active/visible
   useEffect(() => {
     void fetchPayments(false);
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       void fetchPayments(true);
-    }, 3500);
+    }, 1500);
 
     return () => clearInterval(interval);
   }, [fetchPayments]);

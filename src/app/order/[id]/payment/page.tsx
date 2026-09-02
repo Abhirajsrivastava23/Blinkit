@@ -85,13 +85,13 @@ export default function OrderPaymentPage() {
         setFetchError(null);
         setIsConfirmedNotFound(false);
       } else if (res.status === 404) {
-        // Only set confirmed not-found if there is NO pre-existing active order
-        if (!activeOrderRef.current && !contextOrder) {
+        // Only set confirmed not-found if there is NO pre-existing active order at all
+        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
           setIsConfirmedNotFound(true);
           setFetchError(data?.error || 'Order not found in records.');
         }
       } else {
-        if (!activeOrderRef.current && !contextOrder) {
+        if (!activeOrderRef.current && !contextOrder && !fetchedOrder) {
           setFetchError(data?.error || `Connecting to payment gateway (${res.status})...`);
         }
       }
@@ -100,14 +100,14 @@ export default function OrderPaymentPage() {
     } finally {
       setLoading(false);
     }
-  }, [orderId, contextOrder]);
+  }, [orderId, contextOrder, fetchedOrder]);
 
-  // Initial load + live polling every 3 seconds for instant status sync
+  // Initial load + fast live polling every 1.5 seconds for instant admin-approve sync
   useEffect(() => {
     void fetchOrderDetails();
     const interval = setInterval(() => {
       void fetchOrderDetails();
-    }, 3000);
+    }, 1500);
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
@@ -164,7 +164,7 @@ export default function OrderPaymentPage() {
 
   const handleProofSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!order) return;
+    if (!order || isSubmittingProof) return;
 
     const trimmedUtr = utr.trim();
     if (!trimmedUtr) {
@@ -180,7 +180,7 @@ export default function OrderPaymentPage() {
     try {
       setIsSubmittingProof(true);
 
-      // 1. Upload screenshot to backend storage
+      // 1. Upload screenshot to backend storage with timeout guard
       const formData = new FormData();
       formData.append('file', proofFile);
 
@@ -207,14 +207,14 @@ export default function OrderPaymentPage() {
         }),
       });
 
-      const submitData = await submitRes.json() as { success?: boolean; error?: string; paymentStatus?: string };
+      const submitData = await submitRes.json() as { success?: boolean; error?: string; paymentStatus?: string; order?: Order };
       if (!submitRes.ok || !submitData.success) {
         throw new Error(submitData.error || 'Failed to submit payment verification');
       }
 
-      // 3. Optimistic local update to immediately show "Verification in Progress"
+      // 3. Immediately transition UI to "Verification in Progress"
       const now = new Date().toISOString();
-      const updatedOrderData: Order = {
+      const updatedOrderData: Order = submitData.order || {
         ...order,
         paymentStatus: 'PAYMENT_VERIFICATION_PENDING' as const,
         utr: trimmedUtr,
@@ -226,11 +226,10 @@ export default function OrderPaymentPage() {
       setFetchedOrder(updatedOrderData);
       activeOrderRef.current = updatedOrderData;
 
-      showToast('Payment submitted successfully. Verification is in progress.', 'success');
+      showToast('Payment submitted successfully! Your payment is under review.', 'success');
       setUtr('');
       setProofFile(null);
       setPreviewUrl(null);
-      await fetchOrderDetails();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Submission failed. Please try again.';
       showToast(msg, 'error');

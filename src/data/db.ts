@@ -442,6 +442,36 @@ export const db = {
         }
         return { rows: [] };
       }
+      if (lower.includes('insert into sessions') && params && params.length >= 5) {
+        const sessionId = String(params[0]);
+        const userId = String(params[1]);
+        const email = String(params[2]);
+        const role = String(params[3]);
+        const expiresAt = String(params[4]);
+
+        const list = inMemoryData['sessions'] || [];
+        const existingIdx = list.findIndex(s => String(s.sessionId || s.sessionid).toLowerCase() === sessionId.toLowerCase());
+        const record = { sessionId, userId, email, role, expiresAt };
+        if (existingIdx >= 0) {
+          list[existingIdx] = record;
+        } else {
+          list.push(record);
+        }
+        inMemoryData['sessions'] = list;
+        return { rows: [record as unknown as T] };
+      }
+      if (lower.includes('select') && lower.includes('sessions') && params && params[0]) {
+        const token = String(params[0]).toLowerCase();
+        const list = inMemoryData['sessions'] || [];
+        const found = list.filter((s: Record<string, unknown>) => String(s.sessionId || s.sessionid || '').toLowerCase() === token);
+        return { rows: found.map(normalizeSessionRecord) as unknown as T[] };
+      }
+      if (lower.includes('delete from sessions') && params && params[0]) {
+        const token = String(params[0]).toLowerCase();
+        const list = inMemoryData['sessions'] || [];
+        inMemoryData['sessions'] = list.filter((s: Record<string, unknown>) => String(s.sessionId || s.sessionid || '').toLowerCase() !== token);
+        return { rows: [] };
+      }
       if (lower.includes('update orders') && params) {
         return { rows: [] };
       }
@@ -597,7 +627,13 @@ export const db = {
       try {
         const res = await pool.query('SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanId]);
         if (res.rows.length > 0) {
-          return normalizeOrderRecord(res.rows[0]);
+          const normalized = normalizeOrderRecord(res.rows[0]);
+          const list = inMemoryData['orders'] || [];
+          const idx = list.findIndex(o => String(o.id || o.ID || '').trim().toLowerCase() === cleanId.toLowerCase());
+          if (idx >= 0) list[idx] = normalized;
+          else list.unshift(normalized);
+          inMemoryData['orders'] = list;
+          return normalized;
         }
       } catch (err) {
         console.error('Error fetching order by ID from PostgreSQL:', err);
@@ -624,7 +660,7 @@ export const db = {
       list[idx] = merged;
     } else {
       merged = normalizeOrderRecord({ id: cleanId, ...cleanUpdates });
-      list.push(merged);
+      list.unshift(merged);
     }
     inMemoryData['orders'] = list;
 
@@ -639,6 +675,7 @@ export const db = {
         allowedLowerMap.set(col.toLowerCase(), col);
       }
 
+      // 1. Attempt UPDATE first
       const setClauses: string[] = [];
       const values: unknown[] = [];
 
@@ -651,11 +688,34 @@ export const db = {
         setClauses.push(`"${canonicalCol}" = $${values.length}`);
       }
 
+      let updatedRows = 0;
       if (setClauses.length > 0) {
         values.push(cleanId);
         const queryText = `UPDATE orders SET ${setClauses.join(', ')} WHERE LOWER(id) = LOWER($${values.length})`;
-        await pool.query(queryText, values);
+        const res = await pool.query(queryText, values);
+        updatedRows = res.rowCount || 0;
       }
+
+      // 2. If row was not found in DB, perform atomic INSERT
+      if (updatedRows === 0) {
+        const cols: string[] = ['"id"'];
+        const valPlaceholders: string[] = ['$1'];
+        const insertVals: unknown[] = [cleanId];
+
+        for (const [key, val] of Object.entries(merged)) {
+          if (key.toLowerCase() === 'id') continue;
+          const canonicalCol = allowedLowerMap.get(key.toLowerCase());
+          if (!canonicalCol) continue;
+
+          cols.push(`"${canonicalCol}"`);
+          insertVals.push(val && typeof val === 'object' ? JSON.stringify(val) : val);
+          valPlaceholders.push(`$${insertVals.length}`);
+        }
+
+        const insertQuery = `INSERT INTO orders (${cols.join(', ')}) VALUES (${valPlaceholders.join(', ')}) ON CONFLICT (id) DO NOTHING`;
+        await pool.query(insertQuery, insertVals);
+      }
+
       return merged;
     } catch (err) {
       console.error('Error updating order row in database:', err);
