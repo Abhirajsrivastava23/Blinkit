@@ -64,17 +64,13 @@ if (connectionString) {
       _pgPool?: Pool;
     };
     if (!globalWithPg._pgPool) {
-      const parsedUrl = new URL(connectionString);
+      const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
       globalWithPg._pgPool = new Pool({
-        user: decodeURIComponent(parsedUrl.username || ''),
-        password: decodeURIComponent(parsedUrl.password || ''),
-        host: parsedUrl.hostname,
-        port: parseInt(parsedUrl.port || '5432', 10),
-        database: parsedUrl.pathname.substring(1),
-        connectionTimeoutMillis: 3000,
-        idleTimeoutMillis: 3000,
-        max: 2,
-        ssl: {
+        connectionString,
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 10000,
+        max: 20,
+        ssl: isLocal ? false : {
           rejectUnauthorized: false
         }
       });
@@ -621,11 +617,14 @@ export const db = {
    */
   async getOrderById(orderId: string): Promise<Record<string, unknown> | null> {
     const cleanId = String(orderId || '').trim();
-    if (!cleanId) return null;
+    if (!cleanId || cleanId === 'undefined' || cleanId === 'null') return null;
 
     if (pool) {
       try {
-        const res = await pool.query('SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanId]);
+        const res = await pool.query(
+          'SELECT * FROM orders WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) LIMIT 1',
+          [cleanId]
+        );
         if (res.rows.length > 0) {
           const normalized = normalizeOrderRecord(res.rows[0]);
           const list = inMemoryData['orders'] || [];
@@ -635,8 +634,21 @@ export const db = {
           inMemoryData['orders'] = list;
           return normalized;
         }
+
+        // Secondary fallback for IDs with varying FT- / # prefixes
+        const rawNumeric = cleanId.replace(/\D/g, '');
+        if (rawNumeric.length >= 4) {
+          const fallbackRes = await pool.query(
+            `SELECT * FROM orders WHERE id LIKE '%' || $1 || '%' LIMIT 1`,
+            [rawNumeric]
+          );
+          if (fallbackRes.rows.length > 0) {
+            const normalized = normalizeOrderRecord(fallbackRes.rows[0]);
+            return normalized;
+          }
+        }
       } catch (err) {
-        console.error('Error fetching order by ID from PostgreSQL:', err);
+        console.error(`[DATABASE ERROR] getOrderById query failed for ID "${cleanId}":`, err);
       }
     }
 

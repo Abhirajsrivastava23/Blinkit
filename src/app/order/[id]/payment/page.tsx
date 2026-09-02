@@ -186,10 +186,11 @@ export default function OrderPaymentPage() {
       setIsSubmittingProof(true);
 
       // Fast single-request atomic multipart submit
+      const targetOrderId = (order?.id || orderId || '').trim();
       const formData = new FormData();
-      formData.append('orderId', order.id);
-      formData.append('paymentId', order.paymentId || `pay-${order.id}`);
-      formData.append('amount', String(order.total));
+      formData.append('orderId', targetOrderId);
+      formData.append('paymentId', order?.paymentId || `pay-${targetOrderId}`);
+      formData.append('amount', String(order?.total || 0));
       formData.append('utr', trimmedUtr);
       formData.append('file', proofFile);
 
