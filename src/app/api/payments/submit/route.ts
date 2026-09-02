@@ -226,9 +226,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'Payment proof submitted successfully. Your payment is under review by our team.',
-      paymentStatus: 'PAYMENT_VERIFICATION_PENDING',
-      order: updatedOrder,
       orderId: order.id,
+      paymentStatus: 'PAYMENT_VERIFICATION_PENDING',
+      orderStatus: updatedOrder?.status || order.status || 'Pending',
+      updatedAt: now,
+      order: updatedOrder,
       utr: trimmedUtr,
       proofImageUrl,
     });

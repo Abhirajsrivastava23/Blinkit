@@ -22,15 +22,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     try {
       const paymentTx = await db.getPaymentByOrderId(String(order.id));
       if (paymentTx) {
+        let canonicalPaymentStatus = order.paymentStatus || paymentTx.status || 'NOT_STARTED';
+        const orderPayUpper = String(order.paymentStatus || '').toUpperCase();
+        const pPayUpper = String(paymentTx.status || '').toUpperCase();
+        const orderStatusUpper = String(order.status || '').toUpperCase();
+
+        if (orderPayUpper === 'PAID' || pPayUpper === 'PAID' || orderStatusUpper === 'CONFIRMED' || orderStatusUpper === 'PREPARING' || orderStatusUpper === 'PACKED' || orderStatusUpper === 'OUT FOR DELIVERY' || orderStatusUpper === 'DELIVERED') {
+          canonicalPaymentStatus = 'PAID';
+        } else if (orderPayUpper === 'REJECTED' || pPayUpper === 'REJECTED') {
+          canonicalPaymentStatus = 'REJECTED';
+        } else if (orderPayUpper === 'PAYMENT_VERIFICATION_PENDING' || pPayUpper === 'PAYMENT_VERIFICATION_PENDING') {
+          canonicalPaymentStatus = 'PAYMENT_VERIFICATION_PENDING';
+        }
+
         order = {
           ...order,
-          paymentStatus: (paymentTx.status as any) || order.paymentStatus,
-          utr: (paymentTx.utr as any) || order.utr,
-          proofImageUrl: (paymentTx.proofImageUrl as any) || order.proofImageUrl,
-          paymentSubmittedAt: (paymentTx.submittedAt as any) || order.paymentSubmittedAt,
-          paymentVerifiedAt: (paymentTx.verifiedAt as any) || order.paymentVerifiedAt,
-          paymentRejectedAt: (paymentTx.rejectedAt as any) || order.paymentRejectedAt,
-          rejectionReason: (paymentTx.rejectionReason as any) || order.rejectionReason,
+          paymentStatus: canonicalPaymentStatus,
+          utr: order.utr || paymentTx.utr || '',
+          proofImageUrl: order.proofImageUrl || paymentTx.proofImageUrl || '',
+          paymentSubmittedAt: order.paymentSubmittedAt || paymentTx.submittedAt,
+          paymentVerifiedAt: order.paymentVerifiedAt || paymentTx.verifiedAt,
+          paymentRejectedAt: order.paymentRejectedAt || paymentTx.rejectedAt,
+          rejectionReason: order.rejectionReason || paymentTx.rejectionReason,
         };
       }
     } catch (payLookupErr) {

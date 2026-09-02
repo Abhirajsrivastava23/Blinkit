@@ -43,21 +43,21 @@ export async function POST(request: Request) {
     }
 
     if (action === 'approve') {
-      if (payment) {
-        try {
-          await db.query(
-            `UPDATE payment_transactions
-             SET status = $1,
-                 "verifiedAt" = $2,
-                 "verifiedBy" = $3,
-                 "updatedAt" = $4,
-                 "paidAt" = $5
-             WHERE LOWER(id) = LOWER($6)`,
-            ['PAID', now, session.email, now, now, String(payment.id)]
-          );
-        } catch (e) {
-          console.warn('payment_transactions approve query warning:', e);
-        }
+      try {
+        await db.query(
+          `UPDATE payment_transactions
+           SET status = $1,
+               "verifiedAt" = $2,
+               "verifiedBy" = $3,
+               "updatedAt" = $4,
+               "paidAt" = $5
+           WHERE LOWER(id) = LOWER($6) OR LOWER("orderId") = LOWER($7)`,
+          ['PAID', now, session.email, now, now, String(payment?.id || ''), String(targetOrder.id)]
+        );
+      } catch (e) {
+        console.warn('payment_transactions approve query warning:', e);
+      }
+      if (payment?.id) {
         await db.updatePaymentStatus(String(payment.id), 'PAID', { verifiedBy: session.email, verifiedAt: now });
       }
 
@@ -86,26 +86,35 @@ export async function POST(request: Request) {
         'PAID'
       );
 
-      return NextResponse.json({ success: true, status: 'PAID', order: updatedOrder, message: 'Payment approved and order confirmed.' });
+      return NextResponse.json({
+        success: true,
+        status: 'PAID',
+        paymentStatus: 'PAID',
+        orderStatus: 'Confirmed',
+        orderId: targetOrder.id,
+        updatedAt: now,
+        order: updatedOrder,
+        message: 'Payment approved and order confirmed.'
+      });
     }
 
     if (action === 'reject') {
       const rejectionReason = (reason || 'Payment proof did not match the submitted order details.').trim();
-      if (payment) {
-        try {
-          await db.query(
-            `UPDATE payment_transactions
-             SET status = $1,
-                 "rejectedAt" = $2,
-                 "rejectedBy" = $3,
-                 "rejectionReason" = $4,
-                 "updatedAt" = $5
-             WHERE LOWER(id) = LOWER($6)`,
-            ['REJECTED', now, session.email, rejectionReason, now, String(payment.id)]
-          );
-        } catch (e) {
-          console.warn('payment_transactions reject query warning:', e);
-        }
+      try {
+        await db.query(
+          `UPDATE payment_transactions
+           SET status = $1,
+               "rejectedAt" = $2,
+               "rejectedBy" = $3,
+               "rejectionReason" = $4,
+               "updatedAt" = $5
+           WHERE LOWER(id) = LOWER($6) OR LOWER("orderId") = LOWER($7)`,
+          ['REJECTED', now, session.email, rejectionReason, now, String(payment?.id || ''), String(targetOrder.id)]
+        );
+      } catch (e) {
+        console.warn('payment_transactions reject query warning:', e);
+      }
+      if (payment?.id) {
         await db.updatePaymentStatus(String(payment.id), 'REJECTED', { rejectedBy: session.email, rejectedAt: now, rejectionReason });
       }
 
@@ -134,7 +143,17 @@ export async function POST(request: Request) {
         `REJECTED (${rejectionReason})`
       );
 
-      return NextResponse.json({ success: true, status: 'REJECTED', order: updatedOrder, message: 'Payment rejected and order payment status updated.' });
+      return NextResponse.json({
+        success: true,
+        status: 'REJECTED',
+        paymentStatus: 'REJECTED',
+        orderStatus: targetOrder.status || 'Pending',
+        orderId: targetOrder.id,
+        rejectionReason,
+        updatedAt: now,
+        order: updatedOrder,
+        message: 'Payment rejected and order payment status updated.'
+      });
     }
 
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });

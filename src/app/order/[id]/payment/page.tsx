@@ -240,12 +240,13 @@ export default function OrderPaymentPage() {
       const submitRes = await fetch('/api/payments/submit', {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(30000)
       });
 
-      const submitData = await submitRes.json().catch(() => ({})) as { success?: boolean; error?: string; paymentStatus?: string; order?: Order };
-      if (!submitRes.ok || !submitData.success) {
-        throw new Error(submitData.error || 'Failed to submit payment verification');
+      const submitData = await submitRes.json().catch(() => null) as { success?: boolean; error?: string; paymentStatus?: string; order?: Order } | null;
+      if (!submitRes.ok || !submitData || !submitData.success) {
+        const errorMsg = submitData?.error || `Failed to submit payment verification (HTTP ${submitRes.status})`;
+        throw new Error(errorMsg);
       }
 
       // Immediately transition UI to "Verification in Progress"
@@ -268,6 +269,7 @@ export default function OrderPaymentPage() {
       setProofFile(null);
       setPreviewUrl(null);
     } catch (err) {
+      console.error('[PAYMENT SUBMIT ERROR]', err);
       const msg = err instanceof Error ? err.message : 'Submission failed. Please try again.';
       showToast(msg, 'error');
     } finally {

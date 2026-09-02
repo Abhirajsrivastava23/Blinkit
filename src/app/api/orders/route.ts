@@ -17,25 +17,37 @@ export async function GET(request: Request) {
     const paymentMap = new Map<string, any>();
     for (const p of payments) {
       if (p.orderId) {
-        paymentMap.set(String(p.orderId), p);
+        paymentMap.set(String(p.orderId).toLowerCase(), p);
       }
     }
 
     const enrichedList = list.map((o: any) => {
-      const p = paymentMap.get(String(o.id));
-      if (p) {
-        return {
-          ...o,
-          paymentStatus: p.status || o.paymentStatus,
-          utr: p.utr || o.utr,
-          proofImageUrl: p.proofImageUrl || o.proofImageUrl,
-          paymentSubmittedAt: p.submittedAt || o.paymentSubmittedAt,
-          paymentVerifiedAt: p.verifiedAt || o.paymentVerifiedAt,
-          paymentRejectedAt: p.rejectedAt || o.paymentRejectedAt,
-          rejectionReason: p.rejectionReason || o.rejectionReason,
-        };
+      const p = paymentMap.get(String(o.id).toLowerCase());
+
+      // Canonical payment status with monotonic authority
+      let canonicalPaymentStatus = o.paymentStatus || p?.status || 'NOT_STARTED';
+      const orderPayUpper = String(o.paymentStatus || '').toUpperCase();
+      const pPayUpper = String(p?.status || '').toUpperCase();
+      const orderStatusUpper = String(o.status || '').toUpperCase();
+
+      if (orderPayUpper === 'PAID' || pPayUpper === 'PAID' || orderStatusUpper === 'CONFIRMED' || orderStatusUpper === 'PREPARING' || orderStatusUpper === 'PACKED' || orderStatusUpper === 'OUT FOR DELIVERY' || orderStatusUpper === 'DELIVERED') {
+        canonicalPaymentStatus = 'PAID';
+      } else if (orderPayUpper === 'REJECTED' || pPayUpper === 'REJECTED') {
+        canonicalPaymentStatus = 'REJECTED';
+      } else if (orderPayUpper === 'PAYMENT_VERIFICATION_PENDING' || pPayUpper === 'PAYMENT_VERIFICATION_PENDING') {
+        canonicalPaymentStatus = 'PAYMENT_VERIFICATION_PENDING';
       }
-      return o;
+
+      return {
+        ...o,
+        paymentStatus: canonicalPaymentStatus,
+        utr: o.utr || p?.utr || '',
+        proofImageUrl: o.proofImageUrl || p?.proofImageUrl || '',
+        paymentSubmittedAt: o.paymentSubmittedAt || p?.submittedAt,
+        paymentVerifiedAt: o.paymentVerifiedAt || p?.verifiedAt,
+        paymentRejectedAt: o.paymentRejectedAt || p?.rejectedAt,
+        rejectionReason: o.rejectionReason || p?.rejectionReason,
+      };
     });
 
     if (session.role === 'admin') {

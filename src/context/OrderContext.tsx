@@ -100,24 +100,45 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number | null>(null);
+  const isFetchingRef = React.useRef(false);
+  const orderSeqRef = React.useRef(0);
+  const latestHandledSeqRef = React.useRef(0);
 
-  // Load orders from server and fallback to localStorage
+  // Load orders from server with monotonic state preservation
   const refreshOrders = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    const thisSeq = ++orderSeqRef.current;
+
     try {
-      const res = await fetch('/api/orders');
+      const res = await fetch('/api/orders', { cache: 'no-store' });
       setStatusCode(res.status);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && thisSeq >= latestHandledSeqRef.current) {
+          latestHandledSeqRef.current = thisSeq;
           setOrders(prev => {
-            const map = new Map<string, Order>();
-            for (const o of prev) map.set(o.id, o);
-            for (const o of data) map.set(o.id, o);
-            const merged = Array.from(map.values());
+            const prevMap = new Map<string, Order>();
+            for (const o of prev) prevMap.set(String(o.id).toLowerCase(), o);
+
+            // Merge server data with monotonic payment safety
+            const updated = data.map((serverOrder: Order) => {
+              const existing = prevMap.get(String(serverOrder.id).toLowerCase());
+              if (!existing) return serverOrder;
+
+              const existingPaid = existing.paymentStatus === 'PAID' || existing.status === 'Confirmed' || existing.status === 'Preparing' || existing.status === 'Packed' || existing.status === 'Out for Delivery' || existing.status === 'Delivered';
+              const serverPaid = serverOrder.paymentStatus === 'PAID' || serverOrder.status === 'Confirmed' || serverOrder.status === 'Preparing' || serverOrder.status === 'Packed' || serverOrder.status === 'Out for Delivery' || serverOrder.status === 'Delivered';
+
+              if (existingPaid && !serverPaid) {
+                return { ...serverOrder, paymentStatus: 'PAID' as const, status: existing.status };
+              }
+              return serverOrder;
+            });
+
             if (typeof window !== 'undefined') {
-              localStorage.setItem('fatafat_orders', JSON.stringify(merged));
+              localStorage.setItem('fatafat_orders', JSON.stringify(updated));
             }
-            return merged;
+            return updated;
           });
           setError(null);
         }
@@ -129,22 +150,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Error refreshing orders:', e);
       setError('Failed to fetch orders from server.');
     } finally {
+      isFetchingRef.current = false;
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void refreshOrders();
-    }, 0);
+    void refreshOrders();
 
-    // Poll for order changes every 5 seconds to ensure real-time updates across screens
+    // Poll for order changes every 2 seconds with visibility check
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       void refreshOrders();
-    }, 5000);
+    }, 2000);
 
     return () => {
-      window.clearTimeout(timer);
       clearInterval(interval);
     };
   }, []);
