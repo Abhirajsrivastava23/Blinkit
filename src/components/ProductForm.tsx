@@ -261,20 +261,20 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
       image: primaryImage,
       inStock: status !== 'Draft' && status !== 'Out of Stock' && Number(stockQuantity) > 0,
       deliveryTime,
-      variants: hasVariants ? variantsList.map(v => v.name) : undefined,
-      wellnessBrand: brand,
+      variants: hasVariants ? variantsList.map(v => v.name) : (initialProduct?.variants || ['Standard']),
+      wellnessBrand: brand || 'FATAFAT',
       wellnessType: category === 'wellness' ? wellnessType : undefined,
       wellnessMaterial: category === 'wellness' ? wellnessMaterial : undefined,
       wellnessPackSize: category === 'wellness' ? wellnessPackSize : undefined,
       wellnessTexture: category === 'wellness' ? wellnessTexture : undefined,
       wellnessFlavor: category === 'wellness' && wellnessFlavor ? wellnessFlavor : undefined,
       wellnessVerified: category === 'wellness' ? wellnessVerified : true,
-      storageInstructions: category === 'wellness' ? 'Store in a cool dry place.' : undefined,
+      storageInstructions: category === 'wellness' ? 'Store in a cool dry place.' : (initialProduct?.storageInstructions || 'Store fresh.'),
       gallery: galleryImages.length > 0 ? galleryImages : [primaryImage]
     };
 
     try {
-      const url = initialProduct ? `/api/products/${initialProduct.id}` : '/api/products';
+      const url = initialProduct ? `/api/products/${encodeURIComponent(initialProduct.id)}` : '/api/products';
       const method = initialProduct ? 'PATCH' : 'POST';
 
       const res = await fetch(url, {
@@ -283,13 +283,14 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
         body: JSON.stringify(payload)
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
         showToast(initialProduct ? 'Product specifications updated successfully!' : 'New product registered successfully!', 'success');
         await refreshProducts();
         router.push('/admin/products');
       } else {
-        const err = await res.json();
-        showToast(err.error || 'Failed to save product details.', 'error');
+        showToast(data.error || 'Failed to save product details.', 'error');
       }
     } catch (error) {
       console.error('Error saving product form:', error);

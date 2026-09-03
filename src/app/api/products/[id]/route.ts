@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
-import { Product } from '../../../../data/mockData';
 import { getSession } from '../../../../data/auth';
 
 export const dynamic = 'force-dynamic';
@@ -9,8 +8,8 @@ export const revalidate = 0;
 export async function GET(request: Request, context: any) {
   try {
     const { id } = await context.params;
-    const products = await db.readTable<Product>('products');
-    const product = products.find(p => p.id === id || p.name.toLowerCase().replace(/ /g, '-') === id);
+    const cleanId = decodeURIComponent(String(id || '')).trim();
+    const product = await db.getProductById(cleanId);
 
     if (!product) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
@@ -50,18 +49,21 @@ export async function GET(request: Request, context: any) {
 export async function PATCH(request: Request, context: any) {
   try {
     const { id } = await context.params;
+    const cleanId = decodeURIComponent(String(id || '')).trim();
     const body = await request.json();
-    const products = await db.readTable<Product>('products');
-    const idx = products.findIndex(p => p.id === id || p.name.toLowerCase().replace(/ /g, '-') === id);
 
-    if (idx === -1) {
+    const prevProduct = await db.getProductById(cleanId);
+    if (!prevProduct) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     }
 
-    const prevProduct = products[idx];
-    const auditLogs: string[] = [];
+    const updatedProduct = await db.updateProduct(prevProduct.id, body);
+    if (!updatedProduct) {
+      return NextResponse.json({ error: 'Failed to update product in database.' }, { status: 500 });
+    }
 
-    // Form modifications checks
+    // Audit Log
+    const auditLogs: string[] = [];
     if (body.name && body.name !== prevProduct.name) {
       auditLogs.push(`Name: "${prevProduct.name}" -> "${body.name}"`);
     }
@@ -69,35 +71,9 @@ export async function PATCH(request: Request, context: any) {
       auditLogs.push(`Price: ₹${prevProduct.price} -> ₹${body.price}`);
     }
     if (body.inStock !== undefined && body.inStock !== prevProduct.inStock) {
-      auditLogs.push(`Stock status: ${prevProduct.inStock ? 'In Stock' : 'Out of Stock'} -> ${body.inStock ? 'In Stock' : 'Out of Stock'}`);
-    }
-    if (body.wellnessVerified !== undefined && body.wellnessVerified !== prevProduct.wellnessVerified) {
-      auditLogs.push(`Verified status: ${prevProduct.wellnessVerified ? 'Yes' : 'No'} -> ${body.wellnessVerified ? 'Yes' : 'No'}`);
+      auditLogs.push(`Stock: ${prevProduct.inStock ? 'In Stock' : 'Out of Stock'} -> ${body.inStock ? 'In Stock' : 'Out of Stock'}`);
     }
 
-    // Merge modifications
-    const updatedProduct: Product = {
-      ...prevProduct,
-      ...body,
-      // Recalculate discount
-      discount: body.originalPrice || body.price 
-        ? Math.round(((Number(body.originalPrice || prevProduct.originalPrice) - Number(body.price || prevProduct.price)) / Number(body.originalPrice || prevProduct.originalPrice)) * 100)
-        : prevProduct.discount,
-      wellnessDetails: prevProduct.category === 'wellness' || body.category === 'wellness' ? {
-        material: body.wellnessMaterial || prevProduct.wellnessMaterial || 'Latex',
-        lubrication: body.wellnessTexture === 'Smooth' ? 'Silicone Lubricated' : 'Textured Rib/Dot Oil',
-        texture: body.wellnessTexture || prevProduct.wellnessTexture || 'Smooth',
-        sizeFit: '53mm Nominal Width',
-        flavor: body.wellnessFlavor || prevProduct.wellnessFlavor,
-        storage: body.storageInstructions || prevProduct.storageInstructions,
-        manufacturer: body.manufacturer || prevProduct.wellnessDetails?.manufacturer || 'FATAFAT Sourced Manufacturer'
-      } : undefined
-    };
-
-    products[idx] = updatedProduct;
-    await db.writeTable('products', products);
-
-    // Write audit log entry
     if (auditLogs.length > 0) {
       db.logActivity('Admin Console', 'Updated Product', prevProduct.name, auditLogs.join(', '), 'Success');
     }
@@ -112,26 +88,20 @@ export async function PATCH(request: Request, context: any) {
 export async function DELETE(request: Request, context: any) {
   try {
     const { id } = await context.params;
-    const products = await db.readTable<Product>('products');
-    const idx = products.findIndex(p => p.id === id || p.name.toLowerCase().replace(/ /g, '-') === id);
+    const cleanId = decodeURIComponent(String(id || '')).trim();
+    const existing = await db.getProductById(cleanId);
 
-    if (idx === -1) {
+    if (!existing) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     }
 
-    const productToDelete = products[idx];
-
-    // Delete or Archive check:
-    // In our local DB structure we can just filter it out. To simulate order-linked delete protection,
-    // we can either set isArchived: true or delete directly since we are in dev.
-    // Let's archive it by toggling inStock: false and wellnessVerified: false (hidden) or splice it out.
-    // We will splice it out to keep the mock lists clean.
-    const deletedName = productToDelete.name;
-    products.splice(idx, 1);
-    await db.writeTable('products', products);
+    const deleted = await db.deleteProduct(existing.id);
+    if (!deleted) {
+      return NextResponse.json({ error: 'Failed to delete product.' }, { status: 500 });
+    }
 
     // Audit Log
-    db.logActivity('Admin Console', 'Deleted Product', deletedName, 'Active SKU', 'Removed from database');
+    db.logActivity('Admin Console', 'Deleted Product', existing.name, 'Active SKU', 'Removed from database');
 
     return NextResponse.json({ success: true, message: 'Product deleted successfully.' });
   } catch (error) {

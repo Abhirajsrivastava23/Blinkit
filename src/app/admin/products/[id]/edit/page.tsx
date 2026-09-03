@@ -16,7 +16,7 @@ export default function EditProductAdminPage() {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/products/${id}`);
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setProduct(data);

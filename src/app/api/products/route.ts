@@ -123,73 +123,25 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const {
-      name, price, originalPrice, category, description, image, 
-      wellnessBrand, wellnessType, wellnessMaterial, wellnessPackSize, 
-      wellnessTexture, wellnessFlavor, wellnessVerified, storageInstructions, 
-      deliveryTime, inStock, variants
-    } = body;
+    const { name, price, category, image } = body;
 
     // Validation
-    if (!name || !price || !category || !image) {
+    if (!name || price === undefined || price === null || !category || !image) {
       return NextResponse.json({ error: 'Missing mandatory fields: name, price, category, or image.' }, { status: 400 });
     }
 
-    const products = await db.readTable<Product>('products');
-    
-    // Auto-generate safe slug and SKU
-    const slug = name.toLowerCase().trim().replace(/ /g, '-').replace(/[^\w-]+/g, '');
-    const isSlugExists = products.some(p => p.id === slug || p.name.toLowerCase().replace(/ /g, '-') === slug);
-    const generatedId = isSlugExists ? `${slug}-${Date.now().toString().slice(-4)}` : slug;
-    
-    const brandPrefix = wellnessBrand ? wellnessBrand.substring(0,3).toUpperCase() : 'VM';
-    const generatedSku = `SKU-${brandPrefix}-${Date.now().toString().slice(-5)}`;
-
-    const newProduct: Product = {
-      id: generatedId,
-      name,
-      category,
-      price: Number(price),
-      originalPrice: Number(originalPrice || price),
-      discount: originalPrice ? Math.round(((Number(originalPrice) - Number(price)) / Number(originalPrice)) * 100) : 0,
-      rating: 4.5,
-      reviewCount: 0,
-      image,
-      deliveryTime: deliveryTime || '30-45 mins',
-      inStock: inStock !== undefined ? inStock : true,
-      description,
-      ingredients: wellnessMaterial ? [wellnessMaterial] : ['Premium Ingredients'],
-      allergens: ['Standard warnings apply'],
-      storageInstructions: storageInstructions || 'Store fresh.',
-      occasions: ['Just Because'],
-      variants: variants && variants.length > 0 ? variants : ['Standard'],
-      wellnessBrand,
-      wellnessType,
-      wellnessMaterial,
-      wellnessPackSize,
-      wellnessTexture,
-      wellnessFlavor: wellnessFlavor || undefined,
-      wellnessVerified: wellnessVerified !== undefined ? wellnessVerified : true,
-      wellnessSku: generatedSku,
-      wellnessDetails: category === 'wellness' ? {
-        material: wellnessMaterial || 'Latex',
-        lubrication: 'Silicone Lubrication',
-        texture: wellnessTexture || 'Smooth',
-        sizeFit: '53mm Nominal Width',
-        flavor: wellnessFlavor || undefined,
-        storage: storageInstructions || 'Store cool.',
-        manufacturer: 'FATAFAT Sourced Manufacturer'
-      } : undefined,
-      gallery: [image]
-    };
-
-    products.push(newProduct);
-    await db.writeTable('products', products);
+    const newProduct = await db.createProduct(body);
 
     // Audit Log
-    db.logActivity('Admin Console', 'Added Product', name, 'N/A', `SKU: ${generatedSku}, Price: ₹${price}`);
+    db.logActivity(
+      'Admin Console',
+      'Added Product',
+      newProduct.name,
+      'N/A',
+      `ID: ${newProduct.id}, Price: ₹${newProduct.price}`
+    );
 
-    return NextResponse.json({ success: true, product: newProduct });
+    return NextResponse.json({ success: true, product: newProduct }, { status: 201 });
   } catch (error) {
     console.error('Error creating product in database:', error);
     return NextResponse.json({ error: 'Failed to create product.' }, { status: 500 });

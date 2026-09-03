@@ -13,6 +13,7 @@ import partnersJson from './db/partners.json';
 import usersJson from './db/users.json';
 import adminJson from './db/admin.json';
 import { resolveImageUrl } from '../utils/imageUtils';
+import { Product } from './mockData';
 
 
 export interface AuditLogRecord {
@@ -140,7 +141,14 @@ const inMemoryConfig: Record<string, unknown> = {
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
   brands: ['id', 'name', 'slug', 'description', 'status', 'website', 'logo', 'itemCount'],
-  products: ['id', 'name', 'description', 'price', 'originalPrice', 'image', 'gallery', 'category', 'brand', 'rating', 'reviews', 'stock', 'unit', 'isWellness', 'wellnessAgeVerifyRequired', 'tags', 'inStock'],
+  products: [
+    'id', 'name', 'description', 'price', 'originalPrice', 'discount', 'image', 'gallery',
+    'category', 'subCategory', 'brand', 'rating', 'reviewCount', 'reviews', 'stock', 'unit',
+    'inStock', 'deliveryTime', 'ingredients', 'allergens', 'storageInstructions', 'occasions',
+    'variants', 'wellnessBrand', 'wellnessType', 'wellnessMaterial', 'wellnessPackSize',
+    'wellnessTexture', 'wellnessFlavor', 'wellnessVerified', 'wellnessSku', 'wellnessDetails',
+    'isWellness', 'wellnessAgeVerifyRequired', 'tags', 'createdAt', 'updatedAt'
+  ],
   users: ['userId', 'googleProviderId', 'name', 'email', 'profileImage', 'createdAt', 'lastLoginAt', 'wellnessAccessStatus', 'wellnessRequestId', 'wellnessApprovedAt', 'wellnessApprovedBy', 'phone', 'dob', 'gender', 'addresses'],
   sessions: ['sessionId', 'userId', 'email', 'role', 'expiresAt'],
   admin: ['email', 'passwordHash', 'name', 'phone', 'role'],
@@ -163,6 +171,66 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   coupons: ['id', 'code', 'discountType', 'discountValue', 'minSpend', 'maxDiscount', 'startDate', 'expiryDate', 'isActive', 'usageLimit', 'usageCount', 'perCustomerLimit', 'targetAudience', 'selectedCustomerIds', 'createdAt', 'updatedAt', 'createdBy'],
   coupon_usages: ['id', 'couponId', 'couponCode', 'customerId', 'customerEmail', 'orderId', 'discountAmount', 'usedAt']
 };
+
+export function normalizeProductRecord(row: Record<string, unknown> | Product | any): Product {
+  if (!row || typeof row !== 'object') return row as unknown as Product;
+  const parsed: Record<string, any> = { ...row };
+
+  // Parse JSON fields safely if stringified
+  for (const col of ['gallery', 'tags', 'ingredients', 'allergens', 'occasions', 'variants', 'wellnessDetails', 'wellnessdetails']) {
+    const val = parsed[col];
+    if (typeof val === 'string') {
+      try {
+        parsed[col] = JSON.parse(val);
+      } catch {
+        parsed[col] = val;
+      }
+    }
+  }
+
+  // Handle lowercase PostgreSQL column aliases
+  if (parsed.originalprice !== undefined && parsed.originalPrice === undefined) parsed.originalPrice = parsed.originalprice;
+  if (parsed.subcategory !== undefined && parsed.subCategory === undefined) parsed.subCategory = parsed.subcategory;
+  if (parsed.deliverytime !== undefined && parsed.deliveryTime === undefined) parsed.deliveryTime = parsed.deliverytime;
+  if (parsed.instock !== undefined && parsed.inStock === undefined) parsed.inStock = parsed.instock;
+  if (parsed.reviewcount !== undefined && parsed.reviewCount === undefined) parsed.reviewCount = parsed.reviewcount;
+  if (parsed.wellnessbrand !== undefined && parsed.wellnessBrand === undefined) parsed.wellnessBrand = parsed.wellnessbrand;
+  if (parsed.wellnesstype !== undefined && parsed.wellnessType === undefined) parsed.wellnessType = parsed.wellnesstype;
+  if (parsed.wellnessmaterial !== undefined && parsed.wellnessMaterial === undefined) parsed.wellnessMaterial = parsed.wellnessmaterial;
+  if (parsed.wellnesspacksize !== undefined && parsed.wellnessPackSize === undefined) parsed.wellnessPackSize = parsed.wellnesspacksize;
+  if (parsed.wellnesslubrication !== undefined && parsed.wellnessLubrication === undefined) parsed.wellnessLubrication = parsed.wellnesslubrication;
+  if (parsed.wellnesstexture !== undefined && parsed.wellnessTexture === undefined) parsed.wellnessTexture = parsed.wellnesstexture;
+  if (parsed.wellnessflavor !== undefined && parsed.wellnessFlavor === undefined) parsed.wellnessFlavor = parsed.wellnessflavor;
+  if (parsed.wellnessverified !== undefined && parsed.wellnessVerified === undefined) parsed.wellnessVerified = parsed.wellnessverified;
+  if (parsed.wellnesssku !== undefined && parsed.wellnessSku === undefined) parsed.wellnessSku = parsed.wellnesssku;
+  if (parsed.wellnessdetails !== undefined && parsed.wellnessDetails === undefined) parsed.wellnessDetails = parsed.wellnessdetails;
+  if (parsed.storageinstructions !== undefined && parsed.storageInstructions === undefined) parsed.storageInstructions = parsed.storageinstructions;
+  if (parsed.isegglessdefault !== undefined && parsed.isEgglessDefault === undefined) parsed.isEgglessDefault = parsed.isegglessdefault;
+  if (parsed.egglessavailable !== undefined && parsed.egglessAvailable === undefined) parsed.egglessAvailable = parsed.egglessavailable;
+
+  parsed.id = String(parsed.id || '').trim();
+  parsed.name = String(parsed.name || '').trim();
+  parsed.category = String(parsed.category || 'cakes') as any;
+  parsed.price = Number(parsed.price || 0);
+  parsed.originalPrice = Number(parsed.originalPrice || parsed.price || 0);
+  parsed.discount = parsed.discount !== undefined ? Number(parsed.discount) : (parsed.originalPrice > parsed.price ? Math.round(((parsed.originalPrice - parsed.price) / parsed.originalPrice) * 100) : 0);
+  parsed.rating = Number(parsed.rating || 4.5);
+  parsed.reviewCount = Number(parsed.reviewCount || parsed.reviews || 0);
+  parsed.image = resolveImageUrl(String(parsed.image || ''), parsed.category);
+  parsed.gallery = Array.isArray(parsed.gallery) && parsed.gallery.length > 0 ? parsed.gallery : [parsed.image];
+  parsed.deliveryTime = parsed.deliveryTime || '30-45 mins';
+  parsed.inStock = parsed.inStock !== undefined ? Boolean(parsed.inStock) : true;
+  parsed.description = String(parsed.description || '');
+  parsed.ingredients = Array.isArray(parsed.ingredients) ? parsed.ingredients : (parsed.wellnessMaterial ? [parsed.wellnessMaterial] : ['Premium Ingredients']);
+  parsed.allergens = Array.isArray(parsed.allergens) ? parsed.allergens : ['Standard warnings apply'];
+  parsed.storageInstructions = parsed.storageInstructions || 'Store fresh.';
+  parsed.occasions = Array.isArray(parsed.occasions) ? parsed.occasions : ['Just Because'];
+  parsed.variants = Array.isArray(parsed.variants) ? parsed.variants : ['Standard'];
+  parsed.wellnessBrand = parsed.wellnessBrand || parsed.brand || undefined;
+  parsed.wellnessVerified = parsed.wellnessVerified !== undefined ? Boolean(parsed.wellnessVerified) : true;
+
+  return parsed as Product;
+}
 
 export function normalizeOrderRecord(row: Record<string, unknown>): Record<string, unknown> {
   if (!row || typeof row !== 'object') return row;
@@ -633,9 +701,11 @@ export const db = {
   },
 
   async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions'): Promise<T[]> {
-    if (!pool) {
+    const activePool = getPool();
+    if (!activePool) {
       const memList = (inMemoryData[key] || []) as unknown as Record<string, unknown>[];
       if (key === 'orders') return memList.map(normalizeOrderRecord) as unknown as T[];
+      if (key === 'products') return memList.map(normalizeProductRecord) as unknown as T[];
       if (key === 'payment_transactions') return memList.map(normalizePaymentRecord) as unknown as T[];
       if (key === 'partners') return memList.map(normalizePartnerRecord) as unknown as T[];
       if (key === 'users') return memList.map(normalizeUserRecord) as unknown as T[];
@@ -645,13 +715,13 @@ export const db = {
     
     try {
       const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
-      const res = await pool.query(`SELECT * FROM "${tableName}"`);
+      const res = await activePool.query(`SELECT * FROM "${tableName}"`);
       
       return res.rows.map(row => {
         let parsed: Record<string, unknown> = {};
         for (const col of Object.keys(row)) {
           const val = row[col];
-          if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address' || col === 'adminOverride' || col === 'metadata') {
+          if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address' || col === 'adminOverride' || col === 'metadata' || col === 'gallery' || col === 'ingredients' || col === 'allergens' || col === 'occasions' || col === 'variants' || col === 'wellnessDetails') {
             if (typeof val === 'string') {
               try {
                 parsed[col] = JSON.parse(val);
@@ -668,6 +738,8 @@ export const db = {
 
         if (key === 'orders') {
           parsed = normalizeOrderRecord(parsed);
+        } else if (key === 'products') {
+          parsed = normalizeProductRecord(parsed) as unknown as Record<string, unknown>;
         } else if (key === 'payment_transactions') {
           parsed = normalizePaymentRecord(parsed);
         } else if (key === 'partners') {
@@ -676,8 +748,6 @@ export const db = {
           parsed = normalizeUserRecord(parsed);
         } else if (key === 'sessions') {
           parsed = normalizeSessionRecord(parsed);
-        } else if (key === 'products') {
-          parsed.image = resolveImageUrl(parsed.image as string, parsed.category as string);
         } else if (key === 'categories') {
           parsed.image = resolveImageUrl(parsed.image as string, parsed.id as string);
         }
@@ -688,6 +758,7 @@ export const db = {
       console.error(`PostgreSQL error reading table ${key}:`, err);
       const memList = (inMemoryData[key] || []) as unknown as Record<string, unknown>[];
       if (key === 'orders') return memList.map(normalizeOrderRecord) as unknown as T[];
+      if (key === 'products') return memList.map(normalizeProductRecord) as unknown as T[];
       if (key === 'payment_transactions') return memList.map(normalizePaymentRecord) as unknown as T[];
       if (key === 'partners') return memList.map(normalizePartnerRecord) as unknown as T[];
       if (key === 'users') return memList.map(normalizeUserRecord) as unknown as T[];
@@ -698,12 +769,13 @@ export const db = {
 
   async writeTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions', data: T[]): Promise<boolean> {
     inMemoryData[key] = [...data] as unknown as Record<string, unknown>[];
-    if (!pool) {
+    const activePool = getPool();
+    if (!activePool) {
       return true;
     }
     
     const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
-    const client = await pool.connect();
+    const client = await activePool.connect();
     try {
       await client.query('BEGIN');
       await client.query(`DELETE FROM "${tableName}"`);
@@ -1731,6 +1803,274 @@ export const db = {
     }
 
     return normalizePaymentRecord(mergedRecord);
+  },
+
+  /**
+   * Dedicated Atomic Product Management Methods
+   */
+  async getProductById(idOrSlug: string): Promise<Product | null> {
+    let raw = String(idOrSlug || '').trim();
+    if (!raw || raw === 'undefined' || raw === 'null') return null;
+
+    while (raw.includes('%23') || raw.includes('%20') || raw.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(raw);
+        if (decoded === raw) break;
+        raw = decoded;
+      } catch {
+        break;
+      }
+    }
+    const clean = raw.trim();
+    const slug = clean.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM products WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM(name)) = LOWER(TRIM($1)) OR LOWER(REPLACE(LOWER(TRIM(name)), \' \', \'-\')) = LOWER(TRIM($2)) LIMIT 1',
+          [clean, slug]
+        );
+        if (res.rows.length > 0) {
+          return normalizeProductRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching product from DB:', err);
+      }
+    }
+
+    const list = inMemoryData['products'] || [];
+    const found = list.find((p: any) => {
+      const pId = String(p.id || '').toLowerCase().trim();
+      const pName = String(p.name || '').toLowerCase().trim();
+      const pSlug = pName.replace(/ /g, '-');
+      const targetClean = clean.toLowerCase();
+      const targetSlug = slug.toLowerCase();
+      return pId === targetClean || pId === targetSlug || pName === targetClean || pSlug === targetSlug;
+    });
+
+    return found ? normalizeProductRecord(found) : null;
+  },
+
+  async createProduct(productData: Partial<Product>): Promise<Product> {
+    const products = await this.readTable<Product>('products');
+    
+    // Auto-generate safe slug and SKU if not provided
+    const name = String(productData.name || '').trim();
+    const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    let targetId = String(productData.id || '').trim();
+    if (!targetId) {
+      const isSlugExists = products.some(p => p.id.toLowerCase() === slug.toLowerCase() || p.name.toLowerCase().replace(/ /g, '-') === slug.toLowerCase());
+      targetId = isSlugExists ? `${slug}-${Date.now().toString().slice(-4)}` : slug;
+    }
+
+    const brandPrefix = productData.wellnessBrand ? productData.wellnessBrand.substring(0, 3).toUpperCase() : 'VM';
+    const generatedSku = productData.wellnessSku || `SKU-${brandPrefix}-${Date.now().toString().slice(-5)}`;
+
+    const price = Number(productData.price || 0);
+    const originalPrice = Number(productData.originalPrice || price);
+    const discount = originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
+    const category = (productData.category || 'cakes') as any;
+    const primaryImage = productData.image || '';
+
+    const newProduct: Product = {
+      id: targetId,
+      name,
+      category,
+      subCategory: productData.subCategory,
+      price,
+      originalPrice,
+      discount,
+      rating: productData.rating || 4.5,
+      reviewCount: productData.reviewCount || 0,
+      image: primaryImage,
+      deliveryTime: productData.deliveryTime || '30-45 mins',
+      inStock: productData.inStock !== undefined ? productData.inStock : true,
+      description: productData.description || '',
+      ingredients: productData.ingredients && productData.ingredients.length > 0 ? productData.ingredients : (productData.wellnessMaterial ? [productData.wellnessMaterial] : ['Premium Ingredients']),
+      allergens: productData.allergens && productData.allergens.length > 0 ? productData.allergens : ['Standard warnings apply'],
+      storageInstructions: productData.storageInstructions || 'Store fresh.',
+      occasions: productData.occasions && productData.occasions.length > 0 ? productData.occasions : ['Just Because'],
+      variants: productData.variants && productData.variants.length > 0 ? productData.variants : ['Standard'],
+      wellnessBrand: productData.wellnessBrand,
+      wellnessType: category === 'wellness' ? productData.wellnessType : undefined,
+      wellnessMaterial: category === 'wellness' ? productData.wellnessMaterial : undefined,
+      wellnessPackSize: category === 'wellness' ? productData.wellnessPackSize : undefined,
+      wellnessTexture: category === 'wellness' ? productData.wellnessTexture : undefined,
+      wellnessFlavor: category === 'wellness' ? productData.wellnessFlavor : undefined,
+      wellnessVerified: category === 'wellness' ? (productData.wellnessVerified !== undefined ? productData.wellnessVerified : true) : true,
+      wellnessSku: generatedSku,
+      wellnessDetails: category === 'wellness' ? {
+        material: productData.wellnessMaterial || 'Latex',
+        lubrication: 'Silicone Lubrication',
+        texture: productData.wellnessTexture || 'Smooth',
+        sizeFit: '53mm Nominal Width',
+        flavor: productData.wellnessFlavor || undefined,
+        storage: productData.storageInstructions || 'Store in a cool dry place.',
+        manufacturer: 'FATAFAT Sourced Manufacturer'
+      } : undefined,
+      gallery: productData.gallery && productData.gallery.length > 0 ? productData.gallery : [primaryImage]
+    };
+
+    const normalized = normalizeProductRecord(newProduct);
+
+    // Save in-memory
+    const list = inMemoryData['products'] || [];
+    const existingIdx = list.findIndex(p => String(p.id).toLowerCase() === targetId.toLowerCase());
+    if (existingIdx >= 0) {
+      list[existingIdx] = normalized as any;
+    } else {
+      list.unshift(normalized as any);
+    }
+    inMemoryData['products'] = list;
+
+    // Save in PostgreSQL
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const allowed = ALLOWED_COLUMNS['products'] || [];
+        const allowedLowerMap = new Map<string, string>();
+        for (const col of allowed) allowedLowerMap.set(col.toLowerCase(), col);
+
+        const cols: string[] = [];
+        const vals: string[] = [];
+        const queryVals: unknown[] = [];
+
+        for (const [k, rawV] of Object.entries(normalized as unknown as Record<string, unknown>)) {
+          const canonicalCol = allowedLowerMap.get(k.toLowerCase());
+          if (!canonicalCol) continue;
+          if (cols.includes(`"${canonicalCol}"`)) continue;
+          cols.push(`"${canonicalCol}"`);
+          queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
+          vals.push(`$${queryVals.length}`);
+        }
+
+        if (cols.length > 0) {
+          const updateSets = cols.map(c => `${c} = EXCLUDED.${c}`).join(', ');
+          const queryText = `INSERT INTO "products" (${cols.join(', ')}) VALUES (${vals.join(', ')}) ON CONFLICT ("id") DO UPDATE SET ${updateSets} RETURNING *`;
+          const res = await activePool.query(queryText, queryVals);
+          if (res.rows.length > 0) {
+            return normalizeProductRecord(res.rows[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Error creating product in DB:', err);
+      }
+    }
+
+    return normalized;
+  },
+
+  async updateProduct(idOrSlug: string, updates: Partial<Product>): Promise<Product | null> {
+    const existing = await this.getProductById(idOrSlug);
+    if (!existing) return null;
+
+    const existingId = existing.id;
+    const cleanTarget = String(idOrSlug).trim();
+
+    const price = updates.price !== undefined ? Number(updates.price) : existing.price;
+    const originalPrice = updates.originalPrice !== undefined ? Number(updates.originalPrice) : existing.originalPrice;
+    const discount = originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : (updates.discount !== undefined ? Number(updates.discount) : existing.discount);
+
+    const merged: Product = {
+      ...existing,
+      ...updates,
+      id: existingId, // Preserve immutable, stable ID
+      price,
+      originalPrice,
+      discount,
+      wellnessDetails: (existing.category === 'wellness' || updates.category === 'wellness') ? {
+        material: updates.wellnessMaterial || existing.wellnessMaterial || 'Latex',
+        lubrication: updates.wellnessTexture === 'Smooth' ? 'Silicone Lubricated' : 'Textured Rib/Dot Oil',
+        texture: updates.wellnessTexture || existing.wellnessTexture || 'Smooth',
+        sizeFit: '53mm Nominal Width',
+        flavor: updates.wellnessFlavor !== undefined ? updates.wellnessFlavor : existing.wellnessFlavor,
+        storage: updates.storageInstructions || existing.storageInstructions || 'Store fresh.',
+        manufacturer: updates.wellnessDetails?.manufacturer || existing.wellnessDetails?.manufacturer || 'FATAFAT Sourced Manufacturer'
+      } : undefined
+    };
+
+    const normalized = normalizeProductRecord(merged);
+
+    // Update in-memory
+    const list = inMemoryData['products'] || [];
+    const idx = list.findIndex(p => 
+      String(p.id).toLowerCase() === existingId.toLowerCase() || 
+      String(p.id).toLowerCase() === cleanTarget.toLowerCase() ||
+      String(p.name).toLowerCase() === cleanTarget.toLowerCase()
+    );
+    if (idx >= 0) {
+      list[idx] = normalized as any;
+    } else {
+      list.unshift(normalized as any);
+    }
+    inMemoryData['products'] = list;
+
+    // Update in PostgreSQL
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const allowed = ALLOWED_COLUMNS['products'] || [];
+        const allowedLowerMap = new Map<string, string>();
+        for (const col of allowed) allowedLowerMap.set(col.toLowerCase(), col);
+
+        const setClauses: string[] = [];
+        const queryVals: unknown[] = [];
+
+        for (const [k, rawV] of Object.entries(normalized as unknown as Record<string, unknown>)) {
+          if (k.toLowerCase() === 'id') continue;
+          const canonicalCol = allowedLowerMap.get(k.toLowerCase());
+          if (!canonicalCol) continue;
+          queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
+          setClauses.push(`"${canonicalCol}" = $${queryVals.length}`);
+        }
+
+        if (setClauses.length > 0) {
+          queryVals.push(existingId);
+          const idParam = `$${queryVals.length}`;
+          queryVals.push(cleanTarget);
+          const targetParam = `$${queryVals.length}`;
+
+          const queryText = `UPDATE "products" SET ${setClauses.join(', ')} WHERE LOWER(TRIM(id)) = LOWER(TRIM(${idParam})) OR LOWER(TRIM(id)) = LOWER(TRIM(${targetParam})) RETURNING *`;
+          const res = await activePool.query(queryText, queryVals);
+          if (res.rows.length > 0) {
+            return normalizeProductRecord(res.rows[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Error updating product in DB:', err);
+      }
+    }
+
+    return normalized;
+  },
+
+  async deleteProduct(idOrSlug: string): Promise<boolean> {
+    const existing = await this.getProductById(idOrSlug);
+    if (!existing) return false;
+
+    const existingId = existing.id;
+    const cleanTarget = String(idOrSlug).trim();
+
+    // Delete from in-memory
+    const list = inMemoryData['products'] || [];
+    inMemoryData['products'] = list.filter(p => 
+      String(p.id).toLowerCase() !== existingId.toLowerCase() &&
+      String(p.id).toLowerCase() !== cleanTarget.toLowerCase() &&
+      String(p.name).toLowerCase() !== cleanTarget.toLowerCase()
+    );
+
+    // Delete from PostgreSQL
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        await activePool.query('DELETE FROM "products" WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2))', [existingId, cleanTarget]);
+      } catch (err) {
+        console.error('Error deleting product from DB:', err);
+      }
+    }
+
+    return true;
   },
 
   async createPayment(payment: Record<string, unknown>): Promise<boolean> {

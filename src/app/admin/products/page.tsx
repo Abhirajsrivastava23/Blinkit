@@ -86,6 +86,11 @@ export default function AdminProductsPage() {
     return true;
   });
 
+  // Ensure fresh products on mount
+  useEffect(() => {
+    void refreshProducts();
+  }, []);
+
   // Action: Duplicate Product
   const handleDuplicateProduct = async (product: Product) => {
     const doublePrice = product.price;
@@ -123,7 +128,8 @@ export default function AdminProductsPage() {
         showToast(`Duplicated ${product.name} successfully!`, 'success');
         await refreshProducts();
       } else {
-        showToast('Failed to duplicate product SKU.', 'error');
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Failed to duplicate product.', 'error');
       }
     } catch (err) {
       console.error(err);
@@ -134,7 +140,7 @@ export default function AdminProductsPage() {
   // Action: Toggle visible / Hide
   const handleToggleHide = async (product: Product, newStatus: boolean) => {
     try {
-      const res = await fetch(`/api/products/${product.id}`, {
+      const res = await fetch(`/api/products/${encodeURIComponent(product.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inStock: newStatus })
@@ -144,10 +150,12 @@ export default function AdminProductsPage() {
         showToast(`Product ${product.name} status updated!`, 'success');
         await refreshProducts();
       } else {
-        showToast('Failed to update product status.', 'error');
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Failed to update product status.', 'error');
       }
     } catch (err) {
       console.error(err);
+      showToast('Error updating product status.', 'error');
     }
   };
 
@@ -155,7 +163,7 @@ export default function AdminProductsPage() {
   const handleDeleteProduct = async (id: string, name: string) => {
     if (confirm(`Are you sure you want to permanently delete or archive ${name}?`)) {
       try {
-        const res = await fetch(`/api/products/${id}`, {
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
           method: 'DELETE'
         });
 
@@ -163,7 +171,8 @@ export default function AdminProductsPage() {
           showToast('Product removed from store catalog.', 'info');
           await refreshProducts();
         } else {
-          showToast('Failed to delete product SKU.', 'error');
+          const data = await res.json().catch(() => ({}));
+          showToast(data.error || 'Failed to delete product SKU.', 'error');
         }
       } catch (err) {
         console.error(err);
@@ -486,7 +495,7 @@ export default function AdminProductsPage() {
                     <td className="p-3.5 text-right">
                       <div className="flex gap-2 justify-end">
                         <button
-                          onClick={() => router.push(`/admin/products/${p.id}/edit`)}
+                          onClick={() => router.push(`/admin/products/${encodeURIComponent(p.id)}/edit`)}
                           className="p-1 text-zinc-500 hover:text-brand-burgundy transition-colors"
                           title="Edit Product"
                         >
