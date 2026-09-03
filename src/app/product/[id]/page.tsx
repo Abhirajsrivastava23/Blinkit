@@ -16,6 +16,7 @@ import { useCart } from '../../../context/CartContext';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useToast } from '../../../components/Toast';
 import { useProducts } from '../../../context/ProductContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const ADDONS = [
   { id: 'addon-candles', name: 'Premium Sparkler Candles', price: 99, image: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=200&auto=format&fit=crop&q=80' },
@@ -31,6 +32,7 @@ export default function ProductDetailPage() {
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { showToast } = useToast();
   const { products } = useProducts();
+  const { wellnessPublished, user, isLoading: authLoading } = useAuth();
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
   const productId = params.id as string;
@@ -58,15 +60,21 @@ export default function ProductDetailPage() {
         : product.isEgglessDefault ? 'Eggless' : 'Egg')
     : 'Eggless';
 
-  if (!product) {
+  const isWellnessUnpublished = product?.category === 'wellness' && !authLoading && !wellnessPublished && user?.role !== 'admin';
+
+  if (!product || isWellnessUnpublished) {
     return (
       <>
         <Header />
         <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-12 text-center min-h-[60vh]">
           <AlertCircle className="h-12 w-12 text-brand-burgundy mb-4" />
-          <h2 className="text-2xl font-bold font-serif text-zinc-900">Product Not Found</h2>
+          <h2 className="text-2xl font-bold font-serif text-zinc-900">
+            {isWellnessUnpublished ? '404 - Section Unavailable' : 'Product Not Found'}
+          </h2>
           <p className="text-xs text-zinc-500 mt-2 max-w-sm">
-            We couldn&apos;t find the product you are looking for. It might be sold out or removed from our celebration catalog.
+            {isWellnessUnpublished 
+              ? 'The Wellness section is currently offline or unpublished. Please check back later.'
+              : 'We couldn\'t find the product you are looking for. It might be sold out or removed from our celebration catalog.'}
           </p>
           <button
             onClick={() => router.push('/')}

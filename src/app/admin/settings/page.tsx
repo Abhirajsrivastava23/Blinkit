@@ -265,6 +265,9 @@ export default function AdminSettingsPage() {
       });
       if (res.ok) {
         showToast('Wellness portal settings updated successfully!', 'success');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('fatafat_wellness_sync', { detail: { published: wellnessPublished } }));
+        }
       } else {
         showToast('Failed to save settings.', 'error');
       }

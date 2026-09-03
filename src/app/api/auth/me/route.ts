@@ -56,16 +56,22 @@ async function resolveWellnessStatus(userObj: any) {
   return userObj.wellnessAccessStatus || 'NOT_REQUESTED';
 }
 
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
+
 export async function GET(request: Request) {
   try {
     const session = await getSession(request);
     
     // Fetch publication state
     const wellnessSettings = await db.getWellnessSettings();
-    const wellnessPublished = wellnessSettings.published;
+    const wellnessPublished = Boolean(wellnessSettings.published);
 
     if (!session) {
-      return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Unauthorized session' }, { status: 401 });
+      return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Unauthorized session' }, { status: 401, headers: noStoreHeaders });
     }
 
     if (session.role === 'admin') {

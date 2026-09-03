@@ -181,8 +181,8 @@ export async function POST(request: Request) {
       // Check if order contains wellness items
       const hasWellnessItem = body.items.some((item: any) => item.category === 'wellness');
       if (hasWellnessItem) {
-        const configRes = await db.query("SELECT data FROM config WHERE key = 'wellness_settings'");
-        const wellnessPublished = (configRes.rows[0]?.data as any)?.published ?? false;
+        const wellnessSettings = await db.getWellnessSettings();
+        const wellnessPublished = wellnessSettings.published;
 
         if (!wellnessPublished) {
           return NextResponse.json({ error: 'Checkout blocked: Wellness storefront is currently unpublished.' }, { status: 403 });

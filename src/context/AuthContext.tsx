@@ -90,25 +90,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       try {
         // Query the server for active session
-        const meRes = await fetch('/api/auth/me');
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.authenticated && meData.user) {
-            setWellnessPublished(meData.wellnessPublished || false);
-            
-            if (meData.user.role === 'customer') {
-              // Update client context with active authenticated customer details
-              const authedUser: User = {
-                phone: meData.user.phone || '',
-                name: meData.user.name || (meData.user.email ? meData.user.email.split('@')[0] : 'Customer'),
-                email: meData.user.email,
-                googleProviderId: meData.user.googleProviderId || meData.user.phone,
-                role: meData.user.role,
-                wellnessAccessStatus: meData.user.wellnessAccessStatus || 'NOT_REQUESTED',
-                profileImage: meData.user.profileImage || '',
-                dob: meData.user.dob || '',
-                gender: meData.user.gender || ''
-              };
+        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+        const meData = await meRes.json().catch(() => null);
+
+        if (meData && typeof meData.wellnessPublished === 'boolean') {
+          setWellnessPublished(meData.wellnessPublished);
+        }
+
+        if (meRes.ok && meData && meData.authenticated && meData.user) {
+          if (meData.user.role === 'customer') {
+            // Update client context with active authenticated customer details
+            const authedUser: User = {
+              phone: meData.user.phone || '',
+              name: meData.user.name || (meData.user.email ? meData.user.email.split('@')[0] : 'Customer'),
+              email: meData.user.email,
+              googleProviderId: meData.user.googleProviderId || meData.user.phone,
+              role: meData.user.role,
+              wellnessAccessStatus: meData.user.wellnessAccessStatus || 'NOT_REQUESTED',
+              profileImage: meData.user.profileImage || '',
+              dob: meData.user.dob || '',
+              gender: meData.user.gender || ''
+            };
 
               // Use pre-fetched addresses if available from /api/auth/me
               if (meData.user.addresses && Array.isArray(meData.user.addresses)) {
@@ -163,8 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return;
             }
           }
-        }
-      } catch (err) {
+        } catch (err) {
         console.error('Failed to initialize session from server:', err);
       }
 
@@ -174,7 +175,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     };
 
-    initAuth();
+    void initAuth();
+
+    // Fast sync for publication updates across tabs and window focuses
+    const handleWellnessSync = (e: any) => {
+      if (typeof e.detail?.published === 'boolean') {
+        setWellnessPublished(e.detail.published);
+      } else {
+        void initAuth();
+      }
+    };
+
+    const handleFocus = () => {
+      void fetch('/api/auth/me', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => {
+          if (data && typeof data.wellnessPublished === 'boolean') {
+            setWellnessPublished(data.wellnessPublished);
+          }
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener('fatafat_wellness_sync', handleWellnessSync);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('fatafat_wellness_sync', handleWellnessSync);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const loginWithPhone = async (phone: string, customerName?: string) => {
