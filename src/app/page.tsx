@@ -433,7 +433,7 @@ export default function HomePage() {
               </p>
             </div>
             <Link
-              href="/search?q=personalized"
+              href="/personalisation"
               className="px-6 py-3 bg-brand-gold text-zinc-950 font-serif font-bold text-xs uppercase tracking-wider rounded-full shadow hover:bg-brand-gold-light transition-all shrink-0 relative z-10"
             >
               EXPLORE PERSONALISATION
