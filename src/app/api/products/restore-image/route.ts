@@ -60,15 +60,15 @@ export async function POST(request: Request) {
     const product = products[productIdx];
     const currentImage = product.image || '';
 
-    // 4. Restore the image
+    // 4. Restore the image atomically
     const restoredImageUrl = historyRecord.imageUrl;
-    products[productIdx].image = restoredImageUrl;
-    if (products[productIdx].gallery && Array.isArray(products[productIdx].gallery)) {
-      products[productIdx].gallery = [restoredImageUrl, ...products[productIdx].gallery.filter((img: string) => img !== restoredImageUrl)];
-    } else {
-      products[productIdx].gallery = [restoredImageUrl];
+    const updateResult = await db.updateProductImage(productId, restoredImageUrl);
+    if (!updateResult.success) {
+      return NextResponse.json(
+        { error: updateResult.error || 'Failed to update product image in database.' },
+        { status: 500 }
+      );
     }
-    await db.writeTable('products', products);
 
     // 5. Update image history - mark the restored image as active
     try {

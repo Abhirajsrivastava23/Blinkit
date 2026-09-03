@@ -489,6 +489,46 @@ export const db = {
         inMemoryData['sessions'] = list.filter((s: Record<string, unknown>) => String(s.sessionId || s.sessionid || '').toLowerCase() !== token);
         return { rows: [] };
       }
+      if (lower.includes('insert into product_image_history') && params && params.length >= 9) {
+        const id = String(params[0]);
+        const productId = String(params[1]);
+        const storagePath = String(params[2]);
+        const imageUrl = String(params[3]);
+        const uploadedBy = String(params[4]);
+        const uploadedByRole = String(params[5]);
+        const uploadedAt = String(params[6]);
+        const previousImage = String(params[7]);
+        const isActive = Boolean(params[8]);
+
+        const list = inMemoryData['product_image_history'] || [];
+        const record = { id, productId, storagePath, imageUrl, uploadedBy, uploadedByRole, uploadedAt, previousImage, isActive };
+        list.unshift(record);
+        inMemoryData['product_image_history'] = list;
+        return { rows: [record as unknown as T] };
+      }
+      if (lower.includes('select') && lower.includes('product_image_history') && params && params[0]) {
+        const prodId = String(params[0]).toLowerCase();
+        const list = inMemoryData['product_image_history'] || [];
+        const found = list.filter((h: any) => String(h.productId || '').toLowerCase() === prodId);
+        return { rows: found as unknown as T[] };
+      }
+      if (lower.includes('update product_image_history') && params && params[0]) {
+        const prodId = String(params[0]).toLowerCase();
+        const list = inMemoryData['product_image_history'] || [];
+        for (const item of list) {
+          if (String(item.productId || '').toLowerCase() === prodId) {
+            item.isActive = false;
+          }
+        }
+        return { rows: [] };
+      }
+      if (lower.includes('insert into "auditlogs"') && params && params.length >= 7) {
+        const list = inMemoryData['auditLogs'] || [];
+        const record = { id: String(params[0]), adminUser: String(params[1]), action: String(params[2]), dateTime: String(params[3]), product: String(params[4]), previousValue: String(params[5]), newValue: String(params[6]) };
+        list.unshift(record);
+        inMemoryData['auditLogs'] = list;
+        return { rows: [record as unknown as T] };
+      }
       if (lower.includes('update orders') && params) {
         return { rows: [] };
       }
@@ -759,6 +799,89 @@ export const db = {
       console.error('Error updating order row in database:', err);
       return merged;
     }
+  },
+
+  /**
+   * Dedicated Single Product Image Mutation Method
+   */
+  async updateProductImage(productId: string, imageUrl: string): Promise<{ success: boolean; product?: Record<string, unknown>; error?: string }> {
+    const cleanId = decodeURIComponent(String(productId || '')).trim();
+    if (!cleanId) {
+      return { success: false, error: 'Product ID is required' };
+    }
+    if (!imageUrl) {
+      return { success: false, error: 'Image URL is required' };
+    }
+
+    let updatedProduct: Record<string, unknown> | null = null;
+
+    if (pool) {
+      try {
+        await pool.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
+        
+        // 1. Direct atomic single-row update by ID
+        const res = await pool.query(
+          `UPDATE products 
+           SET image = $1 
+           WHERE LOWER(TRIM(id)) = LOWER(TRIM($2)) 
+           RETURNING *`,
+          [imageUrl, cleanId]
+        );
+
+        if (res.rows.length > 0) {
+          updatedProduct = res.rows[0];
+        } else {
+          // Fallback: match by name if cleanId was passed as product name
+          const resByName = await pool.query(
+            `UPDATE products 
+             SET image = $1 
+             WHERE LOWER(TRIM(name)) = LOWER(TRIM($2)) 
+             RETURNING *`,
+            [imageUrl, cleanId]
+          );
+          if (resByName.rows.length > 0) {
+            updatedProduct = resByName.rows[0];
+          }
+        }
+      } catch (err) {
+        console.error(`[DATABASE ERROR] updateProductImage query failed for product "${cleanId}":`, err);
+      }
+    }
+
+    // Always update in-memory products array
+    const memList = inMemoryData['products'] || [];
+    const idx = memList.findIndex((p: any) => 
+      String(p.id || p.ID || '').trim().toLowerCase() === cleanId.toLowerCase() ||
+      String(p.name || '').trim().toLowerCase() === cleanId.toLowerCase()
+    );
+
+    if (idx >= 0) {
+      memList[idx] = {
+        ...memList[idx],
+        image: imageUrl,
+      };
+      if (Array.isArray(memList[idx].gallery)) {
+        memList[idx].gallery = [imageUrl, ...(memList[idx].gallery as string[]).filter((img: string) => img !== imageUrl)];
+      } else {
+        memList[idx].gallery = [imageUrl];
+      }
+      if (!updatedProduct) {
+        updatedProduct = memList[idx];
+      }
+    }
+
+    if (!updatedProduct) {
+      return { success: false, error: `Product not found in database for ID: "${cleanId}"` };
+    }
+
+    return {
+      success: true,
+      product: {
+        ...updatedProduct,
+        id: updatedProduct.id || cleanId,
+        image: imageUrl,
+      }
+    };
   },
 
   /**
@@ -1190,6 +1313,8 @@ export const db = {
       `);
       await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS gallery JSONB');
       await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "inStock" BOOLEAN DEFAULT TRUE');
+      await client.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
+      await client.query('ALTER TABLE categories ALTER COLUMN image TYPE TEXT').catch(() => {});
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (

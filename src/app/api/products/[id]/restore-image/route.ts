@@ -61,12 +61,14 @@ export async function POST(request: Request, context: any) {
       }
     }
 
-    // 4. Update products table
-    products[productIdx].image = restoredUrl;
-    if (products[productIdx].gallery && Array.isArray(products[productIdx].gallery)) {
-      products[productIdx].gallery = [restoredUrl, ...products[productIdx].gallery.filter(img => img !== restoredUrl)];
+    // 4. Update products table atomically
+    const updateResult = await db.updateProductImage(id, restoredUrl);
+    if (!updateResult.success) {
+      return NextResponse.json(
+        { error: updateResult.error || 'Failed to update product image in database.' },
+        { status: 500 }
+      );
     }
-    await db.writeTable('products', products);
 
     // 5. Update history status
     try {

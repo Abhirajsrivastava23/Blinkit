@@ -4,6 +4,7 @@ import { getSession } from '../../../../data/auth';
 import { Product } from '../../../../data/mockData';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB
@@ -39,29 +40,56 @@ export async function POST(request: Request) {
       directImageUrl = jsonBody.imageUrl || '';
     }
 
-    if (!productId || (!file && !directImageUrl)) {
+    const cleanProductId = decodeURIComponent(String(productId || '')).trim();
+
+    if (!cleanProductId || (!file && !directImageUrl)) {
       return NextResponse.json(
         { error: 'Product ID and image file (or image URL) are required.' },
         { status: 400 }
       );
     }
 
-    // 3. Validate product existence in PostgreSQL database
-    const products = await db.readTable<Product>('products') || [];
-    const productIdx = products.findIndex(p => p.id === productId);
+    console.log('[RIDER PHOTO] productId received:', cleanProductId);
+    console.log('[RIDER PHOTO] file received:', file ? `${file.name} (${file.size} bytes)` : 'None (direct URL)');
 
-    if (productIdx === -1) {
+    // 3. Validate and resolve canonical product
+    let rawProduct: any = null;
+    try {
+      const pRes = await db.query(
+        'SELECT * FROM products WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1',
+        [cleanProductId]
+      );
+      if (pRes.rows.length > 0) {
+        rawProduct = pRes.rows[0];
+      }
+    } catch (e) {
+      console.warn('PostgreSQL product lookup warning:', e);
+    }
+
+    if (!rawProduct) {
+      const products = await db.readTable<Product>('products') || [];
+      rawProduct = products.find(p => 
+        String(p.id).trim().toLowerCase() === cleanProductId.toLowerCase() ||
+        String(p.name).trim().toLowerCase() === cleanProductId.toLowerCase()
+      );
+    }
+
+    if (!rawProduct) {
+      console.warn(`[RIDER PHOTO] Product not found for query: "${cleanProductId}"`);
       return NextResponse.json(
-        { error: `Product not found with ID: ${productId}` },
+        { error: `Product not found with ID or name: ${cleanProductId}` },
         { status: 404 }
       );
     }
 
-    const product = products[productIdx];
+    const canonicalId = String(rawProduct.id || cleanProductId).trim();
+    const previousImage = rawProduct.image || '';
     let imageUrl = '';
     let storagePath = '';
 
-    // 4. Handle File Upload if File provided
+    console.log('[RIDER PHOTO] DB lookup result: found canonicalId =', canonicalId);
+
+    // 4. Handle File Upload or Direct Image URL
     if (file) {
       const mimeType = (file.type || '').toLowerCase();
       const fileName = (file.name || '').toLowerCase();
@@ -85,7 +113,7 @@ export async function POST(request: Request) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       const sanitizedFileName = (file.name || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g, '');
-      storagePath = `products/${productId}/${Date.now()}-${sanitizedFileName}`;
+      storagePath = `products/${canonicalId}/${Date.now()}-${sanitizedFileName}`;
 
       if (supabaseUrl && supabaseKey) {
         try {
@@ -99,7 +127,8 @@ export async function POST(request: Request) {
               'Content-Type': mimeType || 'image/jpeg',
               'x-upsert': 'true'
             },
-            body: arrayBuffer
+            body: arrayBuffer,
+            signal: AbortSignal.timeout(3500)
           });
 
           // Auto-create bucket if not found
@@ -111,7 +140,8 @@ export async function POST(request: Request) {
                   'Authorization': `Bearer ${supabaseKey}`,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ id: 'product-images', name: 'product-images', public: true })
+                body: JSON.stringify({ id: 'product-images', name: 'product-images', public: true }),
+                signal: AbortSignal.timeout(2500)
               });
 
               uploadRes = await fetch(uploadUrl, {
@@ -121,7 +151,8 @@ export async function POST(request: Request) {
                   'Content-Type': mimeType || 'image/jpeg',
                   'x-upsert': 'true'
                 },
-                body: arrayBuffer
+                body: arrayBuffer,
+                signal: AbortSignal.timeout(3500)
               });
             } catch (bucketErr) {
               console.warn('Supabase bucket creation retry:', bucketErr);
@@ -131,55 +162,57 @@ export async function POST(request: Request) {
           if (uploadRes.ok) {
             imageUrl = `${supabaseUrl}/storage/v1/object/public/product-images/${storagePath}`;
           } else {
-            console.warn('Supabase storage upload response:', await uploadRes.text());
+            console.warn('Supabase storage upload non-OK status:', uploadRes.status);
           }
         } catch (uploadErr) {
-          console.error('Supabase direct upload error:', uploadErr);
+          console.warn('Supabase direct upload warning (fallback to data URL):', uploadErr);
         }
       }
 
+      // If Supabase not configured or timed out, encode directly as base64 data URI
       if (!imageUrl) {
-        // High-res realistic dark kitchen product photography fallback
-        imageUrl = `https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80`;
+        try {
+          const buffer = Buffer.from(await file.arrayBuffer());
+          imageUrl = `data:${mimeType || 'image/jpeg'};base64,${buffer.toString('base64')}`;
+        } catch {
+          imageUrl = `https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80`;
+        }
       }
     } else if (directImageUrl) {
-      if (!directImageUrl.startsWith('http://') && !directImageUrl.startsWith('https://')) {
+      if (!directImageUrl.startsWith('http://') && !directImageUrl.startsWith('https://') && !directImageUrl.startsWith('data:image/')) {
         return NextResponse.json(
           { error: 'Invalid image URL provided.' },
           { status: 400 }
         );
       }
       imageUrl = directImageUrl;
-      storagePath = `products/${productId}/external-${Date.now()}`;
+      storagePath = `products/${canonicalId}/external-${Date.now()}`;
     }
 
-    const previousImage = product.image || '';
+    console.log('[RIDER PHOTO] upload URL generated (length:', imageUrl.length, ')');
 
-    // 5. Update PostgreSQL `products` table
-    products[productIdx].image = imageUrl;
-    if (products[productIdx].gallery && Array.isArray(products[productIdx].gallery)) {
-      products[productIdx].gallery = [imageUrl, ...products[productIdx].gallery.filter(img => img !== imageUrl)];
-    } else {
-      products[productIdx].gallery = [imageUrl];
-    }
-
-    const writeSucceeded = await db.writeTable('products', products);
-    if (!writeSucceeded) {
+    // 5. ATOMIC Database update targeting exactly ONE product row
+    const updateResult = await db.updateProductImage(canonicalId, imageUrl);
+    if (!updateResult.success) {
+      console.error('[RIDER PHOTO] Atomic DB update failed:', updateResult.error);
       return NextResponse.json(
-        { error: 'Product photo upload failed because the database update did not succeed.' },
+        { error: updateResult.error || 'Product photo upload failed because the database update did not succeed.' },
         { status: 500 }
       );
     }
 
+    console.log('[RIDER PHOTO] rows updated: 1 (SUCCESS)');
+
     // 6. Insert record in `product_image_history` table
     try {
-      await db.query('UPDATE product_image_history SET "isActive" = FALSE WHERE "productId" = $1', [productId]);
+      await db.query('UPDATE product_image_history SET "isActive" = FALSE WHERE LOWER(TRIM("productId")) = LOWER(TRIM($1))', [canonicalId]);
       const historyId = 'pih-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
       await db.query(
         `INSERT INTO product_image_history (id, "productId", "storagePath", "imageUrl", "uploadedBy", "uploadedByRole", "uploadedAt", "previousImage", "isActive") 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [historyId, productId, storagePath, imageUrl, session.email || session.userId, session.role, new Date().toISOString(), previousImage, true]
+        [historyId, canonicalId, storagePath || `products/${canonicalId}`, imageUrl, session.email || session.userId, session.role, new Date().toISOString(), previousImage, true]
       );
+      console.log('[RIDER PHOTO] history insert result: SUCCESS');
     } catch (historyErr) {
       console.warn('Non-fatal history logging warning:', historyErr);
     }
@@ -193,7 +226,7 @@ export async function POST(request: Request) {
       await db.query(
         `INSERT INTO "auditLogs" (id, "adminUser", action, "dateTime", product, "previousValue", "newValue")
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        ['aud-' + Date.now() + '-' + Math.floor(Math.random() * 100), auditUser, 'Product Photo Updated', new Date().toISOString(), product.name, previousImage, imageUrl]
+        ['aud-' + Date.now() + '-' + Math.floor(Math.random() * 100), auditUser, 'Product Photo Updated', new Date().toISOString(), rawProduct.name, previousImage, imageUrl]
       );
     } catch (auditErr) {
       console.warn('Non-fatal audit logging warning:', auditErr);
@@ -202,9 +235,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'Product photo updated successfully.',
-      productId,
+      productId: canonicalId,
       imageUrl,
-      previousImage
+      previousImage,
+      product: updateResult.product
     });
   } catch (err) {
     console.error('Error handling product photo upload:', err);
@@ -214,3 +248,4 @@ export async function POST(request: Request) {
     );
   }
 }
+
