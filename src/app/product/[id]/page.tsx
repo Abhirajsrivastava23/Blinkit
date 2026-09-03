@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Star, Truck, Calendar, Sparkles, Heart, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
+import { 
+  Star, Truck, Calendar, Sparkles, Heart, CheckCircle2, 
+  ChevronRight, AlertCircle, ShoppingBag, Zap, ShieldCheck, Check
+} from 'lucide-react';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import ProductCard from '../../../components/ProductCard';
@@ -33,6 +36,7 @@ export default function ProductDetailPage() {
   const productId = params.id as string;
   const product = useMemo(() => PRODUCTS.find((p) => p.id === productId) ?? null, [PRODUCTS, productId]);
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients' | 'storage'>('desc');
+  const [activeImage, setActiveImage] = useState<string>('');
 
   // Customization States
   const [selectedSizeState, setSelectedSizeState] = useState<string>('');
@@ -58,17 +62,17 @@ export default function ProductDetailPage() {
     return (
       <>
         <Header />
-        <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-8 text-center">
+        <div className="flex-1 bg-[#FAF9F6] flex flex-col items-center justify-center p-12 text-center min-h-[60vh]">
           <AlertCircle className="h-12 w-12 text-brand-burgundy mb-4" />
-          <h2 className="text-xl font-bold font-serif">Product Not Found</h2>
-          <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-            We couldn&apos;t find the product you are looking for. It might be sold out or removed.
+          <h2 className="text-2xl font-bold font-serif text-zinc-900">Product Not Found</h2>
+          <p className="text-xs text-zinc-500 mt-2 max-w-sm">
+            We couldn&apos;t find the product you are looking for. It might be sold out or removed from our celebration catalog.
           </p>
           <button
             onClick={() => router.push('/')}
-            className="mt-6 px-6 py-2.5 rounded-full bg-brand-burgundy text-white text-xs font-bold uppercase tracking-wider"
+            className="mt-6 px-6 py-3 rounded-2xl bg-brand-burgundy text-white text-xs font-bold uppercase tracking-wider shadow-md hover:bg-brand-burgundy-dark transition-all"
           >
-            Go Back Home
+            Return to Storefront
           </button>
         </div>
         <Footer />
@@ -111,7 +115,6 @@ export default function ProductDetailPage() {
     selectedAddons.forEach((addonId) => {
       const addonData = ADDONS.find((a) => a.id === addonId);
       if (addonData) {
-        // Map addon to mock product representation
         const addonProduct: Product = {
           id: addonData.id,
           name: addonData.name,
@@ -124,7 +127,7 @@ export default function ProductDetailPage() {
           image: addonData.image,
           deliveryTime: 'Same delivery slot',
           inStock: true,
-          description: `Add-on decoration item for ${product.name}`,
+          description: `Add-on celebration item for ${product.name}`,
           ingredients: [],
           allergens: [],
           storageInstructions: '',
@@ -152,152 +155,174 @@ export default function ProductDetailPage() {
     <>
       <Header />
 
-      <main className={`flex-1 py-12 transition-colors duration-300 ${
+      <main className={`flex-1 py-8 sm:py-12 transition-colors duration-300 ${
         isWellness ? 'bg-wellness-black text-wellness-text' : 'bg-[#FAF9F6] text-[#1A1A1A]'
       }`}>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">
           
-          {/* Breadcrumbs */}
-          <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider opacity-60 mb-6">
-            <Link href="/">Home</Link>
-            <ChevronRight className="h-3 w-3" />
-            <Link href={isWellness ? '/wellness' : `/${product.category}`}>{product.category}</Link>
-            <ChevronRight className="h-3 w-3" />
-            <span className="truncate max-w-[150px]">{product.name}</span>
-          </div>
+          {/* Breadcrumb Navigation */}
+          <nav aria-label="Breadcrumbs" className="flex items-center gap-2 text-[11px] font-medium text-zinc-400">
+            <Link href="/" className="hover:text-brand-burgundy transition-colors">Home</Link>
+            <ChevronRight className="h-3 w-3 text-zinc-300 shrink-0" />
+            <Link 
+              href={isWellness ? '/wellness' : `/${product.category}`} 
+              className="capitalize hover:text-brand-burgundy transition-colors"
+            >
+              {product.category}
+            </Link>
+            <ChevronRight className="h-3 w-3 text-zinc-300 shrink-0" />
+            <span className="text-zinc-800 font-semibold truncate max-w-[200px] sm:max-w-xs">{product.name}</span>
+          </nav>
 
-          {/* Product main section */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {/* Product Hero: Two Column Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
             
-            {/* Left Column: Image */}
+            {/* Left Column: Product Imagery */}
             <div className="lg:col-span-6 space-y-4">
-              <div className={`relative aspect-square rounded-3xl overflow-hidden border shadow-sm ${
-                isWellness ? 'bg-wellness-dark border-wellness-bronze/10' : 'bg-white border-zinc-100'
+              
+              {/* Main Image Container */}
+              <div className={`relative aspect-square w-full rounded-3xl overflow-hidden border shadow-sm group ${
+                isWellness ? 'bg-wellness-dark border-wellness-bronze/10' : 'bg-white border-zinc-200/60'
               }`}>
                 <SafeImage
-                  src={product.image}
+                  src={activeImage || product.image}
                   alt={product.name}
                   category={product.category}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                 />
                 
-                {/* Favorites button */}
+                {/* Wishlist Button */}
                 <button
                   onClick={handleWishlistToggle}
-                  className={`absolute top-4 right-4 p-2.5 rounded-full backdrop-blur-md transition-all shadow-md ${
-                    isWellness
-                      ? isFavorited 
-                        ? 'bg-wellness-bronze text-white' 
-                        : 'bg-wellness-black/60 text-wellness-text hover:bg-wellness-black/85'
-                      : isFavorited
-                        ? 'bg-brand-burgundy text-white'
-                        : 'bg-white/80 text-zinc-600 hover:bg-white'
-                  }`}
+                  aria-label={isFavorited ? "Remove from wishlist" : "Add to wishlist"}
+                  className="absolute top-4 right-4 p-3 rounded-full bg-white/90 backdrop-blur-md shadow-md hover:bg-white text-zinc-700 transition-all hover:scale-110 active:scale-95 z-10"
                 >
-                  <Heart className="h-5 w-5" fill={isFavorited ? 'currentColor' : 'none'} />
+                  <Heart 
+                    className={`h-5 w-5 transition-colors ${isFavorited ? 'text-brand-burgundy fill-brand-burgundy' : 'text-zinc-600'}`} 
+                  />
                 </button>
 
-                {/* Stock Tag */}
+                {/* Discount Badge */}
+                {product.discount > 0 && (
+                  <div className="absolute top-4 left-4 bg-brand-burgundy text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full shadow-md z-10">
+                    {product.discount}% OFF
+                  </div>
+                )}
+
+                {/* Out of Stock Overlay */}
                 {!product.inStock && (
-                  <div className="absolute inset-0 bg-black/45 backdrop-blur-[1.5px] flex items-center justify-center">
-                    <span className="bg-black/90 text-white font-serif font-bold text-sm tracking-wider uppercase px-5 py-2.5 rounded-full border border-white/20">
+                  <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex items-center justify-center z-10">
+                    <span className="bg-white text-zinc-900 font-serif font-black text-xs tracking-widest uppercase px-6 py-3 rounded-2xl shadow-xl">
                       Out of Stock
                     </span>
                   </div>
                 )}
               </div>
+
+              {/* Trust Badges */}
+              <div className="grid grid-cols-3 gap-3 pt-1">
+                <div className="p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
+                  <Zap className="h-4 w-4 text-brand-gold mx-auto" />
+                  <p className="font-bold text-[11px] text-zinc-800">Fast Express</p>
+                  <p className="text-[10px] text-zinc-400">30–60 mins slot</p>
+                </div>
+                <div className="p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
+                  <ShieldCheck className="h-4 w-4 text-green-600 mx-auto" />
+                  <p className="font-bold text-[11px] text-zinc-800">Fresh Guaranteed</p>
+                  <p className="text-[10px] text-zinc-400">100% Quality checked</p>
+                </div>
+                <div className="p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
+                  <Sparkles className="h-4 w-4 text-brand-burgundy mx-auto" />
+                  <p className="font-bold text-[11px] text-zinc-800">Gift Packaging</p>
+                  <p className="text-[10px] text-zinc-400">Celebration ready</p>
+                </div>
+              </div>
+
             </div>
 
-            {/* Right Column: Customization & Details */}
+            {/* Right Column: Information & Options */}
             <div className="lg:col-span-6 space-y-6">
               
-              {/* Product Header */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
-                    isWellness ? 'bg-wellness-card text-wellness-bronze-light' : 'bg-brand-burgundy/5 text-brand-burgundy'
-                  }`}>
-                    {product.subCategory || product.category.toUpperCase()}
-                  </span>
-                  
-                  <span className="text-xs font-semibold opacity-85 flex items-center gap-1">
-                    <Truck className="h-3.5 w-3.5 text-brand-gold" />
-                    Delivery: {product.deliveryTime}
-                  </span>
-                </div>
-                
-                <h1 className="text-2xl sm:text-3xl font-serif font-extrabold text-current">
-                  {product.name}
-                </h1>
-                
-                {/* Rating */}
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="flex">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-4 w-4 ${
-                          i < Math.floor(product.rating)
-                            ? isWellness ? 'text-wellness-bronze fill-wellness-bronze' : 'text-brand-gold fill-brand-gold'
-                            : 'text-zinc-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-xs font-bold">{product.rating}</span>
-                  <span className="text-xs opacity-60">• {product.reviewCount} Reviews</span>
-                </div>
+              {/* Category & Delivery Pill */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-brand-burgundy/10 text-brand-burgundy font-bold text-[10px] uppercase tracking-widest">
+                  {product.subCategory || product.category}
+                </span>
+                <span className="text-xs font-semibold text-zinc-600 flex items-center gap-1.5 bg-white border border-zinc-200/70 px-3 py-1 rounded-full shadow-sm">
+                  <Truck className="h-3.5 w-3.5 text-brand-gold" />
+                  <span>Delivery: <strong>{product.deliveryTime || '30–60 mins'}</strong></span>
+                </span>
               </div>
+
+              {/* Product Heading */}
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-black text-zinc-900 tracking-tight leading-tight">
+                {product.name}
+              </h1>
+
+              {/* Star Rating & Review Anchor */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/60 px-2.5 py-1 rounded-xl">
+                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                  <span className="font-bold text-xs text-amber-900">{product.rating}</span>
+                </div>
+                <a href="#reviews-section" className="text-xs text-zinc-500 hover:text-brand-burgundy font-medium underline underline-offset-4">
+                  {product.reviewCount} customer reviews
+                </a>
+                <span className="text-zinc-300">•</span>
+                <span className="text-xs text-green-700 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> In Stock & Fresh
+                </span>
+              </div>
+
+              {/* Short Description */}
+              {product.description && (
+                <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed">
+                  {product.description}
+                </p>
+              )}
 
               {/* Price Panel */}
-              <div className={`p-5 rounded-2xl border flex items-center justify-between ${
-                isWellness ? 'bg-wellness-card border-wellness-bronze/10' : 'bg-white border-zinc-100 shadow-sm'
-              }`}>
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-extrabold text-current">₹{product.price}</span>
-                    {product.discount > 0 && (
-                      <span className="text-sm line-through opacity-50">₹{product.originalPrice}</span>
-                    )}
-                  </div>
+              <div className="p-5 bg-white border border-zinc-200/70 rounded-3xl shadow-sm space-y-1.5">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-3xl sm:text-4xl font-serif font-black text-zinc-900">
+                    ₹{product.price}
+                  </span>
+                  {product.originalPrice && product.originalPrice > product.price && (
+                    <span className="text-lg text-zinc-400 line-through font-medium">
+                      ₹{product.originalPrice}
+                    </span>
+                  )}
                   {product.discount > 0 && (
-                    <p className={`text-[10px] font-bold mt-0.5 ${isWellness ? 'text-wellness-bronze-light' : 'text-green-700'}`}>
-                      🎉 Save {product.discount}% OFF on this item
-                    </p>
+                    <span className="px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-bold">
+                      Save {product.discount}%
+                    </span>
                   )}
                 </div>
-
-                {isCakes && product.egglessAvailable && (
-                  <span className="flex items-center gap-1 text-[9px] font-bold bg-green-500/10 text-green-600 px-3 py-1 rounded-full border border-green-500/20">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block"></span>
-                    EGGLESS AVAILABLE
-                  </span>
-                )}
+                <p className="text-[11px] text-zinc-400 font-medium">
+                  Inclusive of all taxes. Free express shipping on orders above ₹799.
+                </p>
               </div>
 
-              {/* Customizable options (if in stock) */}
+              {/* Customization Options */}
               {product.inStock && (
-                <div className="space-y-5 pt-2">
+                <div className="space-y-5 pt-1">
                   
-                  {/* Sizes Selection */}
+                  {/* Size / Weight Selector */}
                   {product.variants && product.variants.length > 0 && (
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                        {isWellness ? 'Pack Size' : 'Select Size (Weight)'}
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                        {isWellness ? 'Pack Size' : 'Select Weight / Size'}
                       </label>
                       <div className="flex flex-wrap gap-2.5">
                         {product.variants.map((v) => (
                           <button
                             key={v}
+                            type="button"
                             onClick={() => setSelectedSizeState(v)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                            className={`px-4 py-2.5 rounded-2xl text-xs font-bold border transition-all ${
                               selectedSize === v
-                                ? isWellness
-                                  ? 'border-wellness-bronze bg-wellness-bronze text-white'
-                                  : 'border-brand-burgundy bg-brand-burgundy text-white'
-                                : isWellness
-                                ? 'border-wellness-bronze/25 bg-wellness-card text-wellness-text'
-                                : 'border-zinc-200 bg-white text-zinc-700'
+                                ? 'border-brand-burgundy bg-brand-burgundy text-white shadow-md shadow-brand-burgundy/15 ring-2 ring-brand-burgundy/20'
+                                : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300'
                             }`}
                           >
                             {v}
@@ -310,22 +335,21 @@ export default function ProductDetailPage() {
                   {/* Eggless vs Egg option */}
                   {hasTypeSelection && product.egglessAvailable && (
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                        Cake Formulation
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                        Formulation Type
                       </label>
-                      <div className="flex gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         {['Eggless', 'Contain Egg'].map((type) => (
                           <button
                             key={type}
+                            type="button"
                             onClick={() => setSelectedTypeState(type)}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            className={`py-3 px-4 rounded-2xl text-xs font-bold border flex items-center justify-center gap-2 transition-all ${
                               selectedType === type
                                 ? type === 'Eggless'
-                                  ? 'border-green-600 bg-green-600 text-white'
-                                  : 'border-brand-burgundy bg-brand-burgundy text-white'
-                                : isWellness
-                                ? 'border-wellness-bronze/25 bg-wellness-card text-wellness-text'
-                                : 'border-zinc-200 bg-white text-zinc-700'
+                                  ? 'border-green-600 bg-green-600 text-white shadow-md shadow-green-600/15'
+                                  : 'border-brand-burgundy bg-brand-burgundy text-white shadow-md shadow-brand-burgundy/15'
+                                : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300'
                             }`}
                           >
                             {type === 'Eggless' ? '🟢 100% Eggless' : '🥚 With Egg'}
@@ -335,59 +359,51 @@ export default function ProductDetailPage() {
                     </div>
                   )}
 
-                  {/* Message on Cake */}
+                  {/* Cake Message Input */}
                   {isCakes && (
-                    <div className="space-y-2">
-                      <label htmlFor="cakeMessageInput" className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                        Message on Cake (Max 25 chars)
-                      </label>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label htmlFor="cakeMessageInput" className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                          Message on Cake
+                        </label>
+                        <span className="text-[10px] text-zinc-400 font-mono">{cakeMessage.length}/25</span>
+                      </div>
                       <input
                         type="text"
                         id="cakeMessageInput"
-                        placeholder="e.g. Happy Birthday Dad!"
+                        placeholder="e.g. Happy Birthday Rohit!"
                         maxLength={25}
                         value={cakeMessage}
                         onChange={(e) => setCakeMessage(e.target.value)}
-                        className={`w-full px-4 py-2 border rounded-xl text-xs focus:outline-none ${
-                          isWellness
-                            ? 'bg-wellness-dark border-wellness-bronze/35 text-wellness-text focus:border-wellness-bronze'
-                            : 'bg-white border-zinc-200 text-zinc-800 focus:border-brand-burgundy/40'
-                        }`}
+                        className="w-full px-4 py-3 border border-zinc-200 rounded-2xl text-xs bg-white text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-brand-burgundy focus:ring-2 focus:ring-brand-burgundy/10 transition-all shadow-sm"
                       />
                     </div>
                   )}
 
-                  {/* Delivery Scheduling */}
+                  {/* Delivery Schedule Segmented Selector */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
                       Delivery Schedule
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="p-1 bg-zinc-100/90 rounded-2xl border border-zinc-200/60 grid grid-cols-2 gap-1">
                       <button
+                        type="button"
                         onClick={() => setDeliveryType('ASAP')}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                        className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                           deliveryType === 'ASAP'
-                            ? isWellness
-                              ? 'border-wellness-bronze bg-wellness-bronze text-white'
-                              : 'border-brand-burgundy bg-brand-burgundy text-white'
-                            : isWellness
-                            ? 'border-wellness-bronze/25 bg-wellness-card text-wellness-text'
-                            : 'border-zinc-200 bg-white text-zinc-700'
+                            ? 'bg-brand-burgundy text-white shadow-sm'
+                            : 'text-zinc-600 hover:text-zinc-900'
                         }`}
                       >
-                        <Truck className="h-3.5 w-3.5" /> ASAP (30-60m)
+                        <Truck className="h-3.5 w-3.5" /> ASAP (30–60m)
                       </button>
-                      
                       <button
+                        type="button"
                         onClick={() => setDeliveryType('Scheduled')}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                        className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                           deliveryType === 'Scheduled'
-                            ? isWellness
-                              ? 'border-wellness-bronze bg-wellness-bronze text-white'
-                              : 'border-brand-burgundy bg-brand-burgundy text-white'
-                            : isWellness
-                            ? 'border-wellness-bronze/25 bg-wellness-card text-wellness-text'
-                            : 'border-zinc-200 bg-white text-zinc-700'
+                            ? 'bg-brand-burgundy text-white shadow-sm'
+                            : 'text-zinc-600 hover:text-zinc-900'
                         }`}
                       >
                         <Calendar className="h-3.5 w-3.5" /> Schedule Later
@@ -395,79 +411,73 @@ export default function ProductDetailPage() {
                     </div>
 
                     {deliveryType === 'Scheduled' && (
-                      <select
-                        value={timeSlot}
-                        onChange={(e) => setTimeSlot(e.target.value)}
-                        className={`w-full p-2.5 border rounded-xl text-xs mt-2 focus:outline-none ${
-                          isWellness
-                            ? 'bg-wellness-dark border-wellness-bronze/35 text-wellness-text'
-                            : 'bg-white border-zinc-200 text-zinc-700'
-                        }`}
-                      >
-                        <option value="10:00 AM - 12:00 PM">Morning (10:00 AM - 12:00 PM)</option>
-                        <option value="12:00 PM - 02:00 PM">Afternoon (12:00 PM - 02:00 PM)</option>
-                        <option value="02:00 PM - 04:00 PM">Late Afternoon (02:00 PM - 04:00 PM)</option>
-                        <option value="06:00 PM - 08:00 PM">Evening (06:00 PM - 08:00 PM)</option>
-                        <option value="09:00 PM - 11:59 PM">Midnight Special (09:00 PM - 11:59 PM)</option>
-                      </select>
+                      <div className="pt-1">
+                        <select
+                          value={timeSlot}
+                          onChange={(e) => setTimeSlot(e.target.value)}
+                          className="w-full p-3 border border-zinc-200 rounded-2xl text-xs bg-white text-zinc-800 focus:outline-none focus:border-brand-burgundy shadow-sm"
+                        >
+                          <option value="10:00 AM - 12:00 PM">Morning Slot (10:00 AM - 12:00 PM)</option>
+                          <option value="12:00 PM - 02:00 PM">Afternoon Slot (12:00 PM - 02:00 PM)</option>
+                          <option value="02:00 PM - 04:00 PM">Late Afternoon (02:00 PM - 04:00 PM)</option>
+                          <option value="06:00 PM - 08:00 PM">Evening Slot (06:00 PM - 08:00 PM)</option>
+                          <option value="09:00 PM - 11:59 PM">Midnight Special (09:00 PM - 11:59 PM)</option>
+                        </select>
+                      </div>
                     )}
                   </div>
 
-                  {/* Add-ons Checklist */}
+                  {/* Frequently Purchased Add-ons */}
                   {!isWellness && (
-                    <div className="space-y-3 pt-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    <div className="space-y-2.5 pt-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
                         Frequently Purchased Add-ons
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {ADDONS.map((addon) => (
-                          <div
-                            key={addon.id}
-                            onClick={() => handleAddonsToggle(addon.id)}
-                            className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer select-none transition-all ${
-                              selectedAddons.includes(addon.id)
-                                ? 'border-brand-burgundy bg-brand-burgundy/5'
-                                : 'border-zinc-200 bg-white hover:border-brand-burgundy/25'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedAddons.includes(addon.id)}
-                              onChange={() => {}} // handled by click container
-                              className="accent-brand-burgundy h-4 w-4 shrink-0 rounded"
-                            />
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-bold truncate text-zinc-800">{addon.name}</p>
-                              <p className="text-[10px] text-brand-burgundy font-bold">+₹{addon.price}</p>
+                        {ADDONS.map((addon) => {
+                          const isSelected = selectedAddons.includes(addon.id);
+                          return (
+                            <div
+                              key={addon.id}
+                              onClick={() => handleAddonsToggle(addon.id)}
+                              className={`p-3 rounded-2xl border cursor-pointer select-none transition-all flex items-center gap-3 ${
+                                isSelected
+                                  ? 'border-brand-burgundy bg-brand-burgundy/5 ring-1 ring-brand-burgundy shadow-sm'
+                                  : 'border-zinc-200 bg-white hover:border-zinc-300'
+                              }`}
+                            >
+                              <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected ? 'bg-brand-burgundy border-brand-burgundy text-white' : 'border-zinc-300 bg-zinc-50'
+                              }`}>
+                                {isSelected && <Check className="h-3 w-3" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-zinc-800 truncate">{addon.name}</p>
+                                <p className="text-[11px] text-brand-burgundy font-bold mt-0.5">+₹{addon.price}</p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
-                  {/* Add to Cart Actions */}
-                  <div className="flex gap-4 pt-4 border-t border-opacity-5 border-zinc-500">
+                  {/* Purchase CTA Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-3">
                     <button
+                      type="button"
                       onClick={() => handleAddToCart(false)}
-                      className={`flex-1 py-3.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all shadow-md ${
-                        isWellness
-                          ? 'border border-wellness-bronze text-wellness-bronze hover:bg-wellness-bronze hover:text-white'
-                          : 'border border-brand-burgundy text-brand-burgundy hover:bg-brand-burgundy hover:text-white'
-                      }`}
+                      className="flex-1 h-12 py-3 px-6 rounded-2xl border-2 border-brand-burgundy text-brand-burgundy hover:bg-brand-burgundy/5 font-serif font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                     >
-                      Add to Cart
+                      <ShoppingBag className="h-4 w-4" /> Add to Cart
                     </button>
-                    
+
                     <button
+                      type="button"
                       onClick={() => handleAddToCart(true)}
-                      className={`flex-1 py-3.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all shadow-md text-white ${
-                        isWellness
-                          ? 'bg-wellness-bronze hover:bg-wellness-bronze-dark'
-                          : 'bg-brand-burgundy hover:bg-brand-burgundy-dark'
-                      }`}
+                      className="flex-1 h-12 py-3 px-6 rounded-2xl bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-serif font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-brand-burgundy/25 flex items-center justify-center gap-2 active:scale-[0.98]"
                     >
-                      Buy Now
+                      <Zap className="h-4 w-4 text-brand-gold" /> Buy Now
                     </button>
                   </div>
 
@@ -476,74 +486,97 @@ export default function ProductDetailPage() {
 
               {/* Out of Stock notice */}
               {!product.inStock && (
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>This product is currently out of stock. You can check back later.</span>
+                <div className="p-5 rounded-3xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-3 shadow-sm">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <div>
+                    <p className="font-bold">Currently Sold Out</p>
+                    <p className="text-[11px] text-red-600 mt-0.5">This delicacy is being freshly prepared for our next restock batch.</p>
+                  </div>
                 </div>
               )}
 
-              {/* Tabs Section */}
-              <div className="space-y-4 pt-6 border-t border-opacity-5 border-zinc-500">
-                <div className="flex border-b border-opacity-10 border-zinc-500 text-xs font-bold uppercase tracking-wider">
+              {/* Product Information Tabs */}
+              <div className="pt-6 border-t border-zinc-200/70 space-y-4">
+                <div className="flex border-b border-zinc-200 text-xs font-bold uppercase tracking-wider gap-8">
                   <button
+                    type="button"
                     onClick={() => setActiveTab('desc')}
-                    className={`pb-2 pr-4 border-b-2 transition-colors ${
+                    className={`pb-3 border-b-2 transition-all ${
                       activeTab === 'desc'
-                        ? isWellness ? 'border-wellness-bronze text-wellness-bronze-light' : 'border-brand-burgundy text-brand-burgundy'
-                        : 'border-transparent opacity-60'
+                        ? 'border-brand-burgundy text-brand-burgundy font-black'
+                        : 'border-transparent text-zinc-400 hover:text-zinc-700'
                     }`}
                   >
                     Details
                   </button>
                   <button
+                    type="button"
                     onClick={() => setActiveTab('ingredients')}
-                    className={`pb-2 px-4 border-b-2 transition-colors ${
+                    className={`pb-3 border-b-2 transition-all ${
                       activeTab === 'ingredients'
-                        ? isWellness ? 'border-wellness-bronze text-wellness-bronze-light' : 'border-brand-burgundy text-brand-burgundy'
-                        : 'border-transparent opacity-60'
+                        ? 'border-brand-burgundy text-brand-burgundy font-black'
+                        : 'border-transparent text-zinc-400 hover:text-zinc-700'
                     }`}
                   >
                     Ingredients
                   </button>
                   <button
+                    type="button"
                     onClick={() => setActiveTab('storage')}
-                    className={`pb-2 px-4 border-b-2 transition-colors ${
+                    className={`pb-3 border-b-2 transition-all ${
                       activeTab === 'storage'
-                        ? isWellness ? 'border-wellness-bronze text-wellness-bronze-light' : 'border-brand-burgundy text-brand-burgundy'
-                        : 'border-transparent opacity-60'
+                        ? 'border-brand-burgundy text-brand-burgundy font-black'
+                        : 'border-transparent text-zinc-400 hover:text-zinc-700'
                     }`}
                   >
                     Instructions
                   </button>
                 </div>
 
-                <div className="text-xs leading-relaxed opacity-85">
+                <div className="text-xs text-zinc-600 leading-relaxed bg-white p-5 rounded-2xl border border-zinc-200/50 shadow-sm">
                   {activeTab === 'desc' && (
-                    <div className="space-y-2">
-                      <p>{product.description}</p>
-                      <p className="font-bold">Discreet plain box packaging guarantees privacy for all sensitive orders.</p>
+                    <div className="space-y-3">
+                      <p className="leading-relaxed">{product.description}</p>
+                      <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center gap-2 text-zinc-700 font-medium">
+                        <ShieldCheck className="h-4 w-4 text-green-600 shrink-0" />
+                        <span>Discreet, tamper-proof packaging guarantees hygiene and privacy for all deliveries.</span>
+                      </div>
                     </div>
                   )}
+
                   {activeTab === 'ingredients' && (
-                    <div className="space-y-2">
-                      <p className="font-bold">Main Elements:</p>
-                      <ul className="list-disc pl-4 space-y-1">
-                        {product.ingredients.length > 0 ? (
-                          product.ingredients.map((ing, i) => <li key={i}>{ing}</li>)
+                    <div className="space-y-3">
+                      <p className="font-bold text-zinc-900 uppercase tracking-wider text-[10px]">Key Ingredients & Elements:</p>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-zinc-700">
+                        {product.ingredients && product.ingredients.length > 0 ? (
+                          product.ingredients.map((ing, i) => (
+                            <li key={i} className="flex items-center gap-2">
+                              <span className="h-1.5 w-1.5 rounded-full bg-brand-burgundy shrink-0"></span>
+                              <span>{ing}</span>
+                            </li>
+                          ))
                         ) : (
-                          <li>Standard Premium composition</li>
+                          <li className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-brand-burgundy shrink-0"></span>
+                            <span>100% Premium handcrafted artisan ingredients</span>
+                          </li>
                         )}
                       </ul>
-                      {product.allergens.length > 0 && (
-                        <p className="text-red-500 font-semibold mt-2">
-                          Allergen Warning: Contains {product.allergens.join(', ')}
-                        </p>
+
+                      {product.allergens && product.allergens.length > 0 && (
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/60 text-amber-900 text-xs font-medium mt-2">
+                          ⚠️ <strong>Allergen Notice:</strong> Contains {product.allergens.join(', ')}.
+                        </div>
                       )}
                     </div>
                   )}
+
                   {activeTab === 'storage' && (
                     <div className="space-y-2">
-                      <p>{product.storageInstructions || 'Store in a cool and dry location. Maintain hygiene guidelines.'}</p>
+                      <p className="font-bold text-zinc-900 uppercase tracking-wider text-[10px]">Storage & Care:</p>
+                      <p className="leading-relaxed">
+                        {product.storageInstructions || 'Refrigerate immediately upon receipt between 2°C to 5°C. For maximum freshness and texture, consume within 24 to 48 hours of delivery.'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -552,48 +585,81 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* Reviews section */}
-          <section className="mt-16 pt-12 border-t border-opacity-5 border-zinc-500">
-            <h3 className="text-lg font-serif font-extrabold text-current mb-6">
-              Client Feedback
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Client Reviews Section */}
+          <section id="reviews-section" className="pt-12 border-t border-zinc-200/70 space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-burgundy">Verified Feedback</span>
+                <h2 className="text-2xl sm:text-3xl font-serif font-black text-zinc-900 mt-1">Customer Reviews & Ratings</h2>
+              </div>
+              <div className="flex items-center gap-3 bg-white p-3 px-5 rounded-2xl border border-zinc-200/70 shadow-sm">
+                <div className="text-2xl font-serif font-black text-zinc-900">{product.rating}</div>
+                <div>
+                  <div className="flex text-amber-500">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-zinc-400 font-medium">Based on {product.reviewCount} reviews</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {MOCK_REVIEWS.map((rev) => (
                 <div
                   key={rev.id}
-                  className={`p-5 rounded-2xl border ${
-                    isWellness ? 'bg-wellness-card border-wellness-bronze/10' : 'bg-white border-zinc-100 shadow-sm'
-                  }`}
+                  className="p-6 rounded-3xl bg-white border border-zinc-200/60 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
                 >
-                  <div className="flex justify-between items-center text-xs mb-2">
-                    <span className="font-bold">{rev.user}</span>
-                    <span className="opacity-50">{rev.date}</span>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-brand-burgundy/10 text-brand-burgundy font-serif font-black flex items-center justify-center text-xs">
+                        {rev.user.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-zinc-900 flex items-center gap-1.5">
+                          {rev.user}
+                          <span className="inline-flex items-center text-[9px] font-bold bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">
+                            ✓ Verified Buyer
+                          </span>
+                        </p>
+                        <p className="text-[10px] text-zinc-400">{rev.date}</p>
+                      </div>
+                    </div>
+                    <div className="flex text-amber-500">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-3 w-3 ${i < rev.rating ? 'fill-amber-500 text-amber-500' : 'text-zinc-200'}`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-3 w-3 ${
-                          i < rev.rating
-                            ? isWellness ? 'text-wellness-bronze fill-wellness-bronze' : 'text-brand-gold fill-brand-gold'
-                            : 'text-zinc-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs leading-relaxed opacity-85">{rev.text}</p>
+                  <p className="text-xs text-zinc-600 leading-relaxed pt-1">
+                    &ldquo;{rev.text}&rdquo;
+                  </p>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* Related products */}
+          {/* You May Also Like Section */}
           {relatedProducts.length > 0 && (
-            <section className="mt-16 pt-12 border-t border-opacity-5 border-zinc-500">
-              <h3 className="text-lg font-serif font-extrabold text-current mb-6">
-                You May Also Like
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <section className="pt-12 border-t border-zinc-200/70 space-y-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-burgundy">Curated Recommendations</span>
+                  <h2 className="text-2xl sm:text-3xl font-serif font-black text-zinc-900 mt-1">You May Also Like</h2>
+                </div>
+                <Link
+                  href={`/${product.category}`}
+                  className="text-xs font-bold text-brand-burgundy hover:underline uppercase tracking-wider inline-flex items-center gap-1"
+                >
+                  View All in {product.category} &rarr;
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {relatedProducts.map((p) => (
                   <ProductCard key={p.id} product={p} />
                 ))}
