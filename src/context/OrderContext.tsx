@@ -242,6 +242,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deliveryTimeSlot: deliveryOption === 'Scheduled' ? deliveryTimeSlot : undefined,
       scheduledDeliveryAt: scheduledDeliveryAt || undefined,
       discount: pricing.discount,
+      couponCode: (pricing as any).couponCode || undefined,
       paymentMethod: paymentMethod || 'UPI',
       deliveryLocationId: locId,
       deliveryLocationName: locName

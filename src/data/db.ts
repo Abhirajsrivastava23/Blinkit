@@ -118,6 +118,8 @@ const inMemoryData: Record<string, Record<string, unknown>[]> = {
   admin: [...adminJson],
   payment_transactions: [],
   product_image_history: [],
+  coupons: [],
+  coupon_usages: [],
 };
 
 const inMemoryConfig: Record<string, unknown> = {
@@ -147,7 +149,9 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'utr', 'proofImageUrl', 'paymentSubmittedAt', 'paymentVerifiedAt', 'paymentRejectedAt', 'rejectionReason'
   ],
   product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive'],
-  payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata']
+  payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata'],
+  coupons: ['id', 'code', 'discountType', 'discountValue', 'minSpend', 'maxDiscount', 'startDate', 'expiryDate', 'isActive', 'usageLimit', 'usageCount', 'perCustomerLimit', 'targetAudience', 'selectedCustomerIds', 'createdAt', 'updatedAt', 'createdBy'],
+  coupon_usages: ['id', 'couponId', 'couponCode', 'customerId', 'customerEmail', 'orderId', 'discountAmount', 'usedAt']
 };
 
 export function normalizeOrderRecord(row: Record<string, unknown>): Record<string, unknown> {
@@ -270,6 +274,65 @@ export function normalizePartnerRecord(row: Record<string, unknown>): Record<str
   if (parsed.locationid && !parsed.locationId) parsed.locationId = parsed.locationid;
   if (parsed.locationname && !parsed.locationName) parsed.locationName = parsed.locationname;
   if (parsed.isonline !== undefined && parsed.isOnline === undefined) parsed.isOnline = Boolean(parsed.isonline);
+
+  return parsed;
+}
+
+export function normalizeCouponRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  parsed.id = String(parsed.id || '').trim();
+  parsed.code = String(parsed.code || '').trim().toUpperCase();
+  parsed.discountType = String(parsed.discountType || parsed.discounttype || 'percentage').toLowerCase();
+  parsed.discountValue = Number(parsed.discountValue ?? parsed.discountvalue ?? 0);
+  parsed.minSpend = Number(parsed.minSpend ?? parsed.minspend ?? 0);
+  parsed.maxDiscount = parsed.maxDiscount !== undefined && parsed.maxDiscount !== null 
+    ? Number(parsed.maxDiscount) 
+    : (parsed.maxdiscount !== undefined && parsed.maxdiscount !== null ? Number(parsed.maxdiscount) : undefined);
+  parsed.isActive = parsed.isActive !== undefined 
+    ? Boolean(parsed.isActive) 
+    : (parsed.isactive !== undefined ? Boolean(parsed.isactive) : true);
+  parsed.usageLimit = parsed.usageLimit !== undefined && parsed.usageLimit !== null 
+    ? Number(parsed.usageLimit) 
+    : (parsed.usagelimit !== undefined && parsed.usagelimit !== null ? Number(parsed.usagelimit) : undefined);
+  parsed.usageCount = Number(parsed.usageCount ?? parsed.usagecount ?? 0);
+  parsed.perCustomerLimit = parsed.perCustomerLimit !== undefined && parsed.perCustomerLimit !== null 
+    ? Number(parsed.perCustomerLimit) 
+    : (parsed.percustomerlimit !== undefined && parsed.percustomerlimit !== null ? Number(parsed.percustomerlimit) : undefined);
+  parsed.targetAudience = String(parsed.targetAudience || parsed.targetaudience || 'ALL').toUpperCase();
+
+  if (typeof parsed.selectedCustomerIds === 'string') {
+    try { parsed.selectedCustomerIds = JSON.parse(parsed.selectedCustomerIds); } catch { parsed.selectedCustomerIds = []; }
+  } else if (typeof parsed.selectedcustomerids === 'string') {
+    try { parsed.selectedCustomerIds = JSON.parse(parsed.selectedcustomerids); } catch { parsed.selectedCustomerIds = []; }
+  } else if (!Array.isArray(parsed.selectedCustomerIds)) {
+    parsed.selectedCustomerIds = Array.isArray(parsed.selectedcustomerids) ? parsed.selectedcustomerids : [];
+  }
+
+  if (parsed.startdate && !parsed.startDate) parsed.startDate = parsed.startdate;
+  if (parsed.expirydate && !parsed.expiryDate) parsed.expiryDate = parsed.expirydate;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+  if (parsed.createdby && !parsed.createdBy) parsed.createdBy = parsed.createdby;
+
+  return parsed;
+}
+
+export function normalizeCouponUsageRecord(row: Record<string, unknown>): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return row;
+  const parsed: Record<string, unknown> = { ...row };
+
+  parsed.id = String(parsed.id || '').trim();
+  if (parsed.couponid && !parsed.couponId) parsed.couponId = parsed.couponid;
+  if (parsed.couponcode && !parsed.couponCode) parsed.couponCode = parsed.couponcode;
+  if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+  if (parsed.customeremail && !parsed.customerEmail) parsed.customerEmail = parsed.customeremail;
+  if (parsed.orderid && !parsed.orderId) parsed.orderId = parsed.orderid;
+  if (parsed.discountamount !== undefined && parsed.discountAmount === undefined) parsed.discountAmount = Number(parsed.discountamount);
+  if (parsed.usedat && !parsed.usedAt) parsed.usedAt = parsed.usedat;
+
+  parsed.discountAmount = Number(parsed.discountAmount || 0);
 
   return parsed;
 }
@@ -928,6 +991,352 @@ export const db = {
         id: updatedProduct.id || cleanId,
         image: imageUrl,
       }
+    };
+  },
+
+  /**
+   * Coupon Management & Validation Methods
+   */
+  async getCoupons(includeInactive = false): Promise<Record<string, unknown>[]> {
+    let rawList: Record<string, unknown>[] = [];
+    if (!pool) {
+      rawList = inMemoryData['coupons'] || [];
+    } else {
+      try {
+        const query = includeInactive 
+          ? 'SELECT * FROM coupons ORDER BY "createdAt" DESC' 
+          : 'SELECT * FROM coupons WHERE "isActive" = TRUE ORDER BY "createdAt" DESC';
+        const res = await pool.query(query);
+        rawList = res.rows;
+      } catch (err) {
+        console.error('Error fetching coupons from DB:', err);
+        rawList = inMemoryData['coupons'] || [];
+      }
+    }
+    const normalized = rawList.map(normalizeCouponRecord);
+    return includeInactive ? normalized : normalized.filter((c: any) => c.isActive);
+  },
+
+  async getCouponById(id: string): Promise<Record<string, unknown> | null> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return null;
+    if (!pool) {
+      const list = inMemoryData['coupons'] || [];
+      const found = list.find((c: any) => String(c.id).toLowerCase() === cleanId.toLowerCase());
+      return found ? normalizeCouponRecord(found) : null;
+    }
+    try {
+      const res = await pool.query('SELECT * FROM coupons WHERE LOWER(id) = LOWER($1) LIMIT 1', [cleanId]);
+      if (res.rows.length === 0) return null;
+      return normalizeCouponRecord(res.rows[0]);
+    } catch (err) {
+      console.error('Error fetching coupon by id:', err);
+      const list = inMemoryData['coupons'] || [];
+      const found = list.find((c: any) => String(c.id).toLowerCase() === cleanId.toLowerCase());
+      return found ? normalizeCouponRecord(found) : null;
+    }
+  },
+
+  async getCouponByCode(code: string): Promise<Record<string, unknown> | null> {
+    const cleanCode = String(code || '').trim().toUpperCase();
+    if (!cleanCode) return null;
+    if (!pool) {
+      const list = inMemoryData['coupons'] || [];
+      const found = list.find((c: any) => String(c.code).trim().toUpperCase() === cleanCode);
+      return found ? normalizeCouponRecord(found) : null;
+    }
+    try {
+      const res = await pool.query('SELECT * FROM coupons WHERE UPPER(TRIM(code)) = UPPER(TRIM($1)) LIMIT 1', [cleanCode]);
+      if (res.rows.length === 0) return null;
+      return normalizeCouponRecord(res.rows[0]);
+    } catch (err) {
+      console.error('Error fetching coupon by code:', err);
+      const list = inMemoryData['coupons'] || [];
+      const found = list.find((c: any) => String(c.code).trim().toUpperCase() === cleanCode);
+      return found ? normalizeCouponRecord(found) : null;
+    }
+  },
+
+  async upsertCoupon(couponData: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const normalized = normalizeCouponRecord(couponData);
+    if (!normalized.id) {
+      normalized.id = `coupon-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    }
+    if (!normalized.createdAt) {
+      normalized.createdAt = new Date().toISOString();
+    }
+    normalized.updatedAt = new Date().toISOString();
+
+    // 1. Update in-memory
+    const list = inMemoryData['coupons'] || [];
+    const idx = list.findIndex((c: any) => String(c.id).toLowerCase() === String(normalized.id).toLowerCase() || String(c.code).toUpperCase() === String(normalized.code).toUpperCase());
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...normalized };
+    } else {
+      list.push(normalized);
+    }
+    inMemoryData['coupons'] = list;
+
+    // 2. Update PostgreSQL if available
+    if (pool) {
+      try {
+        const query = `
+          INSERT INTO coupons (
+            id, code, "discountType", "discountValue", "minSpend", "maxDiscount",
+            "startDate", "expiryDate", "isActive", "usageLimit", "usageCount",
+            "perCustomerLimit", "targetAudience", "selectedCustomerIds",
+            "createdAt", "updatedAt", "createdBy"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (id) DO UPDATE SET
+            code = EXCLUDED.code,
+            "discountType" = EXCLUDED."discountType",
+            "discountValue" = EXCLUDED."discountValue",
+            "minSpend" = EXCLUDED."minSpend",
+            "maxDiscount" = EXCLUDED."maxDiscount",
+            "startDate" = EXCLUDED."startDate",
+            "expiryDate" = EXCLUDED."expiryDate",
+            "isActive" = EXCLUDED."isActive",
+            "usageLimit" = EXCLUDED."usageLimit",
+            "usageCount" = EXCLUDED."usageCount",
+            "perCustomerLimit" = EXCLUDED."perCustomerLimit",
+            "targetAudience" = EXCLUDED."targetAudience",
+            "selectedCustomerIds" = EXCLUDED."selectedCustomerIds",
+            "updatedAt" = EXCLUDED."updatedAt"
+          RETURNING *;
+        `;
+        const params = [
+          normalized.id,
+          normalized.code,
+          normalized.discountType,
+          normalized.discountValue,
+          normalized.minSpend || 0,
+          normalized.maxDiscount || null,
+          normalized.startDate || null,
+          normalized.expiryDate || null,
+          normalized.isActive !== false,
+          normalized.usageLimit || null,
+          normalized.usageCount || 0,
+          normalized.perCustomerLimit || null,
+          normalized.targetAudience || 'ALL',
+          JSON.stringify(normalized.selectedCustomerIds || []),
+          normalized.createdAt,
+          normalized.updatedAt,
+          normalized.createdBy || null
+        ];
+        const res = await pool.query(query, params);
+        if (res.rows.length > 0) {
+          return normalizeCouponRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error upserting coupon in DB:', err);
+      }
+    }
+
+    return normalized;
+  },
+
+  async deleteCoupon(id: string): Promise<boolean> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return false;
+
+    // Remove from in-memory
+    const list = inMemoryData['coupons'] || [];
+    inMemoryData['coupons'] = list.filter((c: any) => String(c.id).toLowerCase() !== cleanId.toLowerCase() && String(c.code).toLowerCase() !== cleanId.toLowerCase());
+
+    if (pool) {
+      try {
+        await pool.query('DELETE FROM coupons WHERE LOWER(id) = LOWER($1) OR LOWER(code) = LOWER($1)', [cleanId]);
+      } catch (err) {
+        console.error('Error deleting coupon from DB:', err);
+      }
+    }
+    return true;
+  },
+
+  async recordCouponUsage(usageData: {
+    couponId: string;
+    couponCode: string;
+    customerId: string;
+    customerEmail?: string;
+    orderId?: string;
+    discountAmount: number;
+  }): Promise<Record<string, unknown>> {
+    const now = new Date().toISOString();
+    const usage = {
+      id: `usage-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      couponId: String(usageData.couponId || '').trim(),
+      couponCode: String(usageData.couponCode || '').trim().toUpperCase(),
+      customerId: String(usageData.customerId || '').trim(),
+      customerEmail: usageData.customerEmail ? String(usageData.customerEmail).trim() : null,
+      orderId: usageData.orderId ? String(usageData.orderId).trim() : null,
+      discountAmount: Number(usageData.discountAmount || 0),
+      usedAt: now
+    };
+
+    // Save in-memory
+    const list = inMemoryData['coupon_usages'] || [];
+    list.push(usage);
+    inMemoryData['coupon_usages'] = list;
+
+    // Increment usageCount on coupon
+    const couponsList = inMemoryData['coupons'] || [];
+    const couponIdx = couponsList.findIndex((c: any) => String(c.id) === usage.couponId || String(c.code).toUpperCase() === usage.couponCode);
+    if (couponIdx >= 0) {
+      couponsList[couponIdx].usageCount = (Number(couponsList[couponIdx].usageCount) || 0) + 1;
+    }
+
+    if (pool) {
+      try {
+        await pool.query(
+          `INSERT INTO coupon_usages (id, "couponId", "couponCode", "customerId", "customerEmail", "orderId", "discountAmount", "usedAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [usage.id, usage.couponId, usage.couponCode, usage.customerId, usage.customerEmail, usage.orderId, usage.discountAmount, usage.usedAt]
+        );
+        await pool.query(
+          `UPDATE coupons SET "usageCount" = COALESCE("usageCount", 0) + 1 WHERE id = $1 OR UPPER(code) = $2`,
+          [usage.couponId, usage.couponCode]
+        );
+      } catch (err) {
+        console.error('Error recording coupon usage in DB:', err);
+      }
+    }
+
+    return usage;
+  },
+
+  async getCouponUsageCount(couponIdOrCode: string, customerId?: string): Promise<number> {
+    const clean = String(couponIdOrCode || '').trim().toUpperCase();
+    if (!pool) {
+      const list = inMemoryData['coupon_usages'] || [];
+      return list.filter((u: any) => {
+        const matchCoupon = String(u.couponId || '').toUpperCase() === clean || String(u.couponCode || '').toUpperCase() === clean;
+        if (!matchCoupon) return false;
+        if (customerId) {
+          const cId = String(customerId).trim().toLowerCase();
+          const uCustId = String(u.customerId || '').trim().toLowerCase();
+          const uCustEmail = String(u.customerEmail || '').trim().toLowerCase();
+          return uCustId === cId || uCustEmail === cId;
+        }
+        return true;
+      }).length;
+    }
+    try {
+      if (customerId) {
+        const cId = String(customerId).trim().toLowerCase();
+        const res = await pool.query(
+          `SELECT COUNT(*) FROM coupon_usages 
+           WHERE (UPPER("couponId") = $1 OR UPPER("couponCode") = $1) 
+           AND (LOWER("customerId") = $2 OR LOWER("customerEmail") = $2)`,
+          [clean, cId]
+        );
+        return parseInt(res.rows[0]?.count || '0', 10);
+      } else {
+        const res = await pool.query(
+          `SELECT COUNT(*) FROM coupon_usages WHERE UPPER("couponId") = $1 OR UPPER("couponCode") = $1`,
+          [clean]
+        );
+        return parseInt(res.rows[0]?.count || '0', 10);
+      }
+    } catch (err) {
+      console.error('Error counting coupon usage in DB:', err);
+      return 0;
+    }
+  },
+
+  async validateCoupon(
+    code: string,
+    subtotal: number,
+    customer?: { userId?: string; email?: string; phone?: string }
+  ): Promise<{
+    valid: boolean;
+    error?: string;
+    discountAmount?: number;
+    coupon?: Record<string, unknown>;
+  }> {
+    const cleanCode = String(code || '').trim().toUpperCase();
+    if (!cleanCode) {
+      return { valid: false, error: 'Please enter a coupon code.' };
+    }
+
+    const coupon = await this.getCouponByCode(cleanCode);
+    if (!coupon) {
+      return { valid: false, error: 'Invalid coupon code.' };
+    }
+
+    if (!coupon.isActive) {
+      return { valid: false, error: 'This coupon is currently inactive.' };
+    }
+
+    const now = new Date();
+    if (coupon.startDate && new Date(String(coupon.startDate)) > now) {
+      return { valid: false, error: 'This coupon is not active yet.' };
+    }
+    if (coupon.expiryDate && new Date(String(coupon.expiryDate)) < now) {
+      return { valid: false, error: 'This coupon has expired.' };
+    }
+
+    const minSpend = Number(coupon.minSpend) || 0;
+    if (minSpend > 0 && subtotal < minSpend) {
+      return { valid: false, error: `Minimum spend of ₹${minSpend} required for this coupon.` };
+    }
+
+    // Check overall usage limit
+    if (coupon.usageLimit && Number(coupon.usageLimit) > 0) {
+      const totalUsed = await this.getCouponUsageCount(String(coupon.id));
+      if (totalUsed >= Number(coupon.usageLimit)) {
+        return { valid: false, error: 'This coupon has reached its maximum total usage limit.' };
+      }
+    }
+
+    // Check customer targeting (ALL vs SELECTED)
+    const audience = String(coupon.targetAudience || 'ALL').toUpperCase();
+    if (audience === 'SELECTED') {
+      if (!customer || (!customer.userId && !customer.email && !customer.phone)) {
+        return { valid: false, error: 'Please log in to use this account-specific coupon.' };
+      }
+
+      const selectedIds: string[] = Array.isArray(coupon.selectedCustomerIds) 
+        ? coupon.selectedCustomerIds.map((id: any) => String(id).trim().toLowerCase()) 
+        : [];
+
+      const cUser = customer.userId ? String(customer.userId).trim().toLowerCase() : '';
+      const cEmail = customer.email ? String(customer.email).trim().toLowerCase() : '';
+      const cPhone = customer.phone ? String(customer.phone).trim().toLowerCase() : '';
+
+      const isAllowed = selectedIds.some(id => id === cUser || id === cEmail || id === cPhone);
+      if (!isAllowed) {
+        return { valid: false, error: 'This coupon is not available for your account.' };
+      }
+    }
+
+    // Check per-customer usage limit
+    if (coupon.perCustomerLimit && Number(coupon.perCustomerLimit) > 0 && customer) {
+      const custIdentifier = customer.userId || customer.email || customer.phone;
+      if (custIdentifier) {
+        const custUsed = await this.getCouponUsageCount(String(coupon.id), custIdentifier);
+        if (custUsed >= Number(coupon.perCustomerLimit)) {
+          return { valid: false, error: 'You have already used this coupon the maximum allowed number of times.' };
+        }
+      }
+    }
+
+    // Calculate discount
+    let discount = 0;
+    const val = Number(coupon.discountValue) || 0;
+    if (coupon.discountType === 'percentage') {
+      discount = Math.round((subtotal * val) / 100);
+      if (coupon.maxDiscount && Number(coupon.maxDiscount) > 0) {
+        discount = Math.min(discount, Number(coupon.maxDiscount));
+      }
+    } else {
+      discount = val;
+    }
+    discount = Math.min(discount, subtotal);
+
+    return {
+      valid: true,
+      discountAmount: discount,
+      coupon
     };
   },
 
@@ -2005,8 +2414,44 @@ export const db = {
       await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions("userId")');
       await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_customer_id ON payment_transactions("customerId")');
       await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_order_id ON payment_transactions("orderId")');
-      await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status)');
-      await client.query('CREATE INDEX IF NOT EXISTS idx_payment_transactions_utr ON payment_transactions(utr)');
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS coupons (
+          id VARCHAR(255) PRIMARY KEY,
+          code VARCHAR(255) UNIQUE NOT NULL,
+          "discountType" VARCHAR(50) NOT NULL,
+          "discountValue" NUMERIC NOT NULL,
+          "minSpend" NUMERIC DEFAULT 0,
+          "maxDiscount" NUMERIC,
+          "startDate" VARCHAR(255),
+          "expiryDate" VARCHAR(255),
+          "isActive" BOOLEAN DEFAULT TRUE,
+          "usageLimit" INTEGER,
+          "usageCount" INTEGER DEFAULT 0,
+          "perCustomerLimit" INTEGER,
+          "targetAudience" VARCHAR(50) DEFAULT 'ALL',
+          "selectedCustomerIds" JSONB,
+          "createdAt" VARCHAR(255) NOT NULL,
+          "updatedAt" VARCHAR(255),
+          "createdBy" VARCHAR(255)
+        );
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS coupon_usages (
+          id VARCHAR(255) PRIMARY KEY,
+          "couponId" VARCHAR(255) NOT NULL,
+          "couponCode" VARCHAR(255) NOT NULL,
+          "customerId" VARCHAR(255) NOT NULL,
+          "customerEmail" VARCHAR(255),
+          "orderId" VARCHAR(255),
+          "discountAmount" NUMERIC NOT NULL,
+          "usedAt" VARCHAR(255) NOT NULL
+        );
+      `);
+
+      await client.query('CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(UPPER(code))');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_coupon_usages_coupon_id ON coupon_usages("couponId")');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_coupon_usages_customer_id ON coupon_usages("customerId")');
 
       await client.query('COMMIT');
       

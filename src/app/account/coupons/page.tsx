@@ -1,68 +1,63 @@
 'use client';
 
 import React from 'react';
-import { Tag, Copy } from 'lucide-react';
-import { useToast } from '../../../components/Toast';
+import { Tag, Sparkles, ShoppingBag } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AccountCouponsPage() {
-  const { showToast } = useToast();
-
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    showToast(`Coupon code ${code} copied!`, 'success');
-  };
-
   return (
-    <div className="space-y-6 text-xs">
+    <div className="space-y-6 text-xs text-left">
       <div>
-        <h3 className="text-lg font-serif font-extrabold text-zinc-800">My Coupons</h3>
-        <p className="text-xs text-zinc-500">Available promotional vouchers you can copy and use at checkout.</p>
+        <h3 className="text-lg font-serif font-extrabold text-zinc-800">Promotions & Vouchers</h3>
+        <p className="text-xs text-zinc-500">Apply your exclusive promo coupons directly at checkout.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Coupon 1 */}
-        <div className="p-4 border rounded-2xl flex items-start gap-3 hover:border-brand-burgundy/10 transition-colors bg-zinc-50/50">
-          <div className="p-2 bg-brand-burgundy/5 text-brand-burgundy rounded-lg shrink-0">
-            <Tag className="h-5 w-5" />
-          </div>
-          <div className="space-y-3 flex-1 min-w-0">
+        <div className="p-5 border border-zinc-200/40 rounded-3xl bg-white space-y-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-brand-burgundy/5 text-brand-burgundy rounded-2xl shrink-0">
+              <Tag className="h-5 w-5" />
+            </div>
             <div>
-              <p className="font-bold text-zinc-800">Flat 10% Discount</p>
-              <p className="text-[10px] text-zinc-400">Apply code at checkout on all desserts and bouquets. No minimum purchase.</p>
+              <p className="font-serif font-black text-sm text-zinc-900">Personalized Coupons</p>
+              <p className="text-[11px] text-zinc-500">Apply your private coupon codes at cart or checkout</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="bg-white border px-2.5 py-1 rounded font-bold tracking-wider uppercase text-zinc-800">FATAFAT10</span>
-              <button
-                onClick={() => handleCopyCode('FATAFAT10')}
-                className="p-1 hover:bg-zinc-100 text-zinc-500 rounded transition-colors"
-                title="Copy Coupon"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            </div>
+          </div>
+          <p className="text-zinc-600 text-[11px] leading-relaxed">
+            Exclusive celebration vouchers and special customer discount codes sent to your registered email or phone can be entered during checkout.
+          </p>
+          <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
+            <span className="text-[10px] text-zinc-400 font-medium">Auto-verified on application</span>
+            <Link
+              href="/cart"
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-burgundy hover:underline uppercase tracking-wider"
+            >
+              <ShoppingBag className="h-3 w-3" /> View Cart
+            </Link>
           </div>
         </div>
 
-        {/* Coupon 2 */}
-        <div className="p-4 border rounded-2xl flex items-start gap-3 hover:border-brand-gold/20 transition-colors bg-zinc-50/50">
-          <div className="p-2 bg-brand-gold/10 text-[#7A6010] rounded-lg shrink-0">
-            <Tag className="h-5 w-5" />
-          </div>
-          <div className="space-y-3 flex-1 min-w-0">
+        <div className="p-5 border border-brand-gold/20 rounded-3xl bg-white space-y-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-brand-gold/10 text-brand-gold-dark rounded-2xl shrink-0">
+              <Sparkles className="h-5 w-5" />
+            </div>
             <div>
-              <p className="font-bold text-zinc-800">Save ₹200 on orders above ₹999</p>
-              <p className="text-[10px] text-zinc-400">Save big on celebrations. Get ₹200 off for orders exceeding ₹999.</p>
+              <p className="font-serif font-black text-sm text-zinc-900">Complimentary Fast Delivery</p>
+              <p className="text-[11px] text-zinc-500">Automatic perk on orders ₹799+</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="bg-white border px-2.5 py-1 rounded font-bold tracking-wider uppercase text-zinc-800">CELEBRATE200</span>
-              <button
-                onClick={() => handleCopyCode('CELEBRATE200')}
-                className="p-1 hover:bg-zinc-100 text-zinc-500 rounded transition-colors"
-                title="Copy Coupon"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            </div>
+          </div>
+          <p className="text-zinc-600 text-[11px] leading-relaxed">
+            All orders exceeding ₹799 automatically qualify for free express shipping with zero voucher required.
+          </p>
+          <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
+            <span className="text-[10px] text-green-700 font-bold bg-green-50 px-2 py-0.5 rounded-full">Always Active</span>
+            <Link
+              href="/category/cakes"
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-700 hover:underline uppercase tracking-wider"
+            >
+              Shop Now &rarr;
+            </Link>
           </div>
         </div>
       </div>

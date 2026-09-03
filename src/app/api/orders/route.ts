@@ -211,7 +211,23 @@ export async function POST(request: Request) {
       }
 
       const deliveryFee = calculatedSubtotal >= 799 ? 0 : 49;
-      const discount = Number(body.discount) || 0;
+      let discount = Number(body.discount) || 0;
+      let appliedCoupon: any = null;
+
+      if (body.couponCode) {
+        const couponValidation = await db.validateCoupon(
+          String(body.couponCode),
+          calculatedSubtotal,
+          { userId: session.userId, email: session.email, phone: (session as any).phone }
+        );
+        if (couponValidation.valid) {
+          discount = Number(couponValidation.discountAmount || 0);
+          appliedCoupon = couponValidation.coupon;
+        } else {
+          discount = 0;
+        }
+      }
+
       const grandTotal = Math.max(0, calculatedSubtotal + deliveryFee - discount);
 
       const now = new Date().toISOString();
@@ -224,6 +240,7 @@ export async function POST(request: Request) {
         subtotal: calculatedSubtotal,
         deliveryFee,
         discount,
+        couponCode: appliedCoupon?.code || undefined,
         total: grandTotal,
         address: body.address,
         status: 'Pending',
@@ -249,6 +266,22 @@ export async function POST(request: Request) {
       };
 
       const savedOrder = await db.updateOrder(orderId, newOrder);
+
+      // Record coupon usage if coupon applied
+      if (appliedCoupon && discount > 0) {
+        try {
+          await db.recordCouponUsage({
+            couponId: String(appliedCoupon.id),
+            couponCode: String(appliedCoupon.code),
+            customerId: session.userId,
+            customerEmail: session.email,
+            orderId,
+            discountAmount: discount
+          });
+        } catch (couponErr) {
+          console.error('Error recording coupon usage for order:', couponErr);
+        }
+      }
 
       // 3. Create or ensure payment transaction record in database
       const paymentId = `pay-${orderId}-${Date.now()}`;

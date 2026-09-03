@@ -21,7 +21,7 @@ interface CartContextType {
   promoCode: string;
   promoError: string;
   discountAmount: number;
-  applyPromoCode: (code: string) => boolean;
+  applyPromoCode: (code: string) => Promise<boolean>;
   removePromoCode: () => void;
   subtotal: number;
   deliveryFee: number;
@@ -179,44 +179,76 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Recalculate promo discount if subtotal changes
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (promoCode === 'FATAFAT10') {
-        setDiscountAmount(Math.round(subtotal * 0.1));
-      } else if (promoCode === 'CELEBRATE200') {
-        if (subtotal >= 999) {
-          setDiscountAmount(200);
+    if (!promoCode) {
+      setDiscountAmount(0);
+      return;
+    }
+
+    let isMounted = true;
+    const revalidate = async () => {
+      try {
+        const res = await fetch('/api/coupons/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: promoCode, subtotal })
+        });
+        const data = await res.json();
+        if (!isMounted) return;
+        if (res.ok && data.valid) {
+          setDiscountAmount(Number(data.discountAmount) || 0);
         } else {
           setPromoCode('');
           setDiscountAmount(0);
-          setPromoError('Promo code CELEBRATE200 removed: Subtotal fell below ₹999.');
+          setPromoError(data.error || 'Applied coupon removed due to cart changes.');
         }
-      } else {
+      } catch {
+        if (!isMounted) return;
+        setPromoCode('');
         setDiscountAmount(0);
       }
-    }, 0);
+    };
 
-    return () => window.clearTimeout(timer);
+    void revalidate();
+    return () => {
+      isMounted = false;
+    };
   }, [subtotal, promoCode]);
 
-  const applyPromoCode = (code: string): boolean => {
+  const applyPromoCode = async (code: string): Promise<boolean> => {
     const normalizedCode = code.toUpperCase().trim();
     setPromoError('');
 
-    if (normalizedCode === 'FATAFAT10') {
-      setPromoCode('FATAFAT10');
-      setDiscountAmount(Math.round(subtotal * 0.1));
-      return true;
-    } else if (normalizedCode === 'CELEBRATE200') {
-      if (subtotal >= 999) {
-        setPromoCode('CELEBRATE200');
-        setDiscountAmount(200);
+    if (!normalizedCode) {
+      setPromoError('Please enter a coupon code.');
+      return false;
+    }
+
+    if (subtotal <= 0) {
+      setPromoError('Add items to cart before applying coupon.');
+      return false;
+    }
+
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: normalizedCode, subtotal })
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setPromoCode(normalizedCode);
+        setDiscountAmount(Number(data.discountAmount) || 0);
+        setPromoError('');
         return true;
       } else {
-        setPromoError('Promo code CELEBRATE200 requires a minimum subtotal of ₹999.');
+        setPromoError(data.error || 'Invalid coupon code.');
+        setPromoCode('');
+        setDiscountAmount(0);
         return false;
       }
-    } else {
-      setPromoError('Invalid promo code. Try FATAFAT10 or CELEBRATE200.');
+    } catch (err) {
+      console.error('Error applying coupon:', err);
+      setPromoError('Unable to validate coupon. Please try again.');
       return false;
     }
   };

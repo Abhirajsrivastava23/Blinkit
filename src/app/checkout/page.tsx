@@ -13,7 +13,7 @@ import { useToast } from '../../components/Toast';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cartItems, subtotal, deliveryFee, discountAmount, total, clearCart } = useCart();
+  const { cartItems, subtotal, deliveryFee, discountAmount, promoCode, total, clearCart } = useCart();
   const { savedAddresses, addAddress, isLoggedIn, isLoading } = useAuth();
   const { placeOrder } = useOrders();
   const { showToast } = useToast();
@@ -223,7 +223,7 @@ export default function CheckoutPage() {
         address,
         deliveryOption,
         deliveryOption === 'Scheduled' ? selectedTimeSlot : 'ASAP',
-        { subtotal, deliveryFee, discount: discountAmount, total },
+        { subtotal, deliveryFee, discount: discountAmount, total, couponCode: promoCode || undefined } as any,
         paymentMethod,
         scheduledDeliveryAt || undefined
       );

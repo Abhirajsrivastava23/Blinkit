@@ -30,11 +30,14 @@ export default function CartPage() {
   } = useCart();
 
   const [couponInput, setCouponInput] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (couponInput.trim()) {
-      const success = applyPromoCode(couponInput);
+    if (couponInput.trim() && !isApplying) {
+      setIsApplying(true);
+      const success = await applyPromoCode(couponInput);
+      setIsApplying(false);
       if (success) {
         setCouponInput('');
       }
@@ -203,16 +206,16 @@ export default function CartPage() {
                     </div>
                     <button
                       type="submit"
-                      disabled={!!promoCode}
+                      disabled={!!promoCode || isApplying}
                       className="px-4 py-2 bg-brand-burgundy text-white hover:bg-brand-burgundy-dark font-bold text-xs tracking-wider uppercase rounded-xl disabled:opacity-50"
                     >
-                      Apply
+                      {isApplying ? 'Applying...' : 'Apply'}
                     </button>
                   </form>
 
                   {promoCode && (
                     <div className="p-2.5 rounded bg-brand-burgundy/5 text-brand-burgundy text-[10px] font-semibold flex justify-between items-center">
-                      <span>🎟️ Code: <strong>{promoCode}</strong> (-₹{discountAmount})</span>
+                      <span>🎟️ Coupon Applied (-₹{discountAmount})</span>
                       <button onClick={removePromoCode} className="underline uppercase hover:opacity-75">
                         Remove
                       </button>

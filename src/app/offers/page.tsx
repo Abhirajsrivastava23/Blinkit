@@ -4,17 +4,10 @@ import React from 'react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import { useToast } from '../../components/Toast';
-import { Tag, Sparkles, Copy, Percent } from 'lucide-react';
+import { Tag, Sparkles, Percent, ShoppingBag, Gift, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 export default function OffersPage() {
-  const { showToast } = useToast();
-
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    showToast(`Coupon code ${code} copied to clipboard!`, 'success');
-  };
-
   return (
     <>
       <Header />
@@ -25,10 +18,10 @@ export default function OffersPage() {
 
           <div className="mb-8 space-y-2 text-center sm:text-left">
             <h1 className="text-3xl font-serif font-extrabold text-[#1A1A1A]">
-              Exclusive Celebration Deals
+              Celebration Deals & Special Perks
             </h1>
             <p className="text-xs text-zinc-500 max-w-xl">
-              Indulge in sweetness and gifting with our seasonal promo coupon codes.
+              Enjoy seasonal delights, complimentary shipping thresholds, and member-only rewards.
             </p>
           </div>
 
@@ -40,21 +33,18 @@ export default function OffersPage() {
               </div>
               <div className="space-y-4 flex-1">
                 <div className="space-y-1">
-                  <h3 className="text-base font-serif font-extrabold text-zinc-800">Flat 10% Off Catalog Wide</h3>
+                  <h3 className="text-base font-serif font-extrabold text-zinc-800">Seasonal Celebration Discounts</h3>
                   <p className="text-xs text-zinc-500 leading-relaxed">
-                    Enjoy a flat 10% discount on all cakes, bakery selections, flowers, and hampers. No minimum checkout required.
+                    Personalized coupons and festive promotions are delivered directly to your account. Enter your voucher code at checkout to claim your savings.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="bg-brand-cream-dark px-3 py-1.5 rounded-lg font-bold text-xs border border-zinc-200 uppercase text-zinc-800">
-                    FATAFAT10
-                  </span>
-                  <button
-                    onClick={() => handleCopyCode('FATAFAT10')}
-                    className="p-2 border rounded-lg hover:bg-zinc-50 text-zinc-600 transition-colors flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                <div className="pt-2 flex items-center gap-3">
+                  <Link
+                    href="/cart"
+                    className="px-4 py-2 bg-brand-burgundy text-white hover:bg-brand-burgundy-dark rounded-xl text-xs font-serif font-bold uppercase tracking-wider inline-flex items-center gap-1.5 transition-colors"
                   >
-                    <Copy className="h-3.5 w-3.5" /> Copy Code
-                  </button>
+                    <ShoppingBag className="h-3.5 w-3.5" /> Apply At Checkout
+                  </Link>
                 </div>
               </div>
             </div>
@@ -62,25 +52,22 @@ export default function OffersPage() {
             {/* Offer 2 */}
             <div className="bg-white border border-zinc-100 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start hover:border-brand-gold/20 transition-colors">
               <div className="p-4 bg-brand-gold/10 text-brand-gold-dark rounded-2xl shrink-0">
-                <Tag className="h-8 w-8" />
+                <Gift className="h-8 w-8" />
               </div>
               <div className="space-y-4 flex-1">
                 <div className="space-y-1">
-                  <h3 className="text-base font-serif font-extrabold text-zinc-800">Save ₹200 on Premium Orders</h3>
+                  <h3 className="text-base font-serif font-extrabold text-zinc-800">Complimentary Express Delivery</h3>
                   <p className="text-xs text-zinc-500 leading-relaxed">
-                    Planning a major surprise? Get a flat ₹200 discount for all cart values exceeding ₹999.
+                    Planning a major surprise? All orders with a subtotal exceeding ₹799 qualify for fast priority delivery with zero fees.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="bg-brand-cream-dark px-3 py-1.5 rounded-lg font-bold text-xs border border-zinc-200 uppercase text-zinc-800">
-                    CELEBRATE200
-                  </span>
-                  <button
-                    onClick={() => handleCopyCode('CELEBRATE200')}
-                    className="p-2 border rounded-lg hover:bg-zinc-50 text-zinc-600 transition-colors flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                <div className="pt-2 flex items-center gap-3">
+                  <Link
+                    href="/category/cakes"
+                    className="px-4 py-2 bg-zinc-900 text-white hover:bg-black rounded-xl text-xs font-serif font-bold uppercase tracking-wider inline-flex items-center gap-1.5 transition-colors"
                   >
-                    <Copy className="h-3.5 w-3.5" /> Copy Code
-                  </button>
+                    Explore Treats <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
                 </div>
               </div>
             </div>
@@ -90,7 +77,7 @@ export default function OffersPage() {
           <div className="bg-white border rounded-3xl p-6 mt-8 shadow-sm flex items-center gap-4 text-xs">
             <Sparkles className="h-5 w-5 text-brand-gold shrink-0 animate-pulse" />
             <p className="text-zinc-600">
-              💡 <strong>Free Delivery Offer:</strong> All orders above ₹799 qualify for complimentary fast shipping automatically. No discount code needed!
+              💡 <strong>Instant Voucher Verification:</strong> Any exclusive promo code received via SMS or email will be validated securely upon checkout.
             </p>
           </div>
 

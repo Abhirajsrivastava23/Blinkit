@@ -30,14 +30,17 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   } = useCart();
 
   const [couponInput, setCouponInput] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
   const isWellness = pathname.startsWith('/wellness');
 
   if (!isOpen) return null;
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (couponInput.trim()) {
-      const success = applyPromoCode(couponInput);
+    if (couponInput.trim() && !isApplying) {
+      setIsApplying(true);
+      const success = await applyPromoCode(couponInput);
+      setIsApplying(false);
       if (success) {
         setCouponInput('');
       }
@@ -251,14 +254,14 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 </div>
                 <button
                   type="submit"
-                  disabled={!!promoCode}
+                  disabled={!!promoCode || isApplying}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                     isWellness
                       ? 'bg-wellness-bronze hover:bg-wellness-bronze-dark text-white'
                       : 'bg-brand-burgundy hover:bg-brand-burgundy-dark text-white'
                   } disabled:opacity-50`}
                 >
-                  Apply
+                  {isApplying ? 'Applying...' : 'Apply'}
                 </button>
               </form>
 
@@ -267,7 +270,7 @@ export default function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 <div className={`p-2 rounded flex justify-between items-center text-[10px] font-semibold ${
                   isWellness ? 'bg-wellness-card text-wellness-bronze-light' : 'bg-brand-burgundy/5 text-brand-burgundy'
                 }`}>
-                  <span>🎟️ Code Applied: <strong>{promoCode}</strong> (-₹{discountAmount})</span>
+                  <span>🎟️ Coupon Applied (-₹{discountAmount})</span>
                   <button onClick={removePromoCode} className="text-[9px] underline uppercase tracking-wider hover:opacity-80">
                     Remove
                   </button>
