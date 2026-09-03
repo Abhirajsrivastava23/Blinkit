@@ -929,6 +929,145 @@ export const db = {
     }
   },
 
+  /**
+   * Dedicated Atomic Payment Transaction Upsert Method
+   */
+  async upsertPaymentTransaction(payment: {
+    id?: string;
+    orderId: string;
+    customerId?: string;
+    amount?: number;
+    currency?: string;
+    status: string;
+    method?: string;
+    provider?: string;
+    utr?: string;
+    proofImageUrl?: string;
+    submittedAt?: string;
+    verifiedAt?: string;
+    verifiedBy?: string;
+    rejectedAt?: string;
+    rejectedBy?: string;
+    rejectionReason?: string;
+    paymentProofType?: string;
+    paidAt?: string | null;
+    createdAt?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<Record<string, unknown>> {
+    const rawOrderId = String(payment.orderId || '').trim();
+    const cleanOrderId = rawOrderId.replace(/^#+/, '').trim();
+    const cleanId = String(payment.id || `pay-${cleanOrderId}`).trim();
+    const now = new Date().toISOString();
+
+    const currentSubmittedAt = payment.submittedAt || (payment.status === 'PAYMENT_VERIFICATION_PENDING' ? now : undefined);
+    const paidAt = payment.status === 'PAID' ? (payment.verifiedAt || now) : null;
+
+    const list = inMemoryData['payment_transactions'] || [];
+    const idx = list.findIndex((p: Record<string, unknown>) => 
+      String(p.orderId || p.orderid || '').replace(/^#+/, '').trim().toLowerCase() === cleanOrderId.toLowerCase() ||
+      String(p.id || '').trim().toLowerCase() === cleanId.toLowerCase()
+    );
+
+    const mergedRecord: Record<string, unknown> = {
+      ...(idx >= 0 ? list[idx] : {}),
+      id: cleanId,
+      orderId: cleanOrderId,
+      customerId: payment.customerId || (idx >= 0 ? list[idx].customerId : 'customer'),
+      amount: payment.amount !== undefined ? payment.amount : (idx >= 0 ? list[idx].amount : 0),
+      currency: payment.currency || (idx >= 0 ? list[idx].currency : 'INR') || 'INR',
+      status: payment.status,
+      method: payment.method || (idx >= 0 ? list[idx].method : 'UPI') || 'UPI',
+      provider: payment.provider || (idx >= 0 ? list[idx].provider : 'MANUAL_UPI') || 'MANUAL_UPI',
+      utr: payment.utr !== undefined ? payment.utr : (idx >= 0 ? list[idx].utr : ''),
+      proofImageUrl: payment.proofImageUrl !== undefined ? payment.proofImageUrl : (idx >= 0 ? list[idx].proofImageUrl : ''),
+      submittedAt: currentSubmittedAt || (idx >= 0 ? list[idx].submittedAt : now),
+      verifiedAt: payment.verifiedAt !== undefined ? payment.verifiedAt : (idx >= 0 ? list[idx].verifiedAt : undefined),
+      verifiedBy: payment.verifiedBy !== undefined ? payment.verifiedBy : (idx >= 0 ? list[idx].verifiedBy : undefined),
+      rejectedAt: payment.rejectedAt !== undefined ? payment.rejectedAt : (idx >= 0 ? list[idx].rejectedAt : undefined),
+      rejectedBy: payment.rejectedBy !== undefined ? payment.rejectedBy : (idx >= 0 ? list[idx].rejectedBy : undefined),
+      rejectionReason: payment.rejectionReason !== undefined ? payment.rejectionReason : (idx >= 0 ? list[idx].rejectionReason : undefined),
+      paymentProofType: payment.paymentProofType || (idx >= 0 ? list[idx].paymentProofType : 'image') || 'image',
+      updatedAt: now,
+      createdAt: (idx >= 0 && list[idx].createdAt) ? list[idx].createdAt : now,
+      paidAt: paidAt || (idx >= 0 ? list[idx].paidAt : null),
+      metadata: {
+        ...((idx >= 0 && typeof list[idx].metadata === 'object') ? list[idx].metadata : {}),
+        ...(payment.metadata || {})
+      }
+    };
+
+    if (idx >= 0) {
+      list[idx] = mergedRecord;
+    } else {
+      list.unshift(mergedRecord);
+    }
+    inMemoryData['payment_transactions'] = list;
+
+    if (!pool) {
+      return normalizePaymentRecord(mergedRecord);
+    }
+
+    try {
+      const res = await pool.query(
+        `INSERT INTO payment_transactions (
+          id, "orderId", "customerId", amount, currency, status, method, provider,
+          utr, "proofImageUrl", "submittedAt", "verifiedAt", "verifiedBy",
+          "rejectedAt", "rejectedBy", "rejectionReason", "paymentProofType",
+          "createdAt", "updatedAt", "paidAt", "attemptCount", metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        ON CONFLICT ("orderId") DO UPDATE
+        SET status = EXCLUDED.status,
+            amount = CASE WHEN EXCLUDED.amount > 0 THEN EXCLUDED.amount ELSE payment_transactions.amount END,
+            utr = COALESCE(EXCLUDED.utr, payment_transactions.utr),
+            "proofImageUrl" = COALESCE(EXCLUDED."proofImageUrl", payment_transactions."proofImageUrl"),
+            "submittedAt" = COALESCE(EXCLUDED."submittedAt", payment_transactions."submittedAt"),
+            "verifiedAt" = COALESCE(EXCLUDED."verifiedAt", payment_transactions."verifiedAt"),
+            "verifiedBy" = COALESCE(EXCLUDED."verifiedBy", payment_transactions."verifiedBy"),
+            "rejectedAt" = COALESCE(EXCLUDED."rejectedAt", payment_transactions."rejectedAt"),
+            "rejectedBy" = COALESCE(EXCLUDED."rejectedBy", payment_transactions."rejectedBy"),
+            "rejectionReason" = COALESCE(EXCLUDED."rejectionReason", payment_transactions."rejectionReason"),
+            "paymentProofType" = COALESCE(EXCLUDED."paymentProofType", payment_transactions."paymentProofType"),
+            "paidAt" = CASE WHEN EXCLUDED.status = 'PAID' THEN COALESCE(EXCLUDED."paidAt", $19) ELSE payment_transactions."paidAt" END,
+            "updatedAt" = EXCLUDED."updatedAt",
+            metadata = COALESCE(payment_transactions.metadata, '{}'::jsonb) || COALESCE(EXCLUDED.metadata, '{}'::jsonb)
+        RETURNING *`,
+        [
+          cleanId,
+          cleanOrderId,
+          mergedRecord.customerId,
+          Number(mergedRecord.amount || 0),
+          mergedRecord.currency,
+          mergedRecord.status,
+          mergedRecord.method,
+          mergedRecord.provider,
+          mergedRecord.utr || null,
+          mergedRecord.proofImageUrl || null,
+          mergedRecord.submittedAt || null,
+          mergedRecord.verifiedAt || null,
+          mergedRecord.verifiedBy || null,
+          mergedRecord.rejectedAt || null,
+          mergedRecord.rejectedBy || null,
+          mergedRecord.rejectionReason || null,
+          mergedRecord.paymentProofType || 'image',
+          mergedRecord.createdAt,
+          now,
+          paidAt || null,
+          1,
+          JSON.stringify(mergedRecord.metadata || {})
+        ]
+      );
+
+      if (res.rows.length > 0) {
+        return normalizePaymentRecord(res.rows[0]);
+      }
+    } catch (err) {
+      console.error(`[DATABASE ERROR] upsertPaymentTransaction failed for order "${cleanOrderId}":`, err);
+    }
+
+    return normalizePaymentRecord(mergedRecord);
+  },
+
   async createPayment(payment: Record<string, unknown>): Promise<boolean> {
     const list = inMemoryData['payment_transactions'] || [];
     const idx = list.findIndex((p: Record<string, unknown>) => p.id === payment.id || (payment.orderId && p.orderId === payment.orderId));

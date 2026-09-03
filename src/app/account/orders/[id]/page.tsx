@@ -37,6 +37,19 @@ export default function AccountOrderDetailPage() {
     const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
 
     if (currentPaid && !incomingPaid) return false;
+
+    const currentRejected = current.paymentStatus === 'REJECTED';
+    const incomingRejected = incoming.paymentStatus === 'REJECTED';
+    if (currentRejected && !incomingRejected && !incomingPaid) {
+      if (incoming.paymentSubmittedAt && current.paymentRejectedAt) {
+        if (new Date(incoming.paymentSubmittedAt).getTime() <= new Date(current.paymentRejectedAt).getTime()) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
     return true;
   };
 

@@ -83,19 +83,32 @@ export default function OrderPaymentPage() {
     const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
     const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
 
-    // Rule 1: Once confirmed/paid, NEVER revert to pending or under review
+    // Rule 1: Once confirmed/paid, NEVER revert to pending or under review or rejected
     if (currentPaid && !incomingPaid) {
       return false;
     }
 
-    // Rule 2: If current has verified timestamp and incoming is older, reject
+    // Rule 2: If current is REJECTED, do not revert to pending/unpaid unless incoming has a newer paymentSubmittedAt
+    const currentRejected = current.paymentStatus === 'REJECTED';
+    const incomingRejected = incoming.paymentStatus === 'REJECTED';
+    if (currentRejected && !incomingRejected && !incomingPaid) {
+      if (incoming.paymentSubmittedAt && current.paymentRejectedAt) {
+        if (new Date(incoming.paymentSubmittedAt).getTime() <= new Date(current.paymentRejectedAt).getTime()) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    // Rule 3: If current has verified timestamp and incoming is older, reject
     if (current.paymentVerifiedAt && incoming.paymentVerifiedAt) {
       if (new Date(incoming.paymentVerifiedAt).getTime() < new Date(current.paymentVerifiedAt).getTime()) {
         return false;
       }
     }
 
-    // Rule 3: If current state has newer updatedAt timestamp, reject older payment status
+    // Rule 4: If current state has newer updatedAt timestamp, reject older payment status
     if (current.updatedAt && incoming.updatedAt) {
       if (new Date(incoming.updatedAt).getTime() < new Date(current.updatedAt).getTime()) {
         if (current.paymentStatus !== incoming.paymentStatus && incoming.paymentStatus === 'PAYMENT_VERIFICATION_PENDING') {

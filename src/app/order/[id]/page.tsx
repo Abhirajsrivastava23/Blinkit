@@ -50,7 +50,18 @@ export default function OrderConfirmationPage() {
       if (res.ok) {
         const data = await res.json();
         if (data && !data.error) {
-          setFetchedOrder(data);
+          setFetchedOrder(prev => {
+            if (!prev) return data;
+            const currentPaid = prev.paymentStatus === 'PAID' || prev.status === 'Confirmed' || prev.status === 'Preparing' || prev.status === 'Packed' || prev.status === 'Out for Delivery' || prev.status === 'Delivered';
+            const incomingPaid = data.paymentStatus === 'PAID' || data.status === 'Confirmed' || data.status === 'Preparing' || data.status === 'Packed' || data.status === 'Out for Delivery' || data.status === 'Delivered';
+            if (currentPaid && !incomingPaid) return prev;
+
+            const currentRejected = prev.paymentStatus === 'REJECTED';
+            const incomingRejected = data.paymentStatus === 'REJECTED';
+            if (currentRejected && !incomingRejected && !incomingPaid) return prev;
+
+            return data;
+          });
           setFetchError(null);
         }
       } else {

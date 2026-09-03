@@ -96,7 +96,29 @@ export default function AdminPaymentsPage() {
       const data = await res.json();
       if (Array.isArray(data) && thisSeq >= latestHandledSeqRef.current) {
         latestHandledSeqRef.current = thisSeq;
-        setRows(data);
+        setRows(prev => {
+          if (!prev || prev.length === 0) return data;
+          const prevMap = new Map(prev.map(r => [String(r.orderId).toLowerCase(), r]));
+
+          return data.map((incoming: PaymentItem) => {
+            const existing = prevMap.get(String(incoming.orderId).toLowerCase());
+            if (!existing) return incoming;
+
+            const existingApproved = existing.status === 'PAID' || existing.orderStatus === 'Confirmed';
+            const incomingApproved = incoming.status === 'PAID' || incoming.orderStatus === 'Confirmed';
+            if (existingApproved && !incomingApproved) {
+              return { ...incoming, status: 'PAID', orderStatus: 'Confirmed' };
+            }
+
+            const existingRejected = existing.status === 'REJECTED';
+            const incomingRejected = incoming.status === 'REJECTED';
+            if (existingRejected && !incomingRejected && !incomingApproved) {
+              return { ...incoming, status: 'REJECTED', rejectionReason: existing.rejectionReason || incoming.rejectionReason };
+            }
+
+            return incoming;
+          });
+        });
       }
     } catch (err) {
       console.error('Error fetching payments in admin:', err);

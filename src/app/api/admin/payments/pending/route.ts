@@ -98,11 +98,17 @@ export async function GET(request: Request) {
       return timeB - timeA;
     });
 
+    const resHeaders = {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    };
+
     return NextResponse.json({
       success: true,
       count: results.length,
       pendingPayments: results,
-    });
+    }, { headers: resHeaders });
   } catch (error) {
     console.error('Error fetching admin pending payments:', error);
     return NextResponse.json({ error: 'Internal server error retrieving pending payments.' }, { status: 500 });

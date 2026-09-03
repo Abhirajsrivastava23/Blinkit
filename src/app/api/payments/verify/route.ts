@@ -43,23 +43,18 @@ export async function POST(request: Request) {
     }
 
     if (action === 'approve') {
-      try {
-        await db.query(
-          `UPDATE payment_transactions
-           SET status = $1,
-               "verifiedAt" = $2,
-               "verifiedBy" = $3,
-               "updatedAt" = $4,
-               "paidAt" = $5
-           WHERE LOWER(id) = LOWER($6) OR LOWER("orderId") = LOWER($7)`,
-          ['PAID', now, session.email, now, now, String(payment?.id || ''), String(targetOrder.id)]
-        );
-      } catch (e) {
-        console.warn('payment_transactions approve query warning:', e);
-      }
-      if (payment?.id) {
-        await db.updatePaymentStatus(String(payment.id), 'PAID', { verifiedBy: session.email, verifiedAt: now });
-      }
+      const updatedPaymentTx = await db.upsertPaymentTransaction({
+        id: String(payment?.id || `pay-${targetOrder.id}`),
+        orderId: String(targetOrder.id),
+        customerId: String(targetOrder.customerId || targetOrder.customerEmail || 'customer'),
+        amount: Number(targetOrder.total || payment?.amount || 0),
+        status: 'PAID',
+        verifiedAt: now,
+        verifiedBy: session.email,
+        paidAt: now,
+        utr: String(targetOrder.utr || payment?.utr || ''),
+        proofImageUrl: String(targetOrder.proofImageUrl || payment?.proofImageUrl || '')
+      });
 
       const hist = Array.isArray(targetOrder.statusHistory) ? [...targetOrder.statusHistory] : [];
       hist.push({
@@ -94,29 +89,25 @@ export async function POST(request: Request) {
         orderId: targetOrder.id,
         updatedAt: now,
         order: updatedOrder,
+        payment: updatedPaymentTx,
         message: 'Payment approved and order confirmed.'
       });
     }
 
     if (action === 'reject') {
       const rejectionReason = (reason || 'Payment proof did not match the submitted order details.').trim();
-      try {
-        await db.query(
-          `UPDATE payment_transactions
-           SET status = $1,
-               "rejectedAt" = $2,
-               "rejectedBy" = $3,
-               "rejectionReason" = $4,
-               "updatedAt" = $5
-           WHERE LOWER(id) = LOWER($6) OR LOWER("orderId") = LOWER($7)`,
-          ['REJECTED', now, session.email, rejectionReason, now, String(payment?.id || ''), String(targetOrder.id)]
-        );
-      } catch (e) {
-        console.warn('payment_transactions reject query warning:', e);
-      }
-      if (payment?.id) {
-        await db.updatePaymentStatus(String(payment.id), 'REJECTED', { rejectedBy: session.email, rejectedAt: now, rejectionReason });
-      }
+      const updatedPaymentTx = await db.upsertPaymentTransaction({
+        id: String(payment?.id || `pay-${targetOrder.id}`),
+        orderId: String(targetOrder.id),
+        customerId: String(targetOrder.customerId || targetOrder.customerEmail || 'customer'),
+        amount: Number(targetOrder.total || payment?.amount || 0),
+        status: 'REJECTED',
+        rejectedAt: now,
+        rejectedBy: session.email,
+        rejectionReason,
+        utr: String(targetOrder.utr || payment?.utr || ''),
+        proofImageUrl: String(targetOrder.proofImageUrl || payment?.proofImageUrl || '')
+      });
 
       const hist = Array.isArray(targetOrder.statusHistory) ? [...targetOrder.statusHistory] : [];
       hist.push({
@@ -152,6 +143,7 @@ export async function POST(request: Request) {
         rejectionReason,
         updatedAt: now,
         order: updatedOrder,
+        payment: updatedPaymentTx,
         message: 'Payment rejected and order payment status updated.'
       });
     }

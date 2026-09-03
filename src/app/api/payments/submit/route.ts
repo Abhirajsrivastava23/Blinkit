@@ -128,93 +128,25 @@ export async function POST(request: Request) {
 
     const serverTotal = Number(order.total || 0);
     const now = new Date().toISOString();
-
-    // 3. Update or Insert payment transaction record
-    let payment = await db.getPaymentByOrderId(String(order.id));
-    if (!payment && paymentId) {
-      payment = await db.getPaymentById(paymentId);
-    }
-
     const customerIdVal = session?.userId || String(order.customerId || order.customerEmail || 'customer');
+    const newPayId = paymentId || `pay-${order.id}`;
 
-    if (payment) {
-      try {
-        await db.query(
-          `UPDATE payment_transactions
-           SET utr = $1,
-               "proofImageUrl" = $2,
-               status = $3,
-               "submittedAt" = $4,
-               "updatedAt" = $5,
-               "paymentProofType" = $6,
-               metadata = COALESCE(metadata, '{}'::jsonb) || $7::jsonb
-           WHERE LOWER(id) = LOWER($8) OR LOWER("orderId") = LOWER($9)`,
-          [
-            trimmedUtr,
-            proofImageUrl,
-            'PAYMENT_VERIFICATION_PENDING',
-            now,
-            now,
-            'image',
-            JSON.stringify({ proofSubmittedAt: now, proofSource: 'manual_upi' }),
-            String(payment.id),
-            String(order.id)
-          ]
-        );
-      } catch (payUpErr) {
-        console.warn('payment_transactions update warning:', payUpErr);
-      }
-      await db.updatePaymentStatus(String(payment.id), 'PAYMENT_VERIFICATION_PENDING', {
-        utr: trimmedUtr,
-        proofImageUrl,
-        submittedAt: now
-      });
-    } else {
-      const newPayId = paymentId || `pay-${order.id}-${Date.now()}`;
-      try {
-        await db.query(
-          `INSERT INTO payment_transactions (id, "orderId", "customerId", amount, currency, status, method, provider, utr, "proofImageUrl", "submittedAt", "createdAt", "updatedAt", "attemptCount", metadata)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-           ON CONFLICT ("orderId") DO UPDATE
-           SET utr = $9, "proofImageUrl" = $10, "submittedAt" = $11, status = $6, "updatedAt" = $13`,
-          [
-            newPayId,
-            order.id,
-            customerIdVal,
-            serverTotal,
-            'INR',
-            'PAYMENT_VERIFICATION_PENDING',
-            'UPI',
-            'MANUAL_UPI',
-            trimmedUtr,
-            proofImageUrl,
-            now,
-            now,
-            now,
-            1,
-            JSON.stringify({ proofSubmittedAt: now, proofSource: 'manual_upi' }),
-          ]
-        );
-      } catch (payInsErr) {
-        console.warn('payment_transactions insert warning:', payInsErr);
-      }
-      await db.createPayment({
-        id: newPayId,
-        orderId: order.id,
-        customerId: customerIdVal,
-        amount: serverTotal,
-        currency: 'INR',
-        status: 'PAYMENT_VERIFICATION_PENDING',
-        method: 'UPI',
-        provider: 'MANUAL_UPI',
-        utr: trimmedUtr,
-        proofImageUrl,
-        submittedAt: now,
-        createdAt: now,
-        updatedAt: now,
-        attemptCount: 1
-      });
-    }
+    // 3. Atomically upsert payment transaction record
+    const updatedPaymentTx = await db.upsertPaymentTransaction({
+      id: newPayId,
+      orderId: String(order.id),
+      customerId: customerIdVal,
+      amount: serverTotal,
+      currency: 'INR',
+      status: 'PAYMENT_VERIFICATION_PENDING',
+      method: 'UPI',
+      provider: 'MANUAL_UPI',
+      utr: trimmedUtr,
+      proofImageUrl,
+      submittedAt: now,
+      paymentProofType: 'image',
+      metadata: { proofSubmittedAt: now, proofSource: 'manual_upi' }
+    });
 
     // 4. Update order payment status in database reliably
     const updatedOrder = await db.updateOrder(cleanOrderId, {
@@ -234,6 +166,7 @@ export async function POST(request: Request) {
       orderStatus: updatedOrder?.status || order.status || 'Pending',
       updatedAt: now,
       order: updatedOrder,
+      payment: updatedPaymentTx,
       utr: trimmedUtr,
       proofImageUrl,
     });
