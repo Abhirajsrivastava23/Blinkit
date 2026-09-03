@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PRODUCTS as fallbackProducts, Product } from '../../../data/mockData';
 import { 
-  Check, X, Edit2, Trash2, Plus, Calendar, ShieldCheck, FileText, Eye, 
+  Check, X, Edit2, Trash2, Plus, Calendar, ShieldCheck, FileText, Eye, EyeOff,
   Users, AlertTriangle, Settings, RefreshCw, ShoppingBag, Ban, Lock, ShieldAlert
 } from 'lucide-react';
 import { useToast } from '../../../components/Toast';
@@ -24,6 +24,10 @@ export default function AdminWellnessPage() {
   // Simulated admin role check
   const [adminRole, setAdminRole] = useState('ADMIN');
   const [adminEmail, setAdminEmail] = useState('admin@fatafat.com');
+
+  // Publication state
+  const [wellnessPublished, setWellnessPublished] = useState(false);
+  const [updatingPublication, setUpdatingPublication] = useState(false);
 
   // Users database list (fetched from server)
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -108,10 +112,47 @@ export default function AdminWellnessPage() {
         const wellnessLogs = data.filter((l: any) => l.action && l.action.toLowerCase().includes('wellness'));
         setAuditLogs(wellnessLogs.reverse());
       }
+      const resSettings = await fetch('/api/admin/wellness-settings');
+      if (resSettings.ok) {
+        const sData = await resSettings.json();
+        setWellnessPublished(Boolean(sData.published));
+      }
     } catch (err) {
       console.error('Failed to load server tables:', err);
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const handleTogglePublication = async (targetState?: boolean) => {
+    const nextState = typeof targetState === 'boolean' ? targetState : !wellnessPublished;
+    setUpdatingPublication(true);
+    try {
+      const res = await fetch('/api/admin/wellness-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: nextState })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWellnessPublished(Boolean(data.published));
+        showToast(
+          data.published 
+            ? 'Wellness portal is now LIVE on customer website!' 
+            : 'Wellness portal is now UNPUBLISHED and completely hidden from customers!',
+          data.published ? 'success' : 'info'
+        );
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('fatafat_wellness_sync', { detail: { published: data.published } }));
+        }
+      } else {
+        showToast('Failed to update publication status.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error updating publication status.', 'error');
+    } finally {
+      setUpdatingPublication(false);
     }
   };
 
@@ -279,17 +320,43 @@ export default function AdminWellnessPage() {
     <div className="space-y-6 text-xs text-left">
       
       {/* 1. TOP TITLE */}
-      <div className="flex justify-between items-center border-b pb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-3">
         <div>
           <h2 className="text-xl font-serif font-black text-zinc-900 leading-none">Wellness 18+ Controls</h2>
           <p className="text-zinc-550 mt-1 font-medium">Verify age-check requests, track compliance audits, and manage restricted catalog.</p>
         </div>
-        <button
-          onClick={fetchServerTables}
-          className="p-2 border bg-white hover:bg-zinc-50 rounded-xl text-zinc-650 flex items-center gap-1 font-bold text-[10px] shadow-sm"
-        >
-          <RefreshCw className="h-4 w-4" /> REFRESH LISTS
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleTogglePublication()}
+            disabled={updatingPublication}
+            className={`px-3.5 py-2 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center gap-2 border shadow-sm transition-all select-none ${
+              wellnessPublished 
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300/40' 
+                : 'bg-red-50 hover:bg-red-100 text-red-800 border-red-300/40'
+            }`}
+            title="Click to toggle customer storefront visibility"
+          >
+            {updatingPublication ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : wellnessPublished ? (
+              <>
+                <Eye className="h-3.5 w-3.5 text-emerald-600" />
+                <span>🟢 Live on Storefront (Click to Unpublish)</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3.5 w-3.5 text-red-600" />
+                <span>🔴 Unpublished / Hidden (Click to Publish)</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={fetchServerTables}
+            className="p-2 border bg-white hover:bg-zinc-50 rounded-xl text-zinc-650 flex items-center gap-1 font-bold text-[10px] shadow-sm"
+          >
+            <RefreshCw className="h-4 w-4" /> REFRESH LISTS
+          </button>
+        </div>
       </div>
 
       {/* 2. TAB CONTROLLERS */}

@@ -435,7 +435,7 @@ export default function Header() {
               <span className="h-3 w-px bg-zinc-300/30"></span>
 
               {/* Wellness 18+ Outlined Link */}
-              {(wellnessPublished || user?.role === 'admin') && (
+              {wellnessPublished && (
                 <Link
                   href="/wellness"
                   className={`px-3 py-1 rounded-full border text-[8px] font-black tracking-widest uppercase transition-all select-none ${
@@ -491,7 +491,7 @@ export default function Header() {
                 </Link>
               ))}
               
-              {(wellnessPublished || user?.role === 'admin') && (
+              {wellnessPublished && (
                 <Link 
                   href="/wellness" 
                   onClick={() => setIsMobileMenuOpen(false)} 

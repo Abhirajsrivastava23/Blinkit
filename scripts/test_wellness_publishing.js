@@ -163,6 +163,18 @@ async function runTests() {
   const hasWellnessRepub = Array.isArray(catRepub.data) && catRepub.data.some(c => c.id === 'wellness' || c.slug === 'wellness');
   assert(hasWellnessRepub, 'Re-published: /api/categories contains wellness again');
 
+  // 5. Leave in Unpublished state as requested
+  console.log('\n--- PHASE 4: FINAL CLEANUP - UNPUBLISH WELLNESS ---');
+  const finalUnpub = await request('/api/admin/wellness-settings', {
+    method: 'POST',
+    headers: { Cookie: adminCookie },
+    body: JSON.stringify({ published: false })
+  });
+  assert(finalUnpub.ok && finalUnpub.data.published === false, 'Final State: Admin successfully set published = false');
+
+  const finalMe = await request('/api/auth/me');
+  assert(finalMe.data && finalMe.data.wellnessPublished === false, 'Final State: /api/auth/me confirms wellnessPublished = false');
+
   console.log('\n========================================================================');
   console.log(`WELLNESS PUBLICATION SUITE: ${passed} PASSED, ${failed} FAILED across ${passed + failed} Tests`);
   console.log('========================================================================');

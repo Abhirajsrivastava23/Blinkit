@@ -255,24 +255,33 @@ export default function AdminSettingsPage() {
     }));
   };
 
-  const handleSaveWellnessSettings = async () => {
+  const handleToggleWellness = async (target?: boolean) => {
+    const nextVal = typeof target === 'boolean' ? target : !wellnessPublished;
+    setWellnessPublished(nextVal);
     try {
       setSaving(true);
       const res = await fetch('/api/admin/wellness-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ published: wellnessPublished })
+        body: JSON.stringify({ published: nextVal })
       });
       if (res.ok) {
-        showToast('Wellness portal settings updated successfully!', 'success');
+        showToast(
+          nextVal 
+            ? 'Wellness portal is now Published (Live on Storefront)!' 
+            : 'Wellness portal is now Unpublished (Hidden from Storefront)!',
+          nextVal ? 'success' : 'info'
+        );
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('fatafat_wellness_sync', { detail: { published: wellnessPublished } }));
+          window.dispatchEvent(new CustomEvent('fatafat_wellness_sync', { detail: { published: nextVal } }));
         }
       } else {
-        showToast('Failed to save settings.', 'error');
+        setWellnessPublished(!nextVal);
+        showToast('Failed to update wellness settings.', 'error');
       }
     } catch (err) {
       console.error(err);
+      setWellnessPublished(!nextVal);
       showToast('Error saving settings.', 'error');
     } finally {
       setSaving(false);
@@ -492,32 +501,29 @@ export default function AdminSettingsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setWellnessPublished(!wellnessPublished)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all select-none shrink-0 ${
+                  onClick={() => handleToggleWellness()}
+                  disabled={saving}
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all select-none shrink-0 shadow-sm border ${
                     wellnessPublished 
-                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/30' 
-                      : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/30'
+                      ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-300/40' 
+                      : 'bg-red-50 text-red-800 hover:bg-red-100 border-red-300/40'
                   }`}
                 >
-                  {wellnessPublished ? (
+                  {saving ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : wellnessPublished ? (
                     <>
-                      <Eye className="h-4 w-4" /> Published (Live)
+                      <Eye className="h-4 w-4 text-emerald-600" />
+                      <span>🟢 Live on Storefront (Click to Unpublish)</span>
                     </>
                   ) : (
                     <>
-                      <EyeOff className="h-4 w-4" /> Unpublished (Hidden)
+                      <EyeOff className="h-4 w-4 text-red-600" />
+                      <span>🔴 Unpublished / Hidden (Click to Publish)</span>
                     </>
                   )}
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={handleSaveWellnessSettings}
-                disabled={saving}
-                className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all select-none"
-              >
-                Update Wellness Settings
-              </button>
             </div>
 
             <div className="bg-white border border-zinc-200/20 p-6 rounded-3xl space-y-4 shadow-sm">
