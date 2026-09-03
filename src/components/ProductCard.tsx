@@ -38,17 +38,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Dynamically calculate location-specific delivery time estimates
   const getDeliveryTime = () => {
-    if (isWellness) {
-      return 'Next-day Discreet';
-    }
-    switch (location) {
-      case 'Nawabganj, Unnao':
-        return '30–45 min';
-      case 'Chandigarh University, Uttar Pradesh':
-        return '45–60 min';
-      default:
-        return product.deliveryTime || '30–60 min';
-    }
+    return 'Within 12 hours';
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {

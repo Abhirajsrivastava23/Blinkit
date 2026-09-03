@@ -53,7 +53,7 @@ export default function AboutPage() {
                 FATAFAT began as a simple realization: the most important moments in life—birthdays, acts of romantic gratitude, congratulations, or quiet self-care—frequently deserve immediate celebration. Yet, ordering a premium cake or luxury flowers has always involved hours of advance planning.
               </p>
               <p className="text-xs text-zinc-550 leading-relaxed font-medium">
-                We designed a platform to bridge the gap: matching premium artisanal quality with quick-commerce speed. By partnering with gourmet chefs, florist masters, and premium creators, we ensure your acts of care are delivered fresh in 30–60 minutes.
+                We designed a platform to bridge the gap: matching premium artisanal quality with quick-commerce speed. By partnering with gourmet chefs, florist masters, and premium creators, we ensure your acts of care are delivered fresh within 12 hours.
               </p>
             </div>
             <div className="relative h-72 w-full rounded-3xl overflow-hidden border border-zinc-200/25 shadow-md">

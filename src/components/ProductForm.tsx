@@ -94,7 +94,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const [manufacturer, setManufacturer] = useState(initialProduct?.wellnessDetails?.manufacturer || 'Reckitt Benckiser');
 
   // Delivery
-  const [deliveryTime, setDeliveryTime] = useState(initialProduct?.deliveryTime || '30-45 mins');
+  const [deliveryTime, setDeliveryTime] = useState(initialProduct?.deliveryTime || 'Within 12 hours');
 
   // SEO
   const [seoTitle, setSeoTitle] = useState('');

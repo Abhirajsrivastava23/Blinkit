@@ -9,7 +9,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 const FAQS = [
   {
     q: 'How fast is your delivery?',
-    a: 'We offer quick-commerce delivery. For immediate orders (ASAP), we deliver within 30 to 60 minutes. You can also schedule delivery for a future time slot (including midnight surprise deliveries).'
+    a: 'We offer reliable express delivery. For orders (ASAP), we deliver within 12 hours. You can also schedule delivery for a future time slot (including midnight surprise deliveries).'
   },
   {
     q: 'Are the cakes freshly baked?',

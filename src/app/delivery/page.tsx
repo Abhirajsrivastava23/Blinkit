@@ -35,7 +35,7 @@ export default function DeliveryPage() {
               <h3 className="text-base font-serif font-bold text-zinc-800">Delivery Options</h3>
               <ul className="space-y-3 text-zinc-600 leading-relaxed list-disc pl-4">
                 <li>
-                  <strong>Deliver ASAP:</strong> For immediate celebrations, our runners deliver within 30 to 60 minutes.
+                  <strong>Deliver ASAP:</strong> For celebrations, our runners deliver within 12 hours.
                 </li>
                 <li>
                   <strong>Scheduled Delivery:</strong> Pre-book time slots (e.g. 10:00 AM - 12:00 PM) for event planning.

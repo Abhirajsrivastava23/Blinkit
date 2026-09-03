@@ -42,7 +42,7 @@ export default function ShippingPolicyPage() {
               <div id="speeds" className="space-y-3 scroll-mt-28">
                 <h3 className="text-sm font-serif font-extrabold text-zinc-800">1. Delivery Speeds & Windows</h3>
                 <p>
-                  FATAFAT targets delivery within 30 to 60 minutes for immediate ASAP dispatches. Perishable cakes, gourmet chocolates, and flowers are carried in temperature-regulated insulated runner bags to prevent damage or melting.
+                  FATAFAT targets delivery within 12 hours for immediate ASAP dispatches. Perishable cakes, gourmet chocolates, and flowers are carried in temperature-regulated insulated runner bags to prevent damage or melting.
                 </p>
               </div>
 

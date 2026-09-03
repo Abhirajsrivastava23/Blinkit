@@ -41,7 +41,7 @@ export default function CancellationPolicyPage() {
               <div id="windows" className="space-y-3 scroll-mt-28">
                 <h3 className="text-sm font-serif font-extrabold text-zinc-800">1. Cancellation Windows</h3>
                 <p>
-                  For immediate 30–60 min courier dispatches, cancellation is only supported within <strong>5 minutes</strong> of order placement. For scheduled bookings, orders can be canceled up to <strong>12 hours</strong> prior to the chosen slot.
+                  For immediate courier dispatches (within 12 hours), cancellation is only supported within <strong>5 minutes</strong> of order placement. For scheduled bookings, orders can be canceled up to <strong>12 hours</strong> prior to the chosen slot.
                 </p>
               </div>
 
