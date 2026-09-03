@@ -346,8 +346,24 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getOrderById = (orderId: string) => {
     if (!orderId) return undefined;
-    const clean = String(orderId).trim().toLowerCase();
-    return orders.find((o) => String(o.id || '').trim().toLowerCase() === clean);
+    let raw = String(orderId).trim();
+    while (raw.includes('%23') || raw.includes('%20') || raw.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(raw);
+        if (decoded === raw) break;
+        raw = decoded;
+      } catch {
+        break;
+      }
+    }
+    const clean = raw.toLowerCase().replace(/^#+/, '').trim();
+    const rawLower = raw.toLowerCase();
+
+    return orders.find((o) => {
+      const oid = String(o.id || '').trim().toLowerCase().replace(/^#+/, '');
+      const oRaw = String(o.id || '').trim().toLowerCase();
+      return oid === clean || oRaw === rawLower || (clean.length >= 4 && oid.includes(clean));
+    });
   };
 
   return (

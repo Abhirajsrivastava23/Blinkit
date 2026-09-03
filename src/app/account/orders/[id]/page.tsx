@@ -21,7 +21,19 @@ export default function AccountOrderDetailPage() {
   const { getOrderById, updateOrderStatus, refreshOrders } = useOrders();
   const { showToast } = useToast();
 
-  const orderId = params.id as string;
+  const rawParamId = (params.id as string || '').trim();
+  let cleanOrderId = rawParamId;
+  while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+    try {
+      const decoded = decodeURIComponent(cleanOrderId);
+      if (decoded === cleanOrderId) break;
+      cleanOrderId = decoded;
+    } catch {
+      break;
+    }
+  }
+  const orderId = cleanOrderId.replace(/^#+/, '').trim();
+
   const [order, setOrder] = useState<Order | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [cancellationInProgress, setCancellationInProgress] = useState(false);
@@ -64,18 +76,18 @@ export default function AccountOrderDetailPage() {
   };
 
   useEffect(() => {
-    const found = getOrderById(orderId);
+    const found = getOrderById(orderId) || getOrderById(rawParamId);
     if (found) {
       setOrder(found);
       setLoading(false);
     }
 
     const fetchDetail = () => {
-      if (isFetchingRef.current) return;
+      if (!orderId || isFetchingRef.current) return;
       isFetchingRef.current = true;
       const thisSeq = ++reqSeqRef.current;
 
-      fetch(`/api/orders/${orderId}`, { cache: 'no-store' })
+      fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && !data.error && thisSeq >= latestHandledSeqRef.current) {

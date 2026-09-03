@@ -31,8 +31,19 @@ export default function OrderConfirmationPage() {
   const { getOrderById } = useOrders();
   const { showToast } = useToast();
   
-  const orderId = params.id as string;
-  const contextOrder = getOrderById(orderId);
+  const rawParamId = (params.id as string || '').trim();
+  let cleanOrderId = rawParamId;
+  while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+    try {
+      const decoded = decodeURIComponent(cleanOrderId);
+      if (decoded === cleanOrderId) break;
+      cleanOrderId = decoded;
+    } catch {
+      break;
+    }
+  }
+  const orderId = cleanOrderId.replace(/^#+/, '').trim();
+  const contextOrder = getOrderById(orderId) || getOrderById(rawParamId) || getOrderById(cleanOrderId);
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);

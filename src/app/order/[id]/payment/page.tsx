@@ -53,8 +53,18 @@ export default function OrderPaymentPage() {
   const { showToast } = useToast();
   
   const rawParamId = (params.id as string || '').trim();
-  const orderId = rawParamId.replace(/^#+/, '').trim();
-  const contextOrder = getOrderById(orderId) || getOrderById(rawParamId);
+  let cleanOrderId = rawParamId;
+  while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+    try {
+      const decoded = decodeURIComponent(cleanOrderId);
+      if (decoded === cleanOrderId) break;
+      cleanOrderId = decoded;
+    } catch {
+      break;
+    }
+  }
+  const orderId = cleanOrderId.replace(/^#+/, '').trim();
+  const contextOrder = getOrderById(orderId) || getOrderById(rawParamId) || getOrderById(cleanOrderId);
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -145,13 +155,13 @@ export default function OrderPaymentPage() {
           setIsConfirmedNotFound(false);
         }
       } else if (res.status === 404) {
-        // Only set confirmed not-found if there is genuinely no existing order loaded
-        if (!activeOrderRef.current) {
+        // Only set confirmed not-found if there is genuinely no existing order loaded anywhere
+        if (!activeOrderRef.current && !fetchedOrder && !contextOrder) {
           setIsConfirmedNotFound(true);
           setFetchError(data?.error || 'Order not found in records.');
         }
       } else {
-        if (!activeOrderRef.current) {
+        if (!activeOrderRef.current && !fetchedOrder && !contextOrder) {
           setFetchError(data?.error || `Connecting to payment gateway (${res.status})...`);
         }
       }

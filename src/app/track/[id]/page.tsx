@@ -23,7 +23,19 @@ export default function OrderTrackingPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const orderId = params.id as string;
+  const rawParamId = (params.id as string || '').trim();
+  let cleanOrderId = rawParamId;
+  while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+    try {
+      const decoded = decodeURIComponent(cleanOrderId);
+      if (decoded === cleanOrderId) break;
+      cleanOrderId = decoded;
+    } catch {
+      break;
+    }
+  }
+  const orderId = cleanOrderId.replace(/^#+/, '').trim();
+
   const [order, setOrder] = useState<Order | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,11 +62,11 @@ export default function OrderTrackingPage() {
   };
 
   const fetchOrder = async () => {
-    if (isFetchingRef.current) return;
+    if (!orderId || isFetchingRef.current) return;
     isFetchingRef.current = true;
     const thisSeq = ++reqSeqRef.current;
     try {
-      const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (thisSeq >= latestHandledSeqRef.current) {

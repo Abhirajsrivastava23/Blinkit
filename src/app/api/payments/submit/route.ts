@@ -105,12 +105,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payment proof screenshot is required.' }, { status: 400 });
     }
 
-    const cleanOrderId = decodeURIComponent(orderId).replace(/^#+/, '').trim();
+    let cleanOrderId = String(orderId || '').trim();
+    while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(cleanOrderId);
+        if (decoded === cleanOrderId) break;
+        cleanOrderId = decoded;
+      } catch {
+        break;
+      }
+    }
+    cleanOrderId = cleanOrderId.replace(/^#+/, '').trim();
 
     // 1. Fetch order reliably with case-insensitive search
     let order = await db.getOrderById(cleanOrderId);
     if (!order) {
       order = await db.getOrderById(orderId);
+    }
+    if (!order && cleanOrderId.startsWith('FT')) {
+      order = await db.getOrderById('#' + cleanOrderId);
+    }
+    if (!order && !cleanOrderId.startsWith('FT')) {
+      order = await db.getOrderById('FT' + cleanOrderId);
     }
 
     if (!order) {

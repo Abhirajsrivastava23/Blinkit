@@ -8,11 +8,30 @@ export const revalidate = 0;
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const cleanId = decodeURIComponent(id || '').trim();
+    let cleanId = String(id || '').trim();
+    while (cleanId.includes('%23') || cleanId.includes('%20') || cleanId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(cleanId);
+        if (decoded === cleanId) break;
+        cleanId = decoded;
+      } catch {
+        break;
+      }
+    }
+    cleanId = cleanId.replace(/^#+/, '').trim();
 
     const session = await getSession(request);
 
     let order = await db.getOrderById(cleanId);
+    if (!order) {
+      order = await db.getOrderById(id);
+    }
+    if (!order && cleanId.startsWith('FT')) {
+      order = await db.getOrderById('#' + cleanId);
+    }
+    if (!order && !cleanId.startsWith('FT')) {
+      order = await db.getOrderById('FT' + cleanId);
+    }
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });

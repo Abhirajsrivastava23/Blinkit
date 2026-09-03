@@ -139,7 +139,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   inventoryIssues: ['id', 'productId', 'productName', 'issue', 'status', 'createdAt'],
   auditLogs: ['id', 'adminUser', 'action', 'dateTime', 'product', 'previousValue', 'newValue'],
   orders: [
-    'id', 'customerId', 'customerEmail', 'items', 'subtotal', 'deliveryFee', 'discount', 'total',
+    'id', 'customerId', 'customerEmail', 'items', 'subtotal', 'deliveryFee', 'discount', 'total', 'couponCode',
     'address', 'status', 'deliveryOption', 'deliveryTimeSlot', 'eta', 'createdAt', 'updatedAt',
     'deliveryLocationId', 'deliveryLocationName', 'deliveryOtp', 'otpFailedAttempts', 'otpExpiresAt',
     'statusHistory', 'assignedPartnerId', 'assignedPartnerName', 'assignedAt',
@@ -740,27 +740,43 @@ export const db = {
    * Dedicated Single Order Retrieval & Mutation Methods
    */
   async getOrderById(orderId: string): Promise<Record<string, unknown> | null> {
-    const rawId = String(orderId || '').trim();
+    let rawId = String(orderId || '').trim();
     if (!rawId || rawId === 'undefined' || rawId === 'null') return null;
+
+    // Recursively unwrap URL encoded characters
+    while (rawId.includes('%23') || rawId.includes('%20') || rawId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(rawId);
+        if (decoded === rawId) break;
+        rawId = decoded;
+      } catch {
+        break;
+      }
+    }
+
     const cleanId = rawId.replace(/^#+/, '').trim();
+    const hashId = '#' + cleanId;
 
     if (pool) {
       try {
         const res = await pool.query(
-          'SELECT * FROM orders WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) LIMIT 1',
-          [cleanId, rawId]
+          'SELECT * FROM orders WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM(id)) = LOWER(TRIM($3)) LIMIT 1',
+          [cleanId, rawId, hashId]
         );
         if (res.rows.length > 0) {
           const normalized = normalizeOrderRecord(res.rows[0]);
           const list = inMemoryData['orders'] || [];
-          const idx = list.findIndex(o => String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase());
+          const idx = list.findIndex(o => {
+            const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
+            return oid === cleanId.toLowerCase();
+          });
           if (idx >= 0) list[idx] = normalized;
           else list.unshift(normalized);
           inMemoryData['orders'] = list;
           return normalized;
         }
 
-        // Secondary fallback for IDs with varying FT- / # prefixes
+        // Secondary fallback for IDs with numeric suffix matching
         const rawNumeric = cleanId.replace(/\D/g, '');
         if (rawNumeric.length >= 4) {
           const fallbackRes = await pool.query(
@@ -780,7 +796,8 @@ export const db = {
     const list = inMemoryData['orders'] || [];
     const found = list.find(o => {
       const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
-      return oid === cleanId.toLowerCase() || oid === rawId.toLowerCase() || (rawId.replace(/\D/g, '').length >= 4 && oid.includes(rawId.replace(/\D/g, '')));
+      const oRaw = String(o.id || o.ID || '').trim().toLowerCase();
+      return oid === cleanId.toLowerCase() || oRaw === rawId.toLowerCase() || oRaw === hashId.toLowerCase() || (rawId.replace(/\D/g, '').length >= 4 && oid.includes(rawId.replace(/\D/g, '')));
     });
     return found ? normalizeOrderRecord(found) : null;
   },
