@@ -25,22 +25,22 @@ export async function POST(request: Request) {
 
     const updatesToPersist: Record<string, unknown> = { ...updates };
 
-    // Transition verification constraints (applies to both Partner and Admin status changes)
+    // Transition verification constraints (applies to Partner and Customer status changes)
     if (updates.status && updates.status !== targetOrder.status) {
       const currentStatus = String(targetOrder.status);
       const targetStatus = String(updates.status);
 
       const validTransitions: Record<string, string[]> = {
         'Pending': ['Confirmed', 'Cancelled'],
-        'Confirmed': ['Preparing', 'Cancelled'],
-        'Preparing': ['Packed', 'Cancelled'],
-        'Packed': ['Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Cancelled'],
-        'Ready for Delivery': ['Waiting for Partner', 'Assigned', 'Cancelled'],
-        'Waiting for Partner': ['Assigned', 'Cancelled'],
-        'Assigned': ['Accepted', 'Waiting for Partner', 'Cancelled'],
-        'Accepted': ['Picked Up', 'Waiting for Partner', 'Cancelled'],
-        'Picked Up': ['Out for Delivery', 'Cancelled'],
-        'Out for Delivery': ['Delivered', 'Cancelled']
+        'Confirmed': ['Preparing', 'Packed', 'Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
+        'Preparing': ['Packed', 'Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
+        'Packed': ['Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
+        'Ready for Delivery': ['Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
+        'Waiting for Partner': ['Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
+        'Assigned': ['Accepted', 'Picked Up', 'Waiting for Partner', 'Cancelled'],
+        'Accepted': ['Picked Up', 'Out for Delivery', 'Waiting for Partner', 'Cancelled', 'Failed Delivery'],
+        'Picked Up': ['Out for Delivery', 'Delivered', 'Cancelled', 'Failed Delivery'],
+        'Out for Delivery': ['Delivered', 'Cancelled', 'Failed Delivery']
       };
 
       const allowedNext = validTransitions[currentStatus] || [];
@@ -55,17 +55,28 @@ export async function POST(request: Request) {
 
     // Enforce role checks and status progression security
     if (session.role === 'delivery_partner') {
-      // 1. Is it assigned to this partner?
-      const assignedId = String(targetOrder.assignedPartnerId || '').toLowerCase();
-      const sId = String(session.userId || '').toLowerCase();
-      const sEmail = String(session.email || '').toLowerCase();
+      // 1. Is it assigned to this partner or available to claim?
+      const assignedId = String(targetOrder.assignedPartnerId || '').trim().toLowerCase();
+      const sId = String(session.userId || '').trim().toLowerCase();
+      const sEmail = String(session.email || '').trim().toLowerCase();
 
-      if (!assignedId || (assignedId !== sId && assignedId !== sEmail)) {
+      if (assignedId && assignedId !== sId && assignedId !== sEmail) {
         return NextResponse.json({ error: 'Forbidden: You cannot modify orders assigned to other partners.' }, { status: 403 });
       }
 
+      // If unassigned and partner accepts/picks up, claim assignment
+      if (!assignedId && (updates.status === 'Accepted' || updates.status === 'Picked Up')) {
+        updatesToPersist.assignedPartnerId = session.userId;
+        updatesToPersist.assignedPartnerName = (session as any).name || session.email || 'Delivery Partner';
+        updatesToPersist.assignedAt = new Date().toISOString();
+      }
+
       // 2. Limit what fields can be updated
-      const allowedKeys = ['status', 'failedReason', 'failedComment', 'arrivedNotify', 'otpVerified', 'verifiedItemIds', 'boxSealVerified', 'otpCode', 'otpInput'];
+      const allowedKeys = [
+        'status', 'failedReason', 'failedComment', 'arrivedNotify', 'otpVerified', 
+        'verifiedItemIds', 'boxSealVerified', 'otpCode', 'otpInput', 'otp_verified', 
+        'otp_verified_at', 'delivery_otp_verified', 'verified_by_partner_id', 'delivery_completed_at'
+      ];
       const updateKeys = Object.keys(updates);
       const isKeysAllowed = updateKeys.every(k => allowedKeys.includes(k));
       if (!isKeysAllowed) {
@@ -88,13 +99,9 @@ export async function POST(request: Request) {
         const itemsList = Array.isArray(targetOrder.items) ? targetOrder.items : [];
         const requiredItemIds = itemsList.map((item: any) => item.productId);
         const verifiedItemIds = updates.verifiedItemIds || [];
-        const allItemsVerified = requiredItemIds.every((prodId: string) => verifiedItemIds.includes(prodId));
+        const allItemsVerified = requiredItemIds.length === 0 || requiredItemIds.every((prodId: string) => verifiedItemIds.includes(prodId));
         if (!allItemsVerified) {
           return NextResponse.json({ error: 'All items must be verified before pickup.' }, { status: 400 });
-        }
-
-        if (updates.boxSealVerified !== true) {
-          return NextResponse.json({ error: 'Please verify the package seal.' }, { status: 400 });
         }
 
         // Add additional server-derived metadata
@@ -105,7 +112,7 @@ export async function POST(request: Request) {
 
       // 5. OTP verification validations for DELIVERED status
       if (updates.status === 'Delivered') {
-        if (targetOrder.status !== 'Out for Delivery') {
+        if (targetOrder.status !== 'Out for Delivery' && targetOrder.status !== 'Picked Up') {
           return NextResponse.json({ error: 'Order status has changed. Refresh and try again.' }, { status: 400 });
         }
 

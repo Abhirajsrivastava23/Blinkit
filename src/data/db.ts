@@ -728,7 +728,10 @@ export const db = {
     const cleanId = rawId.replace(/^#+/, '').trim();
 
     const list = inMemoryData['orders'] || [];
-    const idx = list.findIndex(o => String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase());
+    const idx = list.findIndex(o => {
+      const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
+      return oid === cleanId.toLowerCase() || oid === rawId.toLowerCase();
+    });
     const now = new Date().toISOString();
     const cleanUpdates = { ...updates, id: cleanId, updatedAt: updates.updatedAt || now };
 
@@ -753,7 +756,7 @@ export const db = {
         allowedLowerMap.set(col.toLowerCase(), col);
       }
 
-      // 1. Attempt UPDATE first
+      // 1. Attempt UPDATE with RETURNING *
       const setClauses: string[] = [];
       const values: unknown[] = [];
 
@@ -766,32 +769,49 @@ export const db = {
         setClauses.push(`"${canonicalCol}" = $${values.length}`);
       }
 
-      let updatedRows = 0;
       if (setClauses.length > 0) {
         values.push(cleanId);
-        const queryText = `UPDATE orders SET ${setClauses.join(', ')} WHERE LOWER(id) = LOWER($${values.length})`;
+        values.push(rawId);
+        const queryText = `UPDATE orders SET ${setClauses.join(', ')} WHERE LOWER(TRIM(id)) = LOWER(TRIM($${values.length - 1})) OR LOWER(TRIM(id)) = LOWER(TRIM($${values.length})) RETURNING *`;
         const res = await pool.query(queryText, values);
-        updatedRows = res.rowCount || 0;
+        if (res.rows.length > 0) {
+          const persisted = normalizeOrderRecord(res.rows[0]);
+          if (idx >= 0) list[idx] = persisted;
+          else list.unshift(persisted);
+          inMemoryData['orders'] = list;
+          return persisted;
+        }
       }
 
-      // 2. If row was not found in DB, perform atomic INSERT
-      if (updatedRows === 0) {
-        const cols: string[] = ['"id"'];
-        const valPlaceholders: string[] = ['$1'];
-        const insertVals: unknown[] = [cleanId];
+      // 2. If row was not found in DB, perform atomic UPSERT with RETURNING *
+      const cols: string[] = ['"id"'];
+      const valPlaceholders: string[] = ['$1'];
+      const insertVals: unknown[] = [cleanId];
+      const updateSetClauses: string[] = [];
 
-        for (const [key, val] of Object.entries(merged)) {
-          if (key.toLowerCase() === 'id') continue;
-          const canonicalCol = allowedLowerMap.get(key.toLowerCase());
-          if (!canonicalCol) continue;
+      for (const [key, val] of Object.entries(merged)) {
+        if (key.toLowerCase() === 'id') continue;
+        const canonicalCol = allowedLowerMap.get(key.toLowerCase());
+        if (!canonicalCol) continue;
 
-          cols.push(`"${canonicalCol}"`);
-          insertVals.push(val && typeof val === 'object' ? JSON.stringify(val) : val);
-          valPlaceholders.push(`$${insertVals.length}`);
-        }
+        cols.push(`"${canonicalCol}"`);
+        const jsonVal = val && typeof val === 'object' ? JSON.stringify(val) : val;
+        insertVals.push(jsonVal);
+        valPlaceholders.push(`$${insertVals.length}`);
+        updateSetClauses.push(`"${canonicalCol}" = EXCLUDED."${canonicalCol}"`);
+      }
 
-        const insertQuery = `INSERT INTO orders (${cols.join(', ')}) VALUES (${valPlaceholders.join(', ')}) ON CONFLICT (id) DO NOTHING`;
-        await pool.query(insertQuery, insertVals);
+      const upsertQuery = `INSERT INTO orders (${cols.join(', ')}) 
+                           VALUES (${valPlaceholders.join(', ')}) 
+                           ON CONFLICT (id) DO UPDATE SET ${updateSetClauses.join(', ')} 
+                           RETURNING *`;
+      const upsertRes = await pool.query(upsertQuery, insertVals);
+      if (upsertRes.rows.length > 0) {
+        const persisted = normalizeOrderRecord(upsertRes.rows[0]);
+        if (idx >= 0) list[idx] = persisted;
+        else list.unshift(persisted);
+        inMemoryData['orders'] = list;
+        return persisted;
       }
 
       return merged;
@@ -799,6 +819,33 @@ export const db = {
       console.error('Error updating order row in database:', err);
       return merged;
     }
+  },
+
+  /**
+   * Dedicated Atomic Order Status Update Helper
+   */
+  async updateOrderStatus(orderId: string, newStatus: string, additionalUpdates: Record<string, unknown> = {}): Promise<Record<string, unknown> | null> {
+    const existing = await this.getOrderById(orderId);
+    if (!existing) return null;
+
+    const prevStatus = String(existing.status || '');
+    const historyList = Array.isArray(existing.statusHistory) ? [...existing.statusHistory] : [];
+    if (newStatus && newStatus !== prevStatus) {
+      historyList.push({
+        previousStatus: prevStatus,
+        newStatus,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const updates: Record<string, unknown> = {
+      ...additionalUpdates,
+      status: newStatus,
+      statusHistory: historyList,
+      updatedAt: new Date().toISOString()
+    };
+
+    return this.updateOrder(orderId, updates);
   },
 
   /**

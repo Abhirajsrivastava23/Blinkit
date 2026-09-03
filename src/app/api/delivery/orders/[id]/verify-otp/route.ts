@@ -20,13 +20,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Valid 6-digit OTP is required.' }, { status: 400 });
     }
 
-    const orders = await db.readTable<any>('orders') || [];
-    const order = orders.find((o: any) => o.id === id);
+    const cleanId = String(id || '').trim();
+    const order = await db.getOrderById(cleanId);
     if (!order) {
       return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     }
 
-    if (session.role !== 'admin' && order.assignedPartnerId !== session.userId) {
+    const assignedId = String(order.assignedPartnerId || '').trim().toLowerCase();
+    const sId = String(session.userId || '').trim().toLowerCase();
+    const sEmail = String(session.email || '').trim().toLowerCase();
+
+    if (session.role !== 'admin' && assignedId && assignedId !== sId && assignedId !== sEmail) {
       return NextResponse.json({ error: 'Forbidden: this order is not assigned to your rider account.' }, { status: 403 });
     }
 
@@ -34,45 +38,40 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'No active OTP has been generated for this order.' }, { status: 400 });
     }
 
-    if (order.otpExpiresAt && new Date(order.otpExpiresAt) < new Date()) {
-      order.deliveryOtp = null;
-      order.otpExpiresAt = null;
-      await db.writeTable('orders', orders);
+    if (order.otpExpiresAt && new Date(String(order.otpExpiresAt)) < new Date()) {
+      await db.updateOrder(cleanId, { deliveryOtp: null, otpExpiresAt: null });
       return NextResponse.json({ error: 'OTP has expired. Ask the customer to regenerate it.' }, { status: 400 });
     }
 
-    if (order.deliveryOtp !== otpInput) {
-      order.otpFailedAttempts = (order.otpFailedAttempts || 0) + 1;
-      await db.writeTable('orders', orders);
+    if (String(order.deliveryOtp).trim() !== otpInput) {
+      const failedAttempts = (Number(order.otpFailedAttempts) || 0) + 1;
+      await db.updateOrder(cleanId, { otpFailedAttempts: failedAttempts });
       return NextResponse.json({ error: 'Incorrect OTP. Please verify the number provided by the customer.' }, { status: 400 });
     }
 
     const now = new Date().toISOString();
-    order.otpFailedAttempts = 0;
-    order.deliveryOtp = null;
-    order.otpExpiresAt = null;
-    order.delivery_otp_verified = true;
-    order.otp_verified_at = now;
-    order.verified_by_partner_id = session.userId;
-    order.status = 'Delivered';
-    order.delivery_completed_at = now;
-
-    if (!order.statusHistory) {
-      order.statusHistory = [];
-    }
-    order.statusHistory.push({
-      previousStatus: 'Out for Delivery',
+    const historyList = Array.isArray(order.statusHistory) ? [...order.statusHistory] : [];
+    historyList.push({
+      previousStatus: String(order.status || 'Out for Delivery'),
       newStatus: 'Delivered',
-      changedByUserId: session.userId || session.email,
+      changedByUserId: session.userId,
       changedByRole: session.role,
-      timestamp: now,
-      action: 'OTP Verified & Package Delivered'
+      timestamp: now
     });
 
-    await db.writeTable('orders', orders);
+    const updated = await db.updateOrder(cleanId, {
+      otpFailedAttempts: 0,
+      delivery_otp_verified: true,
+      otp_verified_at: now,
+      verified_by_partner_id: session.userId,
+      status: 'Delivered',
+      delivery_completed_at: now,
+      statusHistory: historyList
+    });
 
     return NextResponse.json({
       success: true,
+      order: updated,
       message: 'Delivery OTP verified successfully and order marked as Delivered.'
     });
   } catch (error) {

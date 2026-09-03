@@ -349,14 +349,45 @@ export default function DeliveryPartnerPage() {
     checklistHubVerified;
 
   // Step Status actions
+  const handleAcceptOrder = async (orderId: string) => {
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: orderId,
+          updates: { status: 'Accepted' }
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        updateOrderStatus(orderId, 'Accepted');
+        showToast('Delivery ticket accepted! Proceeding to pickup.', 'success');
+        void fetchRiderOrders();
+      } else {
+        showToast(data.error || 'Failed to accept order.', 'error');
+      }
+    } catch (err) {
+      console.error('Error accepting order:', err);
+      showToast('Error accepting order.', 'error');
+    }
+  };
+
   const handleConfirmPickup = async () => {
     if (!activeOrder) return;
-    setIsConfirmingPickup(true);
+
+    // Check verification of items
+    const verifiedItemIds = Object.keys(checklistItems).filter(id => checklistItems[id]);
+    const requiredItemIds = activeOrder.items.map(item => item.productId);
+    const allItemsVerified = requiredItemIds.length === 0 || requiredItemIds.every(prodId => verifiedItemIds.includes(prodId));
+
+    if (!allItemsVerified) {
+      showToast('Please check and verify all items before confirming pickup.', 'error');
+      return;
+    }
 
     try {
-      const verifiedItemIds = Object.keys(checklistItems).filter(
-        (productId) => checklistItems[productId]
-      );
+      setIsConfirmingPickup(true);
 
       const res = await fetch('/api/orders/update', {
         method: 'POST',
@@ -374,9 +405,9 @@ export default function DeliveryPartnerPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Update local context
         updateOrderStatus(activeOrder.id, 'Picked Up');
         showToast(`Order #${activeOrder.id} verified and picked up from hub.`, 'success');
+        void fetchRiderOrders();
       } else {
         showToast(data.error || 'Failed to confirm pickup.', 'error');
       }
@@ -405,6 +436,7 @@ export default function DeliveryPartnerPage() {
       if (res.ok && data.success) {
         updateOrderStatus(activeOrder.id, 'Out for Delivery');
         showToast(`Order #${activeOrder.id} transit initiated.`, 'success');
+        void fetchRiderOrders();
       } else {
         showToast(data.error || 'Failed to initiate transit.', 'error');
       }
@@ -477,6 +509,7 @@ export default function DeliveryPartnerPage() {
         updateOrderStatus(activeOrder.id, 'Delivered');
         showToast(`Order #${activeOrder.id} delivered successfully!`, 'success');
         setOtpCode('');
+        void fetchRiderOrders();
       } else {
         setOtpError(data.error || 'Invalid OTP code.');
         showToast(data.error || 'Failed to complete delivery.', 'error');
@@ -488,15 +521,38 @@ export default function DeliveryPartnerPage() {
     }
   };
 
-  const handleFailDelivery = () => {
+  const handleFailDelivery = async () => {
     if (!activeOrder) return;
     if (!failedReason) {
       showToast('Select a failure reason.', 'error');
       return;
     }
-    updateOrderStatus(activeOrder.id, 'Cancelled');
-    showToast(`Delivery ticket filed: Order #${activeOrder.id} marked as failed.`, 'info');
-    setShowFailForm(false);
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeOrder.id,
+          updates: {
+            status: 'Cancelled',
+            failedReason,
+            failedComment
+          }
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        updateOrderStatus(activeOrder.id, 'Cancelled');
+        showToast(`Delivery ticket filed: Order #${activeOrder.id} marked as failed.`, 'info');
+        setShowFailForm(false);
+        void fetchRiderOrders();
+      } else {
+        showToast(data.error || 'Failed to update order status.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error updating order status.', 'error');
+    }
   };
 
   // Inventory Updates
@@ -787,10 +843,7 @@ export default function DeliveryPartnerPage() {
                         View Order
                       </button>
                       <button
-                        onClick={() => {
-                          updateOrderStatus(activeOrder.id, 'Accepted');
-                          showToast('Delivery ticket accepted! Proceeding to pickup.', 'success');
-                        }}
+                        onClick={() => handleAcceptOrder(activeOrder.id)}
                         className="flex-1 py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider text-[10px]"
                       >
                         Accept

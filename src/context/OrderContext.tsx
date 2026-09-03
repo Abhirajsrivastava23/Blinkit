@@ -76,14 +76,31 @@ interface OrderContextType {
     paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
     scheduledDeliveryAt?: string
   ) => Promise<Order>;
-  updateOrderStatus: (orderId: string, status: Order['status']) => void;
-  updateOrderDetails: (orderId: string, updates: Partial<Order>) => void;
+  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<Order | null>;
+  updateOrderDetails: (orderId: string, updates: Partial<Order>) => Promise<Order | null>;
   getOrderById: (orderId: string) => Order | undefined;
   refreshOrders: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
   statusCode: number | null;
 }
+
+export const STATUS_RANK: Record<string, number> = {
+  'NOT_STARTED': 0,
+  'Pending': 10,
+  'Confirmed': 20,
+  'Preparing': 30,
+  'Packed': 40,
+  'Ready for Delivery': 45,
+  'Waiting for Partner': 48,
+  'Assigned': 50,
+  'Accepted': 60,
+  'Picked Up': 70,
+  'Out for Delivery': 80,
+  'Delivered': 90,
+  'Cancelled': 100,
+  'Failed Delivery': 100
+};
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
@@ -122,17 +139,28 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             for (const o of prev) prevMap.set(String(o.id).toLowerCase(), o);
 
             const serverIds = new Set<string>();
-            // Merge server data with monotonic payment safety
+            // Merge server data with single authoritative DB status
             const updated = data.map((serverOrder: Order) => {
               serverIds.add(String(serverOrder.id).toLowerCase());
               const existing = prevMap.get(String(serverOrder.id).toLowerCase());
               if (!existing) return serverOrder;
 
-              const existingPaid = existing.paymentStatus === 'PAID' || existing.status === 'Confirmed' || existing.status === 'Preparing' || existing.status === 'Packed' || existing.status === 'Out for Delivery' || existing.status === 'Delivered';
-              const serverPaid = serverOrder.paymentStatus === 'PAID' || serverOrder.status === 'Confirmed' || serverOrder.status === 'Preparing' || serverOrder.status === 'Packed' || serverOrder.status === 'Out for Delivery' || serverOrder.status === 'Delivered';
+              const existingRank = STATUS_RANK[existing.status] || 0;
+              const serverRank = STATUS_RANK[serverOrder.status] || 0;
 
-              if (existingPaid && !serverPaid) {
-                return { ...serverOrder, paymentStatus: 'PAID' as const, status: existing.status };
+              // Prevent stale delayed polling response from downgrading a newer local optimistic status
+              if (existingRank > serverRank && existing.updatedAt && serverOrder.updatedAt) {
+                if (new Date(existing.updatedAt).getTime() > new Date(serverOrder.updatedAt).getTime()) {
+                  return { ...serverOrder, status: existing.status };
+                }
+              }
+
+              // Monotonic payment status authority
+              const existingPaid = existing.paymentStatus === 'PAID' || existingRank >= 20;
+              const serverPaid = serverOrder.paymentStatus === 'PAID' || serverRank >= 20;
+
+              if (existingPaid && !serverPaid && serverOrder.paymentStatus !== 'REJECTED') {
+                return { ...serverOrder, paymentStatus: 'PAID' as const };
               }
               return serverOrder;
             });
@@ -242,30 +270,77 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return serverOrder;
   };
 
-  const updateOrderStatus = (orderId: string, status: Order['status']) => {
-    const updated = orders.map((o) => (o.id === orderId ? { ...o, status } : o));
-    setOrders(updated);
-    localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+  const updateOrderStatus = async (orderId: string, status: Order['status']): Promise<Order | null> => {
+    // Optimistic local update
+    const now = new Date().toISOString();
+    setOrders(prev => {
+      const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? { ...o, status, updatedAt: now } : o));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+      }
+      return updated;
+    });
 
-    // Update on server
-    fetch('/api/orders/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: orderId, updates: { status } })
-    }).catch(err => console.error('Failed to update status on server:', err));
+    // Authoritative update on server
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, updates: { status } })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.order) {
+        const serverOrder = data.order as Order;
+        setOrders(prev => {
+          const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? serverOrder : o));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+          }
+          return updated;
+        });
+        return serverOrder;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to update status on server:', err);
+      return null;
+    }
   };
 
-  const updateOrderDetails = (orderId: string, updates: Partial<Order>) => {
-    const updated = orders.map((o) => (o.id === orderId ? { ...o, ...updates } : o));
-    setOrders(updated);
-    localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+  const updateOrderDetails = async (orderId: string, updates: Partial<Order>): Promise<Order | null> => {
+    const now = new Date().toISOString();
+    setOrders(prev => {
+      const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? { ...o, ...updates, updatedAt: now } : o));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+      }
+      return updated;
+    });
 
-    // Update on server
-    fetch('/api/orders/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: orderId, updates })
-    }).catch(err => console.error('Failed to update details on server:', err));
+    // Authoritative update on server
+    try {
+      const res = await fetch('/api/orders/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, updates })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.order) {
+        const serverOrder = data.order as Order;
+        setOrders(prev => {
+          const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? serverOrder : o));
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('fatafat_orders', JSON.stringify(updated));
+          }
+          return updated;
+        });
+        return serverOrder;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to update details on server:', err);
+      return null;
+    }
   };
 
   const getOrderById = (orderId: string) => {

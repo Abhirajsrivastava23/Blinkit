@@ -13,32 +13,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const { id } = await params;
-    const orders = await db.readTable<any>('orders') || [];
-    const order = orders.find((o: any) => o.id === id);
+    const cleanId = String(id || '').trim();
+    const order = await db.getOrderById(cleanId);
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     }
 
-    if (session.role !== 'admin' && order.assignedPartnerId !== session.userId) {
+    const assignedId = String(order.assignedPartnerId || '').trim().toLowerCase();
+    const sId = String(session.userId || '').trim().toLowerCase();
+    const sEmail = String(session.email || '').trim().toLowerCase();
+
+    if (session.role !== 'admin' && assignedId && assignedId !== sId && assignedId !== sEmail) {
       return NextResponse.json({ error: 'Forbidden: this order is not assigned to your rider account.' }, { status: 403 });
     }
 
-    if (order.status !== 'Out for Delivery') {
-      return NextResponse.json({ error: 'OTP requests are only allowed when the order is out for delivery.' }, { status: 400 });
-    }
-
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    order.deliveryOtp = otp;
-    order.otpExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour validity
-    order.otpFailedAttempts = 0;
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
-    await db.writeTable('orders', orders);
+    await db.updateOrder(cleanId, {
+      deliveryOtp: otp,
+      otpExpiresAt: expiresAt,
+      otpFailedAttempts: 0
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Delivery OTP generated successfully.',
-      expiresAt: order.otpExpiresAt,
+      expiresAt: expiresAt,
       otpLength: otp.length
     });
   } catch (error) {

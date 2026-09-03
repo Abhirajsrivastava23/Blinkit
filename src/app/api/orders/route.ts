@@ -236,9 +236,9 @@ export async function POST(request: Request) {
         createdAt: now,
         deliveryLocationId: body.deliveryLocationId || 'nawabganj-unnao',
         deliveryLocationName: body.deliveryLocationName || 'Nawabganj, Unnao',
-        deliveryOtp: null,
+        deliveryOtp: Math.floor(100000 + Math.random() * 900000).toString(),
         otpFailedAttempts: 0,
-        otpExpiresAt: null,
+        otpExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         statusHistory: [{
           previousStatus: null,
           newStatus: 'Pending',

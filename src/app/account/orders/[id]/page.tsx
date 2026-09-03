@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Truck, MapPin, Clock, ArrowLeft, RefreshCw, ShoppingBag, X, AlertTriangle } from 'lucide-react';
-import { useOrders, Order } from '../../../../context/OrderContext';
+import { useOrders, Order, STATUS_RANK } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
 const STATUS_PROGRESSION: Order['status'][] = [
@@ -33,10 +33,20 @@ export default function AccountOrderDetailPage() {
 
   const isMonotonicallySafe = (current: Order | undefined, incoming: Order): boolean => {
     if (!current) return true;
-    const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
-    const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
+    const currentRank = STATUS_RANK[current.status] || 0;
+    const incomingRank = STATUS_RANK[incoming.status] || 0;
 
-    if (currentPaid && !incomingPaid) return false;
+    // Prevent stale delayed polling response from downgrading a newer status if local was updated more recently
+    if (currentRank > incomingRank && current.updatedAt && incoming.updatedAt) {
+      if (new Date(current.updatedAt).getTime() > new Date(incoming.updatedAt).getTime()) {
+        return false;
+      }
+    }
+
+    const currentPaid = current.paymentStatus === 'PAID' || currentRank >= 20;
+    const incomingPaid = incoming.paymentStatus === 'PAID' || incomingRank >= 20;
+
+    if (currentPaid && !incomingPaid && incoming.paymentStatus !== 'REJECTED') return false;
 
     const currentRejected = current.paymentStatus === 'REJECTED';
     const incomingRejected = incoming.paymentStatus === 'REJECTED';

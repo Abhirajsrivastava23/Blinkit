@@ -22,7 +22,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
-import { useOrders, Order } from '../../../context/OrderContext';
+import { useOrders, Order, STATUS_RANK } from '../../../context/OrderContext';
 import { useToast } from '../../../components/Toast';
 
 export default function OrderConfirmationPage() {
@@ -52,9 +52,18 @@ export default function OrderConfirmationPage() {
         if (data && !data.error) {
           setFetchedOrder(prev => {
             if (!prev) return data;
-            const currentPaid = prev.paymentStatus === 'PAID' || prev.status === 'Confirmed' || prev.status === 'Preparing' || prev.status === 'Packed' || prev.status === 'Out for Delivery' || prev.status === 'Delivered';
-            const incomingPaid = data.paymentStatus === 'PAID' || data.status === 'Confirmed' || data.status === 'Preparing' || data.status === 'Packed' || data.status === 'Out for Delivery' || data.status === 'Delivered';
-            if (currentPaid && !incomingPaid) return prev;
+            const currentRank = STATUS_RANK[prev.status] || 0;
+            const incomingRank = STATUS_RANK[data.status] || 0;
+
+            if (currentRank > incomingRank && prev.updatedAt && data.updatedAt) {
+              if (new Date(prev.updatedAt).getTime() > new Date(data.updatedAt).getTime()) {
+                return prev;
+              }
+            }
+
+            const currentPaid = prev.paymentStatus === 'PAID' || currentRank >= 20;
+            const incomingPaid = data.paymentStatus === 'PAID' || incomingRank >= 20;
+            if (currentPaid && !incomingPaid && data.paymentStatus !== 'REJECTED') return prev;
 
             const currentRejected = prev.paymentStatus === 'REJECTED';
             const incomingRejected = data.paymentStatus === 'REJECTED';
@@ -81,14 +90,14 @@ export default function OrderConfirmationPage() {
     void fetchOrderDetails();
     const interval = setInterval(() => {
       void fetchOrderDetails();
-    }, 3000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
   const order = fetchedOrder || contextOrder;
 
   useEffect(() => {
-    if (order && order.paymentStatus !== 'PAID' && order.status !== 'Confirmed') {
+    if (order && order.paymentStatus !== 'PAID' && order.status === 'Pending') {
       router.replace(`/order/${order.id}/payment`);
     }
   }, [order, router]);

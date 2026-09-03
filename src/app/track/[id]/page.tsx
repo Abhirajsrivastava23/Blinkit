@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Clock, ArrowLeft, AlertCircle, ShieldCheck, MapPin, ShoppingBag } from 'lucide-react';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
-import { Order } from '../../../context/OrderContext';
+import { Order, STATUS_RANK } from '../../../context/OrderContext';
 import { useToast } from '../../../components/Toast';
 
 const STATUS_PROGRESSION: Order['status'][] = [
@@ -33,10 +33,19 @@ export default function OrderTrackingPage() {
 
   const isMonotonicallySafe = (current: Order | undefined, incoming: Order): boolean => {
     if (!current) return true;
-    const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
-    const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
+    const currentRank = STATUS_RANK[current.status] || 0;
+    const incomingRank = STATUS_RANK[incoming.status] || 0;
 
-    if (currentPaid && !incomingPaid) return false;
+    if (currentRank > incomingRank && current.updatedAt && incoming.updatedAt) {
+      if (new Date(current.updatedAt).getTime() > new Date(incoming.updatedAt).getTime()) {
+        return false;
+      }
+    }
+
+    const currentPaid = current.paymentStatus === 'PAID' || currentRank >= 20;
+    const incomingPaid = incoming.paymentStatus === 'PAID' || incomingRank >= 20;
+
+    if (currentPaid && !incomingPaid && incoming.paymentStatus !== 'REJECTED') return false;
     return true;
   };
 
