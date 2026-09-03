@@ -152,6 +152,12 @@ export default function AdminPaymentsPage() {
     if (actionInProgress) return;
     try {
       setActionInProgress(item.orderId);
+      setApprovalTarget(null);
+      setSelectedProof(null);
+      
+      // Optimistic local update
+      setRows(prev => prev.map(r => String(r.orderId).toLowerCase() === String(item.orderId).toLowerCase() ? { ...r, status: 'PAID', orderStatus: 'Confirmed' } : r));
+
       const res = await fetch('/api/payments/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,15 +174,11 @@ export default function AdminPaymentsPage() {
       }
 
       showToast(`Payment approved for Order #${item.orderId}. Order Confirmed!`, 'success');
-      setApprovalTarget(null);
-      setSelectedProof(null);
-      
-      // Optimistic local update
-      setRows(prev => prev.map(r => r.orderId === item.orderId ? { ...r, status: 'PAID', orderStatus: 'Confirmed' } : r));
-      await fetchPayments(true);
+      void fetchPayments(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error approving payment';
       showToast(msg, 'error');
+      void fetchPayments(true);
     } finally {
       setActionInProgress(null);
     }
@@ -191,14 +193,22 @@ export default function AdminPaymentsPage() {
       return;
     }
 
+    const target = rejectionTarget;
     try {
-      setActionInProgress(rejectionTarget.orderId);
+      setActionInProgress(target.orderId);
+      setRejectionTarget(null);
+      setRejectionReason('');
+      setSelectedProof(null);
+
+      // Optimistic local update
+      setRows(prev => prev.map(r => String(r.orderId).toLowerCase() === String(target.orderId).toLowerCase() ? { ...r, status: 'REJECTED', rejectionReason: finalReason } : r));
+
       const res = await fetch('/api/payments/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentId: rejectionTarget.id,
-          orderId: rejectionTarget.orderId,
+          paymentId: target.id,
+          orderId: target.orderId,
           action: 'reject',
           reason: finalReason
         }),
@@ -209,17 +219,12 @@ export default function AdminPaymentsPage() {
         throw new Error(data.error || 'Failed to reject payment');
       }
 
-      showToast(`Payment rejected for Order #${rejectionTarget.orderId}. Customer notified.`, 'info');
-      setRejectionTarget(null);
-      setRejectionReason('');
-      setSelectedProof(null);
-
-      // Optimistic local update
-      setRows(prev => prev.map(r => r.orderId === rejectionTarget.orderId ? { ...r, status: 'REJECTED', rejectionReason: finalReason } : r));
-      await fetchPayments(true);
+      showToast(`Payment rejected for Order #${target.orderId}. Customer notified.`, 'info');
+      void fetchPayments(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error rejecting payment';
       showToast(msg, 'error');
+      void fetchPayments(true);
     } finally {
       setActionInProgress(null);
     }

@@ -1514,45 +1514,83 @@ export const db = {
    * Payment Transaction Methods
    */
   async getPaymentByOrderId(orderId: string): Promise<Record<string, unknown> | null> {
-    if (!pool) {
-      const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: Record<string, unknown>) => String(p.orderId || p.orderid).toLowerCase() === String(orderId).toLowerCase());
-      return found ? normalizePaymentRecord(found) : null;
+    let raw = String(orderId || '').trim();
+    if (!raw || raw === 'undefined' || raw === 'null') return null;
+
+    while (raw.includes('%23') || raw.includes('%20') || raw.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(raw);
+        if (decoded === raw) break;
+        raw = decoded;
+      } catch {
+        break;
+      }
     }
-    try {
-      const res = await pool.query(
-        'SELECT * FROM payment_transactions WHERE LOWER("orderId") = LOWER($1) LIMIT 1',
-        [orderId]
-      );
-      if (res.rows.length === 0) return null;
-      return normalizePaymentRecord(res.rows[0]);
-    } catch (err) {
-      console.error('Error fetching payment by orderId:', err);
-      const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: Record<string, unknown>) => String(p.orderId || p.orderid).toLowerCase() === String(orderId).toLowerCase());
-      return found ? normalizePaymentRecord(found) : null;
+    const clean = raw.replace(/^#+/, '').trim();
+    const hash = '#' + clean;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM payment_transactions WHERE LOWER(TRIM("orderId")) = LOWER(TRIM($1)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($2)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($3)) OR LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) LIMIT 1',
+          [clean, raw, hash]
+        );
+        if (res.rows.length > 0) {
+          return normalizePaymentRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching payment by orderId from DB:', err);
+      }
     }
+
+    const list = inMemoryData['payment_transactions'] || [];
+    const found = list.find((p: Record<string, unknown>) => {
+      const pOid = String(p.orderId || p.orderid || '').replace(/^#+/, '').trim().toLowerCase();
+      const pId = String(p.id || '').replace(/^#+/, '').trim().toLowerCase();
+      const targetLower = clean.toLowerCase();
+      return pOid === targetLower || pId === targetLower || String(p.orderId || '').toLowerCase() === raw.toLowerCase();
+    });
+    return found ? normalizePaymentRecord(found) : null;
   },
 
   async getPaymentById(paymentId: string): Promise<Record<string, unknown> | null> {
-    if (!pool) {
-      const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: Record<string, unknown>) => String(p.id).toLowerCase() === String(paymentId).toLowerCase());
-      return found ? normalizePaymentRecord(found) : null;
+    let raw = String(paymentId || '').trim();
+    if (!raw || raw === 'undefined' || raw === 'null') return null;
+
+    while (raw.includes('%23') || raw.includes('%20') || raw.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(raw);
+        if (decoded === raw) break;
+        raw = decoded;
+      } catch {
+        break;
+      }
     }
-    try {
-      const res = await pool.query(
-        'SELECT * FROM payment_transactions WHERE LOWER(id) = LOWER($1) LIMIT 1',
-        [paymentId]
-      );
-      if (res.rows.length === 0) return null;
-      return normalizePaymentRecord(res.rows[0]);
-    } catch (err) {
-      console.error('Error fetching payment by id:', err);
-      const list = inMemoryData['payment_transactions'] || [];
-      const found = list.find((p: Record<string, unknown>) => String(p.id).toLowerCase() === String(paymentId).toLowerCase());
-      return found ? normalizePaymentRecord(found) : null;
+    const clean = raw.replace(/^#+/, '').trim();
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM payment_transactions WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($1)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($2)) LIMIT 1',
+          [clean, raw]
+        );
+        if (res.rows.length > 0) {
+          return normalizePaymentRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching payment by id from DB:', err);
+      }
     }
+
+    const list = inMemoryData['payment_transactions'] || [];
+    const found = list.find((p: Record<string, unknown>) => {
+      const pId = String(p.id || '').toLowerCase();
+      const pOid = String(p.orderId || p.orderid || '').toLowerCase();
+      return pId === clean.toLowerCase() || pId === raw.toLowerCase() || pOid === clean.toLowerCase();
+    });
+    return found ? normalizePaymentRecord(found) : null;
   },
 
   /**
@@ -1629,12 +1667,13 @@ export const db = {
     }
     inMemoryData['payment_transactions'] = list;
 
-    if (!pool) {
+    const activePool = getPool();
+    if (!activePool) {
       return normalizePaymentRecord(mergedRecord);
     }
 
     try {
-      const res = await pool.query(
+      const res = await activePool.query(
         `INSERT INTO payment_transactions (
           id, "orderId", "customerId", amount, currency, status, method, provider,
           utr, "proofImageUrl", "submittedAt", "verifiedAt", "verifiedBy",

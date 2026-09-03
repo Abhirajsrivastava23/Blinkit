@@ -31,16 +31,74 @@ export async function POST(request: Request) {
     }
 
     const resolvedOrderId = orderId || (payment?.orderId as string);
-    if (!resolvedOrderId) {
+    if (!resolvedOrderId && !paymentId) {
       return NextResponse.json({ error: 'Order ID could not be identified.' }, { status: 400 });
     }
 
-    const cleanOrderId = decodeURIComponent(String(resolvedOrderId) || '').trim();
+    let cleanOrderId = String(resolvedOrderId || paymentId || '').trim();
+    while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(cleanOrderId);
+        if (decoded === cleanOrderId) break;
+        cleanOrderId = decoded;
+      } catch {
+        break;
+      }
+    }
+    cleanOrderId = cleanOrderId.replace(/^#+/, '').trim();
     const now = new Date().toISOString();
-    const targetOrder = await db.getOrderById(cleanOrderId);
+
+    let targetOrder: Record<string, any> | null = await db.getOrderById(cleanOrderId);
+    if (!targetOrder && resolvedOrderId) {
+      targetOrder = await db.getOrderById(resolvedOrderId);
+    }
+    if (!targetOrder && cleanOrderId.startsWith('FT')) {
+      targetOrder = await db.getOrderById('#' + cleanOrderId);
+    }
+    if (!targetOrder && !cleanOrderId.startsWith('FT')) {
+      targetOrder = await db.getOrderById('FT' + cleanOrderId);
+    }
+
+    // Fallback: scan orders table
+    if (!targetOrder) {
+      const allOrders = await db.readTable<any>('orders').catch(() => []);
+      targetOrder = allOrders.find((o: any) => {
+        const oid = String(o.id || '').replace(/^#+/, '').trim().toLowerCase();
+        return oid === cleanOrderId.toLowerCase() || String(o.id || '').toLowerCase() === String(resolvedOrderId || '').toLowerCase();
+      }) || null;
+    }
+
+    // Fallback: reconstruct from payment transaction if order record is missing in memory
+    if (!targetOrder && payment) {
+      targetOrder = {
+        id: cleanOrderId,
+        customerId: payment.customerId || 'customer',
+        total: payment.amount || 0,
+        status: 'Pending',
+        paymentStatus: payment.status || 'PAYMENT_VERIFICATION_PENDING',
+        utr: payment.utr,
+        proofImageUrl: payment.proofImageUrl
+      };
+    }
 
     if (!targetOrder) {
-      return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found in records.' }, { status: 404 });
+    }
+
+    // Idempotency: If already approved, return success immediately without redundant writes
+    const isAlreadyPaid = (targetOrder.paymentStatus === 'PAID' || targetOrder.status === 'Confirmed') && payment?.status === 'PAID';
+    if (action === 'approve' && isAlreadyPaid) {
+      return NextResponse.json({
+        success: true,
+        status: 'PAID',
+        paymentStatus: 'PAID',
+        orderStatus: 'Confirmed',
+        orderId: targetOrder.id,
+        updatedAt: targetOrder.updatedAt || now,
+        order: targetOrder,
+        payment,
+        message: 'Payment already approved.'
+      });
     }
 
     if (action === 'approve') {

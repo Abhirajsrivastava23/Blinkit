@@ -269,6 +269,7 @@ export default function AdminDashboardPage() {
     if (isVerifyingPayment) return;
     try {
       setIsVerifyingPayment(item.orderId);
+      setPreviewProofModal(null);
       const res = await fetch('/api/payments/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -281,8 +282,7 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (res.ok) {
         showToast(`Payment approved for #${item.orderId}. Order confirmed!`, 'success');
-        setPreviewProofModal(null);
-        await Promise.all([fetchPendingPayments(), refreshOrders()]);
+        await Promise.all([fetchPendingPayments(), refreshOrders()]).catch(() => {});
       } else {
         showToast(data.error || 'Failed to approve payment', 'error');
       }
@@ -296,25 +296,26 @@ export default function AdminDashboardPage() {
   const handleRejectPendingPayment = async () => {
     if (!rejectModalTarget || isVerifyingPayment) return;
     const reason = (dashboardRejectReason || 'Payment proof verification failed. Please resubmit.').trim();
+    const target = rejectModalTarget;
     try {
-      setIsVerifyingPayment(rejectModalTarget.orderId);
+      setIsVerifyingPayment(target.orderId);
+      setRejectModalTarget(null);
+      setDashboardRejectReason('');
+      setPreviewProofModal(null);
       const res = await fetch('/api/payments/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          paymentId: rejectModalTarget.id,
-          orderId: rejectModalTarget.orderId,
+          paymentId: target.id,
+          orderId: target.orderId,
           action: 'reject',
           reason
         })
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(`Payment rejected for #${rejectModalTarget.orderId}. Customer notified.`, 'info');
-        setRejectModalTarget(null);
-        setDashboardRejectReason('');
-        setPreviewProofModal(null);
-        await Promise.all([fetchPendingPayments(), refreshOrders()]);
+        showToast(`Payment rejected for #${target.orderId}. Customer notified.`, 'info');
+        await Promise.all([fetchPendingPayments(), refreshOrders()]).catch(() => {});
       } else {
         showToast(data.error || 'Failed to reject payment', 'error');
       }

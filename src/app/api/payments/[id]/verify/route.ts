@@ -50,12 +50,24 @@ export async function POST(
       );
     }
 
+    let cleanPaymentId = String(paymentId || '').trim();
+    while (cleanPaymentId.includes('%23') || cleanPaymentId.includes('%20') || cleanPaymentId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(cleanPaymentId);
+        if (decoded === cleanPaymentId) break;
+        cleanPaymentId = decoded;
+      } catch {
+        break;
+      }
+    }
+    cleanPaymentId = cleanPaymentId.replace(/^#+/, '').trim();
+
     // =========================================
     // 1. FETCH PAYMENT FROM DATABASE
     // =========================================
     let payment: Record<string, unknown> | null = null;
     try {
-      payment = await db.getPaymentById(paymentId);
+      payment = await db.getPaymentById(cleanPaymentId) || await db.getPaymentById(paymentId) || await db.getPaymentByOrderId(cleanPaymentId);
     } catch (err) {
       console.error('Error fetching payment:', err);
       return Response.json(
@@ -75,7 +87,7 @@ export async function POST(
     // 2. VERIFY CUSTOMER OWNERSHIP
     // =========================================
     if (customerId && payment.customerId !== customerId) {
-      console.error(`SECURITY: Payment ${paymentId} customer mismatch`);
+      console.error(`SECURITY: Payment ${cleanPaymentId} customer mismatch`);
       return Response.json(
         { error: 'Unauthorized' },
         { status: 403 }
@@ -85,22 +97,28 @@ export async function POST(
     // =========================================
     // 3. FETCH ORDER AND VERIFY
     // =========================================
-    const orderId = (payment.orderId as string) || '';
-    const cleanOrderId = decodeURIComponent(String(orderId)).trim();
+    const rawOrderId = (payment.orderId as string) || cleanPaymentId.replace(/^pay-/, '');
+    let cleanOrderId = String(rawOrderId).trim();
+    while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(cleanOrderId);
+        if (decoded === cleanOrderId) break;
+        cleanOrderId = decoded;
+      } catch {
+        break;
+      }
+    }
+    cleanOrderId = cleanOrderId.replace(/^#+/, '').trim();
     let order: Record<string, unknown> | null = null;
 
     try {
-      const orderQuery = await db.query<Record<string, unknown>>(
-        'SELECT * FROM orders WHERE LOWER(id) = LOWER($1) LIMIT 1',
-        [cleanOrderId]
-      );
-      if (orderQuery.rows.length === 0) {
+      order = await db.getOrderById(cleanOrderId) || await db.getOrderById(rawOrderId);
+      if (!order) {
         return Response.json(
           { error: 'Order not found' },
           { status: 404 }
         );
       }
-      order = orderQuery.rows[0];
     } catch (err) {
       console.error('Error fetching order:', err);
       return Response.json(
@@ -200,12 +218,11 @@ export async function POST(
     // =========================================
     try {
       const now = new Date().toISOString();
-      await db.query(
-        `UPDATE orders 
-         SET status = $1, "paymentStatus" = $2, "updatedAt" = $3
-         WHERE id = $4`,
-        ['CONFIRMED', 'PAID', now, orderId]
-      );
+      await db.updateOrder(cleanOrderId, {
+        status: 'Confirmed',
+        paymentStatus: 'PAID',
+        updatedAt: now
+      });
     } catch (err) {
       console.error('Error updating order status:', err);
       // Order update failed but payment was marked - log for recovery
@@ -225,8 +242,8 @@ export async function POST(
     return Response.json({
       success: true,
       status: 'PAID',
-      paymentId,
-      orderId,
+      paymentId: cleanPaymentId,
+      orderId: cleanOrderId,
       message: 'Payment verified successfully. Order confirmed.',
     });
   } catch (error) {
