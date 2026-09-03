@@ -28,22 +28,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const orders = await db.readTable<any>('orders') || [];
-    const orderIndex = orders.findIndex((o: { id: string }) => o.id === orderId);
+    const cleanId = decodeURIComponent(String(orderId || '')).replace(/^#/, '').trim();
+    const order = await db.getOrderById(cleanId);
 
-    if (orderIndex === -1) {
+    if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    const order = orders[orderIndex];
-
     // AUTHORIZATION CHECK: Customer can only cancel their own orders
     if (session.role === 'customer') {
-      const cId = order.customerId ? order.customerId.toLowerCase() : '';
-      const sId = session.userId ? session.userId.toLowerCase() : '';
-      const sEmail = session.email ? session.email.toLowerCase() : '';
+      const cId = String(order.customerId || '').toLowerCase().trim();
+      const cEmail = String(order.customerEmail || '').toLowerCase().trim();
+      const sId = String(session.userId || '').toLowerCase().trim();
+      const sEmail = String(session.email || '').toLowerCase().trim();
 
-      if (cId !== sId && cId !== sEmail) {
+      if (cId !== sId && cId !== sEmail && (!cEmail || cEmail !== sEmail)) {
         return NextResponse.json(
           { error: 'You are not authorized to cancel this order' },
           { status: 403 }
@@ -52,10 +51,10 @@ export async function POST(request: Request) {
     }
 
     // BUSINESS RULE CHECK: Cancellation is NOT allowed once status becomes "Preparing" or later
-    const cancellableStatuses = ['Pending', 'Confirmed'];
-    const currentStatus = order.status || 'Pending';
+    const cancellableStatuses: string[] = ['Pending', 'Confirmed'];
+    const currentStatus = String(order.status || 'Pending');
 
-    if (!cancellableStatuses.includes(currentStatus)) {
+    if (session.role !== 'admin' && !cancellableStatuses.includes(currentStatus)) {
       return NextResponse.json(
         {
           error: `This order can no longer be cancelled because it has moved to "${currentStatus}" status.`,
@@ -66,40 +65,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // ADMIN OVERRIDE: Admins can cancel orders in any status
-    if (session.role !== 'admin' && !cancellableStatuses.includes(currentStatus)) {
-      return NextResponse.json(
-        { error: `Only admin can cancel orders in "${currentStatus}" status` },
-        { status: 403 }
-      );
-    }
-
     // Update order with cancellation info
     const now = new Date().toISOString();
-    orders[orderIndex] = {
-      ...order,
+    const hist = Array.isArray(order.statusHistory) ? [...order.statusHistory] : [];
+    hist.push({
+      previousStatus: currentStatus,
+      newStatus: 'Cancelled',
+      changedByUserId: session.userId || session.email || 'system',
+      changedByRole: session.role,
+      timestamp: now,
+      action: reason || 'Customer requested cancellation'
+    });
+
+    const updated = await db.updateOrder(cleanId, {
       status: 'Cancelled',
-      paymentStatus: 'COMPLETED', // Payment was already taken, can't refund in this mock
       cancellationReason: reason || 'Customer requested cancellation',
       cancelledAt: now,
-      statusHistory: [
-        ...(order.statusHistory || []),
-        {
-          previousStatus: currentStatus,
-          newStatus: 'Cancelled',
-          changedByUserId: session.userId || session.email || 'system',
-          changedByRole: session.role,
-          timestamp: now,
-          reason: reason || 'Customer requested cancellation'
-        }
-      ]
-    };
-
-    await db.writeTable('orders', orders);
+      statusHistory: hist
+    });
 
     return NextResponse.json({
+      success: true,
       message: 'Order cancelled successfully',
-      order: orders[orderIndex]
+      order: updated
     });
   } catch (err) {
     console.error('Error cancelling order:', err);

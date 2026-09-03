@@ -17,9 +17,10 @@ export async function POST(request: Request) {
       orderId?: string;
       action?: 'approve' | 'reject';
       reason?: string;
+      rejectionReason?: string;
     };
 
-    const { paymentId, orderId, action, reason } = body;
+    const { paymentId, orderId, action, reason, rejectionReason: bodyRejectionReason } = body;
     if ((!paymentId && !orderId) || !action) {
       return NextResponse.json({ error: 'Payment ID or Order ID, and action are required.' }, { status: 400 });
     }
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'reject') {
-      const rejectionReason = (reason || 'Payment proof did not match the submitted order details.').trim();
+      const rejectionReason = (bodyRejectionReason || reason || 'Payment proof did not match the submitted order details.').trim();
       const updatedPaymentTx = await db.upsertPaymentTransaction({
         id: String(payment?.id || `pay-${targetOrder.id}`),
         orderId: String(targetOrder.id),

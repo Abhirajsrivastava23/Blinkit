@@ -21,8 +21,33 @@ export async function POST(request: Request) {
     const name = rawName || (rawEmail ? rawEmail.split('@')[0] : `Customer ${phone.slice(-4)}`);
 
     // Ensure user record exists in database atomically
+    const now = new Date().toISOString();
     try {
-      const now = new Date().toISOString();
+      const users = await db.readTable<any>('users') || [];
+      const existingIdx = users.findIndex(
+        (u: any) => (u.userId && u.userId.toLowerCase() === userId.toLowerCase()) || 
+                    (u.email && u.email.toLowerCase() === email.toLowerCase())
+      );
+      if (existingIdx !== -1) {
+        users[existingIdx] = { ...users[existingIdx], name, email, phone, lastLoginAt: now };
+      } else {
+        users.push({
+          userId,
+          name,
+          email,
+          phone,
+          createdAt: now,
+          lastLoginAt: now,
+          wellnessAccessStatus: 'NOT_REQUESTED',
+          role: 'customer'
+        });
+      }
+      await db.writeTable('users', users);
+    } catch (memErr) {
+      console.warn('Memory user persistence warning:', memErr);
+    }
+
+    try {
       await db.query(
         `INSERT INTO users ("userId", name, email, phone, "createdAt", "lastLoginAt", "wellnessAccessStatus")
          VALUES ($1, $2, $3, $4, $5, $6, $7)

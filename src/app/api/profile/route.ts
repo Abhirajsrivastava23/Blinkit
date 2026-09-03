@@ -4,6 +4,42 @@ import { getSession } from '../../../data/auth';
 
 export const dynamic = 'force-dynamic';
 
+export async function GET(request: Request) {
+  try {
+    const session = await getSession(request);
+    if (!session || session.role !== 'customer') {
+      return NextResponse.json({ error: 'Unauthorized session role' }, { status: 403 });
+    }
+
+    const users = await db.readTable<any>('users') || [];
+    const customer = users.find(
+      (u: any) => u.userId === session.userId || (u.email && u.email.toLowerCase() === session.email.toLowerCase())
+    );
+
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer profile not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        name: customer.name || '',
+        email: customer.email || '',
+        phone: customer.phone || '',
+        dob: customer.dob || '',
+        gender: customer.gender || '',
+        profileImage: customer.profileImage || '',
+        addresses: customer.addresses || [],
+        wellnessAccessStatus: customer.wellnessAccessStatus,
+        role: 'customer'
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching customer profile:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getSession(request);
@@ -14,7 +50,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const users = await db.readTable<any>('users') || [];
     const customerIdx = users.findIndex(
-      (u: any) => u.userId === session.userId || u.email.toLowerCase() === session.email.toLowerCase()
+      (u: any) => u.userId === session.userId || (u.email && u.email.toLowerCase() === session.email.toLowerCase())
     );
 
     if (customerIdx === -1) {
@@ -74,6 +110,7 @@ export async function POST(request: Request) {
         dob: customer.dob || '',
         gender: customer.gender || '',
         profileImage: customer.profileImage || '',
+        addresses: customer.addresses || [],
         wellnessAccessStatus: customer.wellnessAccessStatus,
         role: 'customer'
       }
@@ -91,3 +128,4 @@ export async function PUT(request: Request) {
 export async function PATCH(request: Request) {
   return POST(request);
 }
+
