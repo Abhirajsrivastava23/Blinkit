@@ -1384,6 +1384,262 @@ export const db = {
     }
   },
 
+  /**
+   * Dedicated Live Entity Counts for Data Management Module
+   */
+  async getEntityCounts(): Promise<{
+    customers: number;
+    orders: number;
+    payments: number;
+    partners: number;
+    sessions: number;
+    issues: number;
+    products: number;
+    categories: number;
+    brands: number;
+    admins: number;
+  }> {
+    if (pool) {
+      try {
+        const [cUsers, cOrders, cPayments, cPartners, cSessions, cIssues, cProducts, cCategories, cBrands, cAdmins] = await Promise.all([
+          pool.query('SELECT COUNT(*) FROM users').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM orders').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM payment_transactions').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM partners').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM sessions').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM "inventoryIssues"').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM products').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM categories').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM brands').catch(() => ({ rows: [{ count: 0 }] })),
+          pool.query('SELECT COUNT(*) FROM admin').catch(() => ({ rows: [{ count: 0 }] })),
+        ]);
+        return {
+          customers: parseInt((cUsers.rows[0] as any)?.count || '0', 10),
+          orders: parseInt((cOrders.rows[0] as any)?.count || '0', 10),
+          payments: parseInt((cPayments.rows[0] as any)?.count || '0', 10),
+          partners: parseInt((cPartners.rows[0] as any)?.count || '0', 10),
+          sessions: parseInt((cSessions.rows[0] as any)?.count || '0', 10),
+          issues: parseInt((cIssues.rows[0] as any)?.count || '0', 10),
+          products: parseInt((cProducts.rows[0] as any)?.count || '0', 10),
+          categories: parseInt((cCategories.rows[0] as any)?.count || '0', 10),
+          brands: parseInt((cBrands.rows[0] as any)?.count || '0', 10),
+          admins: parseInt((cAdmins.rows[0] as any)?.count || '0', 10) || (inMemoryData['admin'] || []).length || 1,
+        };
+      } catch (err) {
+        console.warn('PostgreSQL entity counts warning:', err);
+      }
+    }
+
+    return {
+      customers: (inMemoryData['users'] || []).length,
+      orders: (inMemoryData['orders'] || []).length,
+      payments: (inMemoryData['payment_transactions'] || []).length,
+      partners: (inMemoryData['partners'] || []).length,
+      sessions: (inMemoryData['sessions'] || []).length,
+      issues: (inMemoryData['inventoryIssues'] || []).length,
+      products: (inMemoryData['products'] || []).length,
+      categories: (inMemoryData['categories'] || []).length,
+      brands: (inMemoryData['brands'] || []).length,
+      admins: (inMemoryData['admin'] || []).length || 1,
+    };
+  },
+
+  /**
+   * Dedicated Server-Side Atomic Database Reset & Data Management Execution
+   */
+  async executeDatabaseReset(
+    action: 'CUSTOMERS' | 'ORDERS' | 'PAYMENTS' | 'DELIVERY_PARTNERS' | 'SESSIONS_TEST_DATA' | 'CLEAR_TRANSACTIONAL' | 'FULL_RESET',
+    adminEmail: string
+  ): Promise<{
+    success: boolean;
+    action: string;
+    affected: Record<string, number>;
+    preserved: Record<string, number | boolean>;
+    error?: string;
+  }> {
+    const affected: Record<string, number> = {};
+    const normalizedAction = String(action || '').toUpperCase();
+
+    if (pool) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        if (normalizedAction === 'CUSTOMERS') {
+          const uRes = await client.query('SELECT COUNT(*) FROM users');
+          affected.customers = parseInt(uRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM users');
+
+          const sRes = await client.query("SELECT COUNT(*) FROM sessions WHERE role = 'customer'");
+          affected.customerSessions = parseInt(sRes.rows[0]?.count || '0', 10);
+          await client.query("DELETE FROM sessions WHERE role = 'customer'");
+        } else if (normalizedAction === 'ORDERS') {
+          const oRes = await client.query('SELECT COUNT(*) FROM orders');
+          affected.orders = parseInt(oRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM orders');
+
+          const iRes = await client.query('SELECT COUNT(*) FROM "inventoryIssues"');
+          affected.inventoryIssues = parseInt(iRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM "inventoryIssues"');
+        } else if (normalizedAction === 'PAYMENTS') {
+          const pRes = await client.query('SELECT COUNT(*) FROM payment_transactions');
+          affected.payments = parseInt(pRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM payment_transactions');
+
+          await client.query(`
+            UPDATE orders 
+            SET "paymentStatus" = 'NOT_STARTED', 
+                utr = NULL, 
+                "proofImageUrl" = NULL, 
+                "paymentSubmittedAt" = NULL, 
+                "paymentVerifiedAt" = NULL, 
+                "paymentRejectedAt" = NULL, 
+                "rejectionReason" = NULL
+          `);
+        } else if (normalizedAction === 'DELIVERY_PARTNERS') {
+          const dpRes = await client.query('SELECT COUNT(*) FROM partners');
+          affected.deliveryPartners = parseInt(dpRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM partners');
+
+          const sRes = await client.query("SELECT COUNT(*) FROM sessions WHERE role = 'delivery_partner'");
+          affected.partnerSessions = parseInt(sRes.rows[0]?.count || '0', 10);
+          await client.query("DELETE FROM sessions WHERE role = 'delivery_partner'");
+
+          await client.query('DELETE FROM delivery_photos').catch(() => {});
+          await client.query(`
+            UPDATE orders 
+            SET "assignedPartnerId" = NULL, 
+                "assignedPartnerName" = NULL, 
+                "assignedAt" = NULL
+          `);
+        } else if (normalizedAction === 'SESSIONS_TEST_DATA') {
+          const sRes = await client.query("SELECT COUNT(*) FROM sessions WHERE role != 'admin'");
+          affected.sessions = parseInt(sRes.rows[0]?.count || '0', 10);
+          await client.query("DELETE FROM sessions WHERE role != 'admin'");
+
+          const iRes = await client.query('SELECT COUNT(*) FROM "inventoryIssues"');
+          affected.inventoryIssues = parseInt(iRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM "inventoryIssues"');
+
+          await client.query('DELETE FROM delivery_photos').catch(() => {});
+          await client.query('DELETE FROM wellness_access_requests').catch(() => {});
+          await client.query('DELETE FROM wellness_terms_acceptances').catch(() => {});
+        } else if (normalizedAction === 'CLEAR_TRANSACTIONAL' || normalizedAction === 'FULL_RESET') {
+          const oRes = await client.query('SELECT COUNT(*) FROM orders');
+          affected.orders = parseInt(oRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM orders');
+
+          const pRes = await client.query('SELECT COUNT(*) FROM payment_transactions');
+          affected.payments = parseInt(pRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM payment_transactions');
+
+          const uRes = await client.query('SELECT COUNT(*) FROM users');
+          affected.customers = parseInt(uRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM users');
+
+          const iRes = await client.query('SELECT COUNT(*) FROM "inventoryIssues"');
+          affected.inventoryIssues = parseInt(iRes.rows[0]?.count || '0', 10);
+          await client.query('DELETE FROM "inventoryIssues"');
+
+          const sRes = await client.query("SELECT COUNT(*) FROM sessions WHERE role NOT IN ('admin', 'delivery_partner')");
+          affected.sessions = parseInt(sRes.rows[0]?.count || '0', 10);
+          await client.query("DELETE FROM sessions WHERE role NOT IN ('admin', 'delivery_partner')");
+
+          await client.query('DELETE FROM delivery_photos').catch(() => {});
+          await client.query('DELETE FROM wellness_access_requests').catch(() => {});
+          await client.query('DELETE FROM wellness_terms_acceptances').catch(() => {});
+        }
+
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Database transaction rollback during reset:', err);
+        return {
+          success: false,
+          action: normalizedAction,
+          affected: {},
+          preserved: {},
+          error: err instanceof Error ? err.message : 'Database transaction failed during reset'
+        };
+      } finally {
+        client.release();
+      }
+    }
+
+    // Synchronize In-Memory Tables
+    if (normalizedAction === 'CUSTOMERS') {
+      affected.customers = (inMemoryData['users'] || []).length;
+      inMemoryData['users'] = [];
+      inMemoryData['sessions'] = (inMemoryData['sessions'] || []).filter(s => s.role !== 'customer');
+    } else if (normalizedAction === 'ORDERS') {
+      affected.orders = (inMemoryData['orders'] || []).length;
+      inMemoryData['orders'] = [];
+      inMemoryData['inventoryIssues'] = [];
+    } else if (normalizedAction === 'PAYMENTS') {
+      affected.payments = (inMemoryData['payment_transactions'] || []).length;
+      inMemoryData['payment_transactions'] = [];
+      const ords = inMemoryData['orders'] || [];
+      for (const o of ords) {
+        o.paymentStatus = 'NOT_STARTED';
+        o.utr = undefined;
+        o.proofImageUrl = undefined;
+        o.paymentSubmittedAt = undefined;
+        o.paymentVerifiedAt = undefined;
+        o.paymentRejectedAt = undefined;
+        o.rejectionReason = undefined;
+      }
+    } else if (normalizedAction === 'DELIVERY_PARTNERS') {
+      affected.deliveryPartners = (inMemoryData['partners'] || []).length;
+      inMemoryData['partners'] = [];
+      inMemoryData['sessions'] = (inMemoryData['sessions'] || []).filter(s => s.role !== 'delivery_partner');
+      const ords = inMemoryData['orders'] || [];
+      for (const o of ords) {
+        o.assignedPartnerId = undefined;
+        o.assignedPartnerName = undefined;
+        o.assignedAt = undefined;
+      }
+    } else if (normalizedAction === 'SESSIONS_TEST_DATA') {
+      affected.sessions = (inMemoryData['sessions'] || []).filter(s => s.role !== 'admin').length;
+      inMemoryData['sessions'] = (inMemoryData['sessions'] || []).filter(s => s.role === 'admin');
+      inMemoryData['inventoryIssues'] = [];
+    } else if (normalizedAction === 'CLEAR_TRANSACTIONAL' || normalizedAction === 'FULL_RESET') {
+      affected.orders = (inMemoryData['orders'] || []).length;
+      affected.payments = (inMemoryData['payment_transactions'] || []).length;
+      affected.customers = (inMemoryData['users'] || []).length;
+      inMemoryData['orders'] = [];
+      inMemoryData['payment_transactions'] = [];
+      inMemoryData['users'] = [];
+      inMemoryData['inventoryIssues'] = [];
+      inMemoryData['sessions'] = (inMemoryData['sessions'] || []).filter(s => s.role === 'admin' || s.role === 'delivery_partner');
+    }
+
+    // Preserved counts
+    const preserved = {
+      adminAccounts: (inMemoryData['admin'] || []).length || 1,
+      products: (inMemoryData['products'] || []).length,
+      categories: (inMemoryData['categories'] || []).length,
+      brands: (inMemoryData['brands'] || []).length,
+      deliveryPartners: (inMemoryData['partners'] || []).length,
+      systemSettings: true,
+      paymentConfig: true
+    };
+
+    this.logActivity(
+      adminEmail || 'Super Admin',
+      `DATA_MANAGEMENT_${normalizedAction}`,
+      'Database Reset Executed',
+      JSON.stringify(affected),
+      'Records purged cleanly'
+    );
+
+    return {
+      success: true,
+      action: normalizedAction,
+      affected,
+      preserved
+    };
+  },
+
   async seedDatabase(): Promise<{ success: boolean; message?: string; error?: string }> {
     if (!pool) {
       return { success: false, error: 'PostgreSQL connection pool is not configured' };
