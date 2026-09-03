@@ -48,13 +48,6 @@ export interface PartnerRecord {
 
 
 
-// PostgreSQL pool connection caching for Serverless envs
-const rawConnectionString = (
-  process.env.POSTGRES_URL ||
-  process.env.DATABASE_URL ||
-  ''
-).trim();
-
 // Clean connection string using URL parser to preserve query params while removing sslmode
 function getSanitizedConnectionString(raw: string): string {
   if (!raw) return '';
@@ -68,42 +61,59 @@ function getSanitizedConnectionString(raw: string): string {
   }
 }
 
-const connectionString = getSanitizedConnectionString(rawConnectionString);
-
 let pool: Pool | null = null;
 let dbInitError = '';
 
-if (rawConnectionString) {
+export function getPool(): Pool | null {
+  const globalWithPg = global as typeof globalThis & {
+    _pgPool?: Pool;
+  };
+  if (globalWithPg._pgPool) {
+    pool = globalWithPg._pgPool;
+    return pool;
+  }
+
+  const rawConnectionString = (
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.SUPABASE_DB_URL ||
+    process.env.POSTGRESQL_URL ||
+    ''
+  ).trim();
+
+  if (!rawConnectionString) {
+    return null;
+  }
+
   try {
     const isLocal = rawConnectionString.includes('localhost') || rawConnectionString.includes('127.0.0.1');
-
-    // Ensure Node.js TLS allows cloud provider private/self-signed CA certificate chains
     if (!isLocal && typeof process !== 'undefined') {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
 
-    const globalWithPg = global as typeof globalThis & {
-      _pgPool?: Pool;
-    };
-    if (!globalWithPg._pgPool) {
-      globalWithPg._pgPool = new Pool({
-        connectionString,
-        connectionTimeoutMillis: 10000,
-        idleTimeoutMillis: 10000,
-        max: 20,
-        ssl: isLocal ? false : {
-          rejectUnauthorized: false
-        }
-      });
-    }
+    const connectionString = getSanitizedConnectionString(rawConnectionString);
+    globalWithPg._pgPool = new Pool({
+      connectionString,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 10000,
+      max: 20,
+      ssl: isLocal ? false : {
+        rejectUnauthorized: false
+      }
+    });
     pool = globalWithPg._pgPool;
+    return pool;
   } catch (err) {
     console.error('Failed to initialize PostgreSQL pool:', err);
     dbInitError = err instanceof Error ? err.message : String(err);
+    return null;
   }
-} else {
-  dbInitError = 'PostgreSQL connection URL (POSTGRES_URL/DATABASE_URL) is missing';
 }
+
+// Initial pool check
+getPool();
 
 const inMemoryData: Record<string, Record<string, unknown>[]> = {
   products: [...productsJson],
@@ -756,11 +766,12 @@ export const db = {
 
     const cleanId = rawId.replace(/^#+/, '').trim();
     const hashId = '#' + cleanId;
+    const activePool = getPool();
 
-    if (pool) {
+    if (activePool) {
       try {
-        const res = await pool.query(
-          'SELECT * FROM orders WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM(id)) = LOWER(TRIM($3)) LIMIT 1',
+        const res = await activePool.query(
+          'SELECT * FROM "orders" WHERE LOWER(TRIM("id")) = LOWER(TRIM($1)) OR LOWER(TRIM("id")) = LOWER(TRIM($2)) OR LOWER(TRIM("id")) = LOWER(TRIM($3)) LIMIT 1',
           [cleanId, rawId, hashId]
         );
         if (res.rows.length > 0) {
@@ -779,8 +790,8 @@ export const db = {
         // Secondary fallback for IDs with numeric suffix matching
         const rawNumeric = cleanId.replace(/\D/g, '');
         if (rawNumeric.length >= 4) {
-          const fallbackRes = await pool.query(
-            `SELECT * FROM orders WHERE id LIKE '%' || $1 || '%' LIMIT 1`,
+          const fallbackRes = await activePool.query(
+            `SELECT * FROM "orders" WHERE "id" LIKE '%' || $1 || '%' LIMIT 1`,
             [rawNumeric]
           );
           if (fallbackRes.rows.length > 0) {
@@ -825,7 +836,8 @@ export const db = {
     }
     inMemoryData['orders'] = list;
 
-    if (!pool) {
+    const activePool = getPool();
+    if (!activePool) {
       return merged;
     }
 
@@ -852,8 +864,8 @@ export const db = {
       if (setClauses.length > 0) {
         values.push(cleanId);
         values.push(rawId);
-        const queryText = `UPDATE orders SET ${setClauses.join(', ')} WHERE LOWER(TRIM(id)) = LOWER(TRIM($${values.length - 1})) OR LOWER(TRIM(id)) = LOWER(TRIM($${values.length})) RETURNING *`;
-        const res = await pool.query(queryText, values);
+        const queryText = `UPDATE "orders" SET ${setClauses.join(', ')} WHERE LOWER(TRIM("id")) = LOWER(TRIM($${values.length - 1})) OR LOWER(TRIM("id")) = LOWER(TRIM($${values.length})) RETURNING *`;
+        const res = await activePool.query(queryText, values);
         if (res.rows.length > 0) {
           const persisted = normalizeOrderRecord(res.rows[0]);
           if (idx >= 0) list[idx] = persisted;
@@ -881,11 +893,11 @@ export const db = {
         updateSetClauses.push(`"${canonicalCol}" = EXCLUDED."${canonicalCol}"`);
       }
 
-      const upsertQuery = `INSERT INTO orders (${cols.join(', ')}) 
+      const upsertQuery = `INSERT INTO "orders" (${cols.join(', ')}) 
                            VALUES (${valPlaceholders.join(', ')}) 
-                           ON CONFLICT (id) DO UPDATE SET ${updateSetClauses.join(', ')} 
+                           ON CONFLICT ("id") DO UPDATE SET ${updateSetClauses.join(', ')} 
                            RETURNING *`;
-      const upsertRes = await pool.query(upsertQuery, insertVals);
+      const upsertRes = await activePool.query(upsertQuery, insertVals);
       if (upsertRes.rows.length > 0) {
         const persisted = normalizeOrderRecord(upsertRes.rows[0]);
         if (idx >= 0) list[idx] = persisted;

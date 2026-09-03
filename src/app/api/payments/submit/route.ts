@@ -64,12 +64,15 @@ export async function POST(request: Request) {
     let proofImageUrl = '';
     let fileObj: File | null = null;
 
+    let orderDataRaw = '';
+
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       orderId = String(formData.get('orderId') || '').trim();
       paymentId = String(formData.get('paymentId') || '').trim();
       utr = String(formData.get('utr') || '').trim();
       proofImageUrl = String(formData.get('proofImageUrl') || '').trim();
+      orderDataRaw = String(formData.get('orderData') || '').trim();
       const file = formData.get('file');
       if (file && typeof file !== 'string' && typeof (file as any).arrayBuffer === 'function') {
         fileObj = file as File;
@@ -80,6 +83,7 @@ export async function POST(request: Request) {
       paymentId = String(body.paymentId || '').trim();
       utr = String(body.utr || '').trim();
       proofImageUrl = String(body.proofImageUrl || '').trim();
+      orderDataRaw = body.orderData ? (typeof body.orderData === 'string' ? body.orderData : JSON.stringify(body.orderData)) : '';
     }
 
     if (!orderId) {
@@ -117,8 +121,8 @@ export async function POST(request: Request) {
     }
     cleanOrderId = cleanOrderId.replace(/^#+/, '').trim();
 
-    // 1. Fetch order reliably with case-insensitive search
-    let order = await db.getOrderById(cleanOrderId);
+    // 1. Fetch order reliably with multi-format and database fallback search
+    let order: Record<string, any> | null = await db.getOrderById(cleanOrderId);
     if (!order) {
       order = await db.getOrderById(orderId);
     }
@@ -129,13 +133,47 @@ export async function POST(request: Request) {
       order = await db.getOrderById('FT' + cleanOrderId);
     }
 
+    const session = await getSession(request);
+
+    // Fallback: If not found via direct queries, scan database orders table
+    if (!order) {
+      const allOrders = await db.readTable<any>('orders').catch(() => []);
+      const match = allOrders.find((o: any) => {
+        const oid = String(o.id || '').replace(/^#+/, '').trim().toLowerCase();
+        const rawOid = String(o.id || '').trim().toLowerCase();
+        const targetClean = cleanOrderId.toLowerCase();
+        if (oid === targetClean || rawOid === targetClean) return true;
+        const numA = targetClean.replace(/\D/g, '');
+        const numB = oid.replace(/\D/g, '');
+        if (numA && numB && numA.length >= 4 && (numA === numB || numB.includes(numA))) return true;
+        return false;
+      });
+      if (match) {
+        order = match;
+      }
+    }
+
+    // Fallback: If client passed validated order data in session, persist to ensure multi-node synchronization
+    if (!order && orderDataRaw) {
+      try {
+        const parsed = JSON.parse(orderDataRaw);
+        if (parsed && typeof parsed === 'object' && parsed.id) {
+          const parsedCleanId = String(parsed.id).replace(/^#+/, '').trim();
+          if (parsedCleanId.toLowerCase() === cleanOrderId.toLowerCase()) {
+            order = await db.updateOrder(cleanOrderId, parsed);
+          }
+        }
+      } catch (e) {
+        console.warn('[PAYMENT SUBMIT] Failed to parse client orderData fallback:', e);
+      }
+    }
+
     if (!order) {
       console.warn(`[PAYMENT SUBMIT] Order not found for ID: "${cleanOrderId}" (raw: "${orderId}")`);
       return NextResponse.json({ error: 'Order not found in records.' }, { status: 404 });
     }
 
     // 2. Authorization check if session is active
-    const session = await getSession(request);
     if (session) {
       if (session.role !== 'customer' && session.role !== 'admin') {
         return NextResponse.json({ error: 'Unauthorized session role.' }, { status: 403 });

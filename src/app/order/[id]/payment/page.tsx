@@ -260,6 +260,9 @@ export default function OrderPaymentPage() {
       formData.append('amount', String(order?.total || 0));
       formData.append('utr', trimmedUtr);
       formData.append('file', proofFile);
+      if (order) {
+        formData.append('orderData', JSON.stringify(order));
+      }
 
       const submitRes = await fetch('/api/payments/submit', {
         method: 'POST',
