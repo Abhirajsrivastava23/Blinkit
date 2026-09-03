@@ -15,49 +15,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Valid phone number or email address is required.' }, { status: 400 });
     }
 
-    const userId = rawPhone || rawEmail;
-    const email = rawEmail || `customer.${rawPhone.slice(-6)}@fatafat.com`;
-    const phone = rawPhone || '9876543210';
-    const name = rawName || (rawEmail ? rawEmail.split('@')[0] : `Customer ${phone.slice(-4)}`);
+    const cleanPhone = rawPhone || '';
+    const cleanEmail = rawEmail || (cleanPhone ? `customer.${cleanPhone.slice(-6)}@fatafat.com` : '');
+    const defaultName = rawName || (rawEmail ? rawEmail.split('@')[0] : `Customer ${cleanPhone.slice(-4)}`);
 
-    // Ensure user record exists in database atomically
-    const now = new Date().toISOString();
-    try {
-      const users = await db.readTable<any>('users') || [];
-      const existingIdx = users.findIndex(
-        (u: any) => (u.userId && u.userId.toLowerCase() === userId.toLowerCase()) || 
-                    (u.email && u.email.toLowerCase() === email.toLowerCase())
-      );
-      if (existingIdx !== -1) {
-        users[existingIdx] = { ...users[existingIdx], name, email, phone, lastLoginAt: now };
-      } else {
-        users.push({
-          userId,
-          name,
-          email,
-          phone,
-          createdAt: now,
-          lastLoginAt: now,
-          wellnessAccessStatus: 'NOT_REQUESTED',
-          role: 'customer'
-        });
-      }
-      await db.writeTable('users', users);
-    } catch (memErr) {
-      console.warn('Memory user persistence warning:', memErr);
-    }
+    // Check existing customer to avoid duplicates and preserve order relationships
+    const existingUser = await db.getUserById(cleanPhone || cleanEmail);
+    const userId = existingUser?.userId ? String(existingUser.userId) : (cleanPhone || cleanEmail);
+    const email = cleanEmail || String(existingUser?.email || '');
+    const phone = cleanPhone || String(existingUser?.phone || '');
+    const name = rawName || String(existingUser?.name || defaultName);
 
-    try {
-      await db.query(
-        `INSERT INTO users ("userId", name, email, phone, "createdAt", "lastLoginAt", "wellnessAccessStatus")
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT ("userId") DO UPDATE
-         SET name = $2, email = $3, phone = $4, "lastLoginAt" = $6`,
-        [userId, name, email, phone, now, now, 'NOT_REQUESTED']
-      );
-    } catch (dbErr) {
-      console.warn('Customer user persistence warning:', dbErr);
-    }
+    const savedUser = await db.upsertUser({
+      ...existingUser,
+      userId,
+      name,
+      email,
+      phone,
+      role: 'customer'
+    });
 
     // Create authentic customer session
     const session = await createSession(userId, email, 'customer');

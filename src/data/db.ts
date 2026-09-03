@@ -995,6 +995,147 @@ export const db = {
   },
 
   /**
+   * User / Customer Management Methods
+   */
+  async getUsers(search?: string): Promise<Record<string, unknown>[]> {
+    let rawList: Record<string, unknown>[] = [];
+    if (!pool) {
+      rawList = inMemoryData['users'] || [];
+    } else {
+      try {
+        const res = await pool.query('SELECT * FROM users ORDER BY "createdAt" DESC');
+        rawList = res.rows;
+      } catch (err) {
+        console.error('Error fetching users from DB:', err);
+        rawList = inMemoryData['users'] || [];
+      }
+    }
+    let normalized = rawList.map(normalizeUserRecord);
+    if (search) {
+      const q = String(search).toLowerCase().trim();
+      normalized = normalized.filter((u: any) => {
+        const name = String(u.name || '').toLowerCase();
+        const email = String(u.email || '').toLowerCase();
+        const phone = String(u.phone || '').toLowerCase();
+        const userId = String(u.userId || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || phone.includes(q) || userId.includes(q);
+      });
+    }
+    return normalized;
+  },
+
+  async getUserById(userIdOrEmailOrPhone: string): Promise<Record<string, unknown> | null> {
+    const clean = String(userIdOrEmailOrPhone || '').trim().toLowerCase();
+    if (!clean) return null;
+    if (!pool) {
+      const list = inMemoryData['users'] || [];
+      const found = list.find((u: any) => 
+        String(u.userId || '').toLowerCase() === clean ||
+        String(u.email || '').toLowerCase() === clean ||
+        String(u.phone || '').replace(/\D/g, '') === clean.replace(/\D/g, '')
+      );
+      return found ? normalizeUserRecord(found) : null;
+    }
+    try {
+      const res = await pool.query(
+        'SELECT * FROM users WHERE LOWER("userId") = $1 OR LOWER(email) = $1 OR phone = $2 LIMIT 1',
+        [clean, clean.replace(/\D/g, '')]
+      );
+      if (res.rows.length === 0) return null;
+      return normalizeUserRecord(res.rows[0]);
+    } catch (err) {
+      console.error('Error fetching user by identifier from DB:', err);
+      const list = inMemoryData['users'] || [];
+      const found = list.find((u: any) => 
+        String(u.userId || '').toLowerCase() === clean ||
+        String(u.email || '').toLowerCase() === clean ||
+        String(u.phone || '').replace(/\D/g, '') === clean.replace(/\D/g, '')
+      );
+      return found ? normalizeUserRecord(found) : null;
+    }
+  },
+
+  async upsertUser(userData: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const normalized = normalizeUserRecord(userData);
+    const now = new Date().toISOString();
+    if (!normalized.userId) {
+      normalized.userId = normalized.phone || normalized.email ? String(normalized.phone || normalized.email) : `u-${Date.now()}`;
+    }
+    if (!normalized.createdAt) {
+      normalized.createdAt = now;
+    }
+    normalized.lastLoginAt = now;
+    normalized.role = normalized.role || 'customer';
+
+    // 1. Update in-memory
+    const list = inMemoryData['users'] || [];
+    const idx = list.findIndex((u: any) => 
+      String(u.userId || '').toLowerCase() === String(normalized.userId).toLowerCase() ||
+      (normalized.email && String(u.email || '').toLowerCase() === String(normalized.email).toLowerCase()) ||
+      (normalized.phone && String(u.phone || '').replace(/\D/g, '') === String(normalized.phone).replace(/\D/g, ''))
+    );
+
+    if (idx >= 0) {
+      list[idx] = {
+        ...list[idx],
+        ...normalized,
+        createdAt: list[idx].createdAt || normalized.createdAt
+      };
+    } else {
+      list.push(normalized);
+    }
+    inMemoryData['users'] = list;
+
+    // 2. Update PostgreSQL if pool available
+    if (pool) {
+      try {
+        const query = `
+          INSERT INTO users (
+            "userId", "googleProviderId", name, email, "profileImage",
+            "createdAt", "lastLoginAt", "wellnessAccessStatus", "wellnessRequestId",
+            "wellnessApprovedAt", "wellnessApprovedBy", phone, dob, gender, addresses
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          ON CONFLICT ("userId") DO UPDATE SET
+            name = COALESCE(EXCLUDED.name, users.name),
+            email = COALESCE(EXCLUDED.email, users.email),
+            phone = COALESCE(EXCLUDED.phone, users.phone),
+            "profileImage" = COALESCE(EXCLUDED."profileImage", users."profileImage"),
+            "lastLoginAt" = EXCLUDED."lastLoginAt",
+            dob = COALESCE(EXCLUDED.dob, users.dob),
+            gender = COALESCE(EXCLUDED.gender, users.gender),
+            addresses = COALESCE(EXCLUDED.addresses, users.addresses)
+          RETURNING *;
+        `;
+        const params = [
+          normalized.userId,
+          normalized.googleProviderId || null,
+          normalized.name || 'Customer',
+          normalized.email || null,
+          normalized.profileImage || null,
+          normalized.createdAt,
+          normalized.lastLoginAt,
+          normalized.wellnessAccessStatus || 'NOT_REQUESTED',
+          normalized.wellnessRequestId || null,
+          normalized.wellnessApprovedAt || null,
+          normalized.wellnessApprovedBy || null,
+          normalized.phone || null,
+          normalized.dob || null,
+          normalized.gender || null,
+          JSON.stringify(normalized.addresses || [])
+        ];
+        const res = await pool.query(query, params);
+        if (res.rows.length > 0) {
+          return normalizeUserRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error upserting user in DB:', err);
+      }
+    }
+
+    return normalized;
+  },
+
+  /**
    * Coupon Management & Validation Methods
    */
   async getCoupons(includeInactive = false): Promise<Record<string, unknown>[]> {
