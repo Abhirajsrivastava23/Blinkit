@@ -265,7 +265,7 @@ export async function POST(request: Request) {
         }]
       };
 
-      const savedOrder = await db.updateOrder(orderId, newOrder);
+      const savedOrder = await db.createOrder(newOrder);
 
       // Record coupon usage if coupon applied
       if (appliedCoupon && discount > 0) {
@@ -299,10 +299,10 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        order: newOrder,
-        orderId: newOrder.id,
+        order: savedOrder || newOrder,
+        orderId: (savedOrder && savedOrder.id) ? savedOrder.id : newOrder.id,
         paymentId,
-        total: newOrder.total
+        total: (savedOrder && savedOrder.total !== undefined) ? savedOrder.total : newOrder.total
       });
   } catch (err) {
     console.error('Error saving order:', err);

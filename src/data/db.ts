@@ -116,27 +116,41 @@ export function getPool(): Pool | null {
 // Initial pool check
 getPool();
 
-const inMemoryData: Record<string, Record<string, unknown>[]> = {
-  products: [...productsJson],
-  categories: [...categoriesJson],
-  brands: [...brandsJson],
-  inventoryIssues: [...inventoryIssuesJson],
-  auditLogs: [...auditLogsJson],
-  orders: [...ordersJson],
-  sessions: [...sessionsJson],
-  partners: [...partnersJson],
-  users: [...usersJson],
-  admin: [...adminJson],
-  payment_transactions: [],
-  product_image_history: [],
-  coupons: [],
-  coupon_usages: [],
+const globalForDb = globalThis as unknown as {
+  _inMemoryData?: Record<string, Record<string, unknown>[]>;
+  _inMemoryConfig?: Record<string, unknown>;
+  _pgPool?: Pool;
 };
 
-const inMemoryConfig: Record<string, unknown> = {
-  wellness_settings: { published: false },
-  homepage: homepageJson
-};
+if (!globalForDb._inMemoryData) {
+  globalForDb._inMemoryData = {
+    products: [...productsJson],
+    categories: [...categoriesJson],
+    brands: [...brandsJson],
+    inventoryIssues: [...inventoryIssuesJson],
+    auditLogs: [...auditLogsJson],
+    orders: [...ordersJson],
+    sessions: [...sessionsJson],
+    partners: [...partnersJson],
+    users: [...usersJson],
+    admin: [...adminJson],
+    payment_transactions: [],
+    product_image_history: [],
+    coupons: [],
+    coupon_usages: [],
+  };
+}
+
+const inMemoryData = globalForDb._inMemoryData;
+
+if (!globalForDb._inMemoryConfig) {
+  globalForDb._inMemoryConfig = {
+    wellness_settings: { published: false },
+    homepage: homepageJson
+  };
+}
+
+const inMemoryConfig = globalForDb._inMemoryConfig;
 
 const ALLOWED_COLUMNS: Record<string, string[]> = {
   categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
@@ -885,6 +899,81 @@ export const db = {
     return found ? normalizeOrderRecord(found) : null;
   },
 
+  async createOrder(orderData: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const rawId = String(orderData.id || '').trim() || `FT${Math.floor(100000 + Math.random() * 900000)}`;
+    const cleanId = rawId.replace(/^#+/, '').trim();
+    const now = new Date().toISOString();
+
+    const normalized = normalizeOrderRecord({
+      ...orderData,
+      id: cleanId,
+      createdAt: orderData.createdAt || now,
+      updatedAt: orderData.updatedAt || now
+    });
+
+    // Save in shared memory
+    const list = inMemoryData['orders'] || [];
+    const idx = list.findIndex(o => {
+      const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
+      return oid === cleanId.toLowerCase();
+    });
+    if (idx >= 0) {
+      list[idx] = normalized;
+    } else {
+      list.unshift(normalized);
+    }
+    inMemoryData['orders'] = list;
+
+    // Save in PostgreSQL
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const allowedOrderCols = ALLOWED_COLUMNS['orders'] || [];
+        const allowedLowerMap = new Map<string, string>();
+        for (const col of allowedOrderCols) {
+          allowedLowerMap.set(col.toLowerCase(), col);
+        }
+
+        const cols: string[] = ['"id"'];
+        const valPlaceholders: string[] = ['$1'];
+        const insertVals: unknown[] = [cleanId];
+        const updateSetClauses: string[] = [];
+        const processedCols = new Set<string>();
+
+        for (const [key, val] of Object.entries(normalized)) {
+          if (key.toLowerCase() === 'id') continue;
+          const canonicalCol = allowedLowerMap.get(key.toLowerCase());
+          if (!canonicalCol) continue;
+          if (processedCols.has(canonicalCol)) continue;
+          processedCols.add(canonicalCol);
+
+          cols.push(`"${canonicalCol}"`);
+          const jsonVal = val && typeof val === 'object' ? JSON.stringify(val) : val;
+          insertVals.push(jsonVal);
+          valPlaceholders.push(`$${insertVals.length}`);
+          updateSetClauses.push(`"${canonicalCol}" = EXCLUDED."${canonicalCol}"`);
+        }
+
+        const queryText = `INSERT INTO "orders" (${cols.join(', ')}) 
+                           VALUES (${valPlaceholders.join(', ')}) 
+                           ON CONFLICT ("id") DO UPDATE SET ${updateSetClauses.join(', ')} 
+                           RETURNING *`;
+        const res = await activePool.query(queryText, insertVals);
+        if (res.rows.length > 0) {
+          const persisted = normalizeOrderRecord(res.rows[0]);
+          if (idx >= 0) list[idx] = persisted;
+          else list[0] = persisted;
+          inMemoryData['orders'] = list;
+          return persisted;
+        }
+      } catch (err) {
+        console.error(`[DATABASE ERROR] createOrder failed for ID "${cleanId}":`, err);
+      }
+    }
+
+    return normalized;
+  },
+
   async updateOrder(orderId: string, updates: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     const rawId = String(orderId || '').trim();
     if (!rawId) return null;
@@ -923,11 +1012,14 @@ export const db = {
       // 1. Attempt UPDATE with RETURNING *
       const setClauses: string[] = [];
       const values: unknown[] = [];
+      const processedUpdateCols = new Set<string>();
 
       for (const [key, val] of Object.entries(cleanUpdates)) {
         if (key.toLowerCase() === 'id') continue;
         const canonicalCol = allowedLowerMap.get(key.toLowerCase());
         if (!canonicalCol) continue;
+        if (processedUpdateCols.has(canonicalCol)) continue;
+        processedUpdateCols.add(canonicalCol);
 
         values.push(val && typeof val === 'object' ? JSON.stringify(val) : val);
         setClauses.push(`"${canonicalCol}" = $${values.length}`);
@@ -952,11 +1044,14 @@ export const db = {
       const valPlaceholders: string[] = ['$1'];
       const insertVals: unknown[] = [cleanId];
       const updateSetClauses: string[] = [];
+      const processedUpsertCols = new Set<string>();
 
       for (const [key, val] of Object.entries(merged)) {
         if (key.toLowerCase() === 'id') continue;
         const canonicalCol = allowedLowerMap.get(key.toLowerCase());
         if (!canonicalCol) continue;
+        if (processedUpsertCols.has(canonicalCol)) continue;
+        processedUpsertCols.add(canonicalCol);
 
         cols.push(`"${canonicalCol}"`);
         const jsonVal = val && typeof val === 'object' ? JSON.stringify(val) : val;

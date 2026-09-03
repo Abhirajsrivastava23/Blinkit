@@ -165,12 +165,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return serverOrder;
             });
 
-            // Preserve freshly created local orders placed in last 5 minutes
+            // Preserve freshly created local orders placed in last 24 hours
             for (const prevOrder of prev) {
               const key = String(prevOrder.id).toLowerCase();
               if (!serverIds.has(key)) {
                 const ageMs = Date.now() - new Date(prevOrder.createdAt || 0).getTime();
-                if (ageMs < 5 * 60 * 1000) {
+                if (ageMs < 24 * 60 * 60 * 1000) {
                   updated.push(prevOrder);
                 }
               }
