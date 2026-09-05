@@ -111,28 +111,6 @@ export const COMBOS: Combo[] = [
 ];
 
 export const PRODUCTS: Product[] = [
-  // ======================= TEMPORARY TEST PRODUCT =======================
-  {
-    id: 'rzp-test-product-2',
-    name: 'Razorpay ₹2 Test Product',
-    category: 'celebrations',
-    subCategory: 'Test Gateway',
-    price: 2,
-    originalPrice: 2,
-    discount: 0,
-    rating: 5.0,
-    reviewCount: 1,
-    image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=600&auto=format&fit=crop&q=80',
-    deliveryTime: '10-15 mins',
-    egglessAvailable: false,
-    isEgglessDefault: false,
-    inStock: false,
-    description: 'TEMPORARY TEST PRODUCT: Deactivated. No longer available for purchase.',
-    ingredients: ['Test Materials'],
-    allergens: ['None'],
-    storageInstructions: 'Test item only.',
-    occasions: ['Testing', 'Birthday', 'Anniversary', 'Congratulations', 'Thank You', 'Just Because']
-  },
   // ======================= CAKES (20) =======================
   {
     id: 'cake-1',

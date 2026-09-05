@@ -297,10 +297,10 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
     `).catch(() => {});
 
-    // 5. Ensure temporary test product is deactivated in PostgreSQL
+    // 5. Ensure temporary test product is completely removed from PostgreSQL products table
     await p.query(`
-      UPDATE "products" SET "inStock" = false, stock = 0 WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
-      UPDATE products SET instock = false, stock = 0 WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
+      DELETE FROM "products" WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
+      DELETE FROM products WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
     `).catch(() => {});
 
     schemaEnsured = true;
@@ -997,7 +997,7 @@ export const db = {
         res = await activePool.query(`SELECT * FROM "${tableName}"`);
       }
       
-      const parsedList = res.rows.map(row => {
+      let parsedList = res.rows.map(row => {
         let parsed: Record<string, unknown> = {};
         for (const col of Object.keys(row)) {
           const val = row[col];
@@ -1047,6 +1047,7 @@ export const db = {
             } catch {}
           }
         }
+        parsedList = parsedList.filter((p: any) => String(p.id || '').toLowerCase().trim() !== 'rzp-test-product-2');
       }
 
       return parsedList as unknown as T[];
