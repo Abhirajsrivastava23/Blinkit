@@ -381,11 +381,11 @@ export default function Header() {
                 title="Basket Cart"
               >
                 <ShoppingBag className="h-4 w-4 stroke-[2]" />
-                <span className="hidden sm:inline">₹{cartSubtotal}</span>
-                {cartCount > 0 && (
+                <span className="hidden sm:inline" suppressHydrationWarning>{mounted ? `₹${cartSubtotal}` : '₹0'}</span>
+                {mounted && cartCount > 0 && (
                   <span className={`h-4 min-w-4 flex items-center justify-center rounded-full text-[8px] font-black px-1 text-white ${
                     isWellness ? 'bg-wellness-bronze text-zinc-950' : 'bg-brand-coral'
-                  }`}>
+                  }`} suppressHydrationWarning>
                     {cartCount}
                   </span>
                 )}

@@ -297,10 +297,27 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
     `).catch(() => {});
 
-    // 5. Ensure old catalog products are removed from PostgreSQL products table
-    await p.query(`
-      DELETE FROM "products";
-    `).catch(() => {});
+    // Seed prepared products into PostgreSQL if empty
+    const prodCountRes = await p.query('SELECT count(*) FROM "products"').catch(() => null);
+    if (prodCountRes && parseInt(prodCountRes.rows[0]?.count || '0', 10) === 0 && productsJson.length > 0) {
+      for (const pItem of productsJson as any[]) {
+        await p.query(`
+          INSERT INTO "products" (
+            id, name, description, price, "originalPrice", discount, image, gallery,
+            category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
+            ingredients, allergens, "storageInstructions", occasions, variants, "createdAt", "updatedAt"
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+          ) ON CONFLICT (id) DO NOTHING
+        `, [
+          pItem.id, pItem.name, pItem.description || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
+          pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'pending', pItem.subCategory || null,
+          pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
+          JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
+          JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
+        ]).catch(() => {});
+      }
+    }
 
     schemaEnsured = true;
   } catch (err) {

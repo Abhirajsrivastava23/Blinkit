@@ -9,7 +9,7 @@ export interface Review {
 export interface Product {
   id: string;
   name: string;
-  category: 'cakes' | 'bakery' | 'chocolates' | 'flowers' | 'gifts' | 'celebrations' | 'wellness';
+  category: 'cakes' | 'bakery' | 'chocolates' | 'flowers' | 'gifts' | 'celebrations' | 'wellness' | 'pending' | string;
   subCategory?: string;
   price: number;
   originalPrice: number;
