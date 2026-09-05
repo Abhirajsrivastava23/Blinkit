@@ -297,6 +297,12 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
     `).catch(() => {});
 
+    // 5. Ensure temporary test product is deactivated in PostgreSQL
+    await p.query(`
+      UPDATE "products" SET "inStock" = false, stock = 0 WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
+      UPDATE products SET instock = false, stock = 0 WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
+    `).catch(() => {});
+
     schemaEnsured = true;
   } catch (err) {
     console.warn('[DB SCHEMA WARNING] Could not verify schema extensions:', err);

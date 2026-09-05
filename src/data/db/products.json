@@ -13,8 +13,8 @@
     "deliveryTime": "10-15 mins",
     "egglessAvailable": false,
     "isEgglessDefault": false,
-    "inStock": true,
-    "description": "TEMPORARY TEST PRODUCT: Used for verifying live Razorpay Standard Checkout in production. Exact charge: ₹2.00. Keywords: razorpay, test, 2, rs 2, payment gateway.",
+    "inStock": false,
+    "description": "TEMPORARY TEST PRODUCT: Deactivated. No longer available for purchase.",
     "occasions": [
       "Testing",
       "Birthday",

@@ -201,6 +201,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Valid delivery address is required.' }, { status: 400 });
       }
 
+      // Block ordering deactivated test items
+      const hasDeactivatedTestItem = body.items.some((item: any) => {
+        const id = String(item.productId || item.id || '').toLowerCase().trim();
+        return id === 'rzp-test-product-2';
+      });
+      if (hasDeactivatedTestItem) {
+        return NextResponse.json({ error: 'This temporary test product has been deactivated and is no longer available for purchase.' }, { status: 400 });
+      }
+
       // Check if order contains wellness items
       const hasWellnessItem = body.items.some((item: any) => item.category === 'wellness');
       if (hasWellnessItem) {
