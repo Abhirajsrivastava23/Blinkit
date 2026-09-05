@@ -100,17 +100,17 @@ export default function CartPage() {
                   </div>
                 )}
 
-                <div className="bg-white border border-zinc-100 rounded-3xl p-6 shadow-sm divide-y">
+                <div className="bg-white border border-zinc-100 rounded-3xl p-4 sm:p-6 shadow-sm divide-y">
                   {cartItems.map((item) => (
                     <div
                       key={`${item.product.id}-${item.selectedSize || ''}-${item.selectedType || ''}`}
-                      className="py-6 first:pt-0 last:pb-0 flex gap-4"
+                      className="py-4 sm:py-6 first:pt-0 last:pb-0 flex gap-3 sm:gap-4"
                     >
                       <SafeImage
                         src={item.product.image}
                         alt={item.product.name}
                         category={item.product.category}
-                        className="h-20 w-20 object-cover rounded-xl border border-zinc-100 shrink-0"
+                        className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-xl border border-zinc-100 shrink-0"
                       />
                       
                       <div className="flex-1 min-w-0 flex flex-col justify-between">

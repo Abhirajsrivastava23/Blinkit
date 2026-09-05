@@ -170,7 +170,7 @@ export default function CheckoutPage() {
             <div className="lg:col-span-8 space-y-6">
               
               {/* Stepper Header indicator */}
-              <div className="bg-white border border-zinc-100 rounded-2xl p-5 shadow-sm flex justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              <div className="bg-white border border-zinc-100 rounded-2xl p-3 sm:p-5 shadow-sm flex justify-between text-[8px] sm:text-[10px] font-bold uppercase tracking-wider text-zinc-400 gap-1 sm:gap-2">
                 <span className={currentStep >= 1 ? 'text-brand-burgundy font-extrabold' : ''}>1. Address</span>
                 <span className={currentStep >= 2 ? 'text-brand-burgundy font-extrabold' : ''}>2. Schedule</span>
                 <span className={currentStep >= 3 ? 'text-brand-burgundy font-extrabold' : ''}>3. Payment</span>

@@ -89,19 +89,35 @@ export function resolveImageUrl(src?: string | null, category?: string): string 
   }
 
   // Upgrade HTTP to HTTPS for secure production rendering
-  if (trimmed.startsWith('http://')) {
-    return trimmed.replace('http://', 'https://');
+  let resolved = trimmed.startsWith('http://') ? trimmed.replace('http://', 'https://') : trimmed;
+
+  // Optimize Unsplash images for quick commerce mobile bandwidth
+  if (resolved.includes('images.unsplash.com')) {
+    try {
+      const url = new URL(resolved);
+      if (!url.searchParams.has('auto')) url.searchParams.set('auto', 'format');
+      if (!url.searchParams.has('fit')) url.searchParams.set('fit', 'crop');
+      if (!url.searchParams.has('q')) url.searchParams.set('q', '75');
+      // If width is unreasonably large (> 800) or missing, set to 500 for fast mobile rendering
+      const currentWidth = parseInt(url.searchParams.get('w') || '0', 10);
+      if (!currentWidth || currentWidth > 800) {
+        url.searchParams.set('w', '500');
+      }
+      return url.toString();
+    } catch {
+      return resolved;
+    }
   }
 
   // Handle standard absolute HTTPS URLs
-  if (trimmed.startsWith('https://')) {
-    return trimmed;
+  if (resolved.startsWith('https://')) {
+    return resolved;
   }
 
   // If it's a relative filename without leading slash (e.g. "images/cake.jpg")
-  if (!trimmed.includes('://')) {
-    return `/${trimmed}`;
+  if (!resolved.includes('://')) {
+    return `/${resolved}`;
   }
 
-  return trimmed;
+  return resolved;
 }

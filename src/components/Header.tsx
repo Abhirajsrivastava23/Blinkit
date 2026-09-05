@@ -45,12 +45,15 @@ export default function Header() {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   
   // Location States
-  const [selectedLocation, setSelectedLocation] = useState<string>(() => {
-    if (typeof window === 'undefined') {
-      return 'Nawabganj, Unnao';
-    }
-    return localStorage.getItem('fatafat_location') || 'Nawabganj, Unnao';
-  });
+  const [mounted, setMounted] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<string>('Nawabganj, Unnao');
+
+  useEffect(() => {
+    setMounted(true);
+    const stored = localStorage.getItem('fatafat_location');
+    if (stored) setSelectedLocation(stored);
+  }, []);
+
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [locSearchQuery, setLocSearchQuery] = useState('');
   
@@ -190,18 +193,18 @@ export default function Header() {
               {/* Location Selector Trigger Button */}
               <button
                 onClick={() => setIsLocationModalOpen(true)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all ${
+                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all max-w-[125px] xs:max-w-[160px] sm:max-w-none shrink min-w-0 ${
                   isWellness 
-                    ? 'border-zinc-800 hover:border-wellness-bronze text-wellness-bronze bg-wellness-dark'
+                    ? 'border-zinc-800 hover:border-wellness-bronze text-wellness-bronze bg-wellness-dark' 
                     : 'border-zinc-200 hover:border-brand-burgundy/40 text-brand-burgundy bg-white shadow-sm'
                 }`}
               >
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
-                <div className="text-left leading-none max-w-[80px] hidden sm:block">
+                <div className="text-left leading-none max-w-[80px] hidden sm:block min-w-0">
                   <span className="text-[7px] text-zinc-400 block font-bold uppercase">Delivering to</span>
                   <span className="truncate block font-black mt-0.5">{selectedLocation}</span>
                 </div>
-                <span className="sm:hidden font-black">{selectedLocation}</span>
+                <span className="sm:hidden font-black truncate max-w-[70px] xs:max-w-[95px]">{selectedLocation}</span>
                 <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
               </button>
             </div>

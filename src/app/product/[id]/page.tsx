@@ -234,21 +234,21 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Trust Badges */}
-              <div className="grid grid-cols-3 gap-3 pt-1">
-                <div className="p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1">
+                <div className="p-2 sm:p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
                   <Zap className="h-4 w-4 text-brand-gold mx-auto" />
-                  <p className="font-bold text-[11px] text-zinc-800">Fast Express</p>
-                  <p className="text-[10px] text-zinc-400">Within 12 hours</p>
+                  <p className="font-bold text-[10px] sm:text-[11px] text-zinc-800">Fast Express</p>
+                  <p className="text-[9px] sm:text-[10px] text-zinc-400">Within 12 hours</p>
                 </div>
-                <div className="p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
+                <div className="p-2 sm:p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
                   <ShieldCheck className="h-4 w-4 text-green-600 mx-auto" />
-                  <p className="font-bold text-[11px] text-zinc-800">Fresh Guaranteed</p>
-                  <p className="text-[10px] text-zinc-400">100% Quality checked</p>
+                  <p className="font-bold text-[10px] sm:text-[11px] text-zinc-800">Fresh Guaranteed</p>
+                  <p className="text-[9px] sm:text-[10px] text-zinc-400">100% Quality checked</p>
                 </div>
-                <div className="p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
+                <div className="p-2 sm:p-3 bg-white border border-zinc-200/60 rounded-2xl text-center space-y-1 shadow-sm">
                   <Sparkles className="h-4 w-4 text-brand-burgundy mx-auto" />
-                  <p className="font-bold text-[11px] text-zinc-800">Gift Packaging</p>
-                  <p className="text-[10px] text-zinc-400">Celebration ready</p>
+                  <p className="font-bold text-[10px] sm:text-[11px] text-zinc-800">Gift Packaging</p>
+                  <p className="text-[9px] sm:text-[10px] text-zinc-400">Celebration ready</p>
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '../context/AuthContext';
 import { CartProvider } from '../context/CartContext';
@@ -23,6 +23,13 @@ const inter = Inter({
   weight: ['300', '400', '500', '600', '700', '800'],
   variable: '--font-sans',
 });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#6B1D2F',
+};
 
 export const metadata: Metadata = {
   title: 'FATAFAT — Celebrate. Gift. Indulge. Fatafat.',

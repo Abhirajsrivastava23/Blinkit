@@ -98,14 +98,21 @@ export default function OrderTrackingPage() {
 
   useEffect(() => {
     void fetchOrder();
+    if (order?.status === 'Delivered' || order?.status === 'Cancelled') {
+      return;
+    }
     const interval = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      if (order?.status === 'Delivered' || order?.status === 'Cancelled') {
+        window.clearInterval(interval);
+        return;
+      }
       void fetchOrder();
-    }, 2000);
+    }, 2500);
     return () => {
       window.clearInterval(interval);
     };
-  }, [orderId]);
+  }, [orderId, order?.status]);
 
   const handleRegenerateOtp = async () => {
     if (!order) return;

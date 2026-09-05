@@ -53,6 +53,7 @@ export default function SafeImage({ src, alt, className, fallbackSrc, category, 
       onError={handleError}
       onLoad={() => setIsLoaded(true)}
       loading="lazy"
+      decoding="async"
       crossOrigin="anonymous"
       {...props}
     />
