@@ -22,14 +22,15 @@ import {
   ExternalLink,
   Zap
 } from 'lucide-react';
+import Script from 'next/script';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import Logo from '../../../../components/Logo';
 import { useOrders, Order } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
-// Helper to load Razorpay SDK dynamically
-function loadRazorpayScript(): Promise<boolean> {
+// Ultra-robust Helper to load Razorpay SDK with automatic retries
+function loadRazorpayScript(retries = 3): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
       resolve(false);
@@ -39,12 +40,51 @@ function loadRazorpayScript(): Promise<boolean> {
       resolve(true);
       return;
     }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
+
+    let attempt = 0;
+    const tryLoad = () => {
+      attempt++;
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const existing = document.getElementById('razorpay-checkout-script') as HTMLScriptElement | null;
+      if (existing) {
+        if ((window as any).Razorpay) {
+          resolve(true);
+          return;
+        }
+        existing.addEventListener('load', () => resolve(Boolean((window as any).Razorpay)), { once: true });
+        existing.addEventListener('error', () => {
+          if (attempt < retries) {
+            existing.remove();
+            setTimeout(tryLoad, 600);
+          } else {
+            resolve(false);
+          }
+        }, { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'razorpay-checkout-script';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      script.onload = () => resolve(Boolean((window as any).Razorpay));
+      script.onerror = () => {
+        script.remove();
+        if (attempt < retries) {
+          setTimeout(tryLoad, 600);
+        } else {
+          resolve(false);
+        }
+      };
+      document.head.appendChild(script);
+    };
+
+    tryLoad();
   });
 }
 
@@ -686,6 +726,11 @@ export default function OrderPaymentPage() {
         </div>
       </main>
 
+      <Script
+        id="razorpay-checkout-script"
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="afterInteractive"
+      />
       <Footer />
     </div>
   );
