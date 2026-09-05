@@ -297,32 +297,9 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
     `).catch(() => {});
 
-    // 5. Ensure temporary test product is completely removed from PostgreSQL products table
+    // 5. Ensure old catalog products are removed from PostgreSQL products table
     await p.query(`
-      DELETE FROM "products" WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
-      DELETE FROM products WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
-      INSERT INTO "products" (id, name, category, "subCategory", price, "originalPrice", discount, rating, "reviewCount", image, "deliveryTime", "inStock", "egglessAvailable", "isEgglessDefault", description)
-      VALUES (
-        'fatafat-special-1rs',
-        'Fatafat ₹1 Special Treat',
-        'celebrations',
-        'Special Offers',
-        1,
-        10,
-        90,
-        5.0,
-        58,
-        'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
-        '10-15 mins',
-        true,
-        true,
-        true,
-        'Special ₹1 Fatafat Celebration Delight! Freshly prepared, limited edition special offer delivered directly in 10-15 minutes.'
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        price = 1,
-        "originalPrice" = 10,
-        "inStock" = true;
+      DELETE FROM "products";
     `).catch(() => {});
 
     schemaEnsured = true;
@@ -1058,17 +1035,6 @@ export const db = {
       });
 
       if (key === 'products') {
-        const existingIds = new Set(parsedList.map((p: any) => String(p.id || '').toLowerCase().trim()));
-        for (const defaultProd of productsJson) {
-          const defaultId = String(defaultProd.id || '').toLowerCase().trim();
-          if (defaultId && !existingIds.has(defaultId)) {
-            const normalized = normalizeProductRecord(defaultProd) as unknown as Record<string, unknown>;
-            parsedList.unshift(normalized);
-            try {
-              insertRow(activePool, 'products', defaultProd).catch(() => {});
-            } catch {}
-          }
-        }
         parsedList = parsedList.filter((p: any) => String(p.id || '').toLowerCase().trim() !== 'rzp-test-product-2');
       }
 
@@ -2787,8 +2753,8 @@ export const db = {
       }
     }
 
-    const list = (inMemoryData['products'] && inMemoryData['products'].length > 0) ? inMemoryData['products'] : productsJson;
-    let found = list.find((p: any) => {
+    const list = inMemoryData['products'] || [];
+    const found = list.find((p: any) => {
       const pId = String(p.id || '').toLowerCase().trim();
       const pName = String(p.name || '').toLowerCase().trim();
       const pSlug = pName.replace(/ /g, '-');
@@ -2796,17 +2762,6 @@ export const db = {
       const targetSlug = slug.toLowerCase();
       return pId === targetClean || pId === targetSlug || pName === targetClean || pSlug === targetSlug;
     });
-
-    if (!found && Array.isArray(productsJson)) {
-      found = (productsJson as any[]).find((p: any) => {
-        const pId = String(p.id || '').toLowerCase().trim();
-        const pName = String(p.name || '').toLowerCase().trim();
-        const pSlug = pName.replace(/ /g, '-');
-        const targetClean = clean.toLowerCase();
-        const targetSlug = slug.toLowerCase();
-        return pId === targetClean || pId === targetSlug || pName === targetClean || pSlug === targetSlug;
-      });
-    }
 
     return found ? normalizeProductRecord(found) : null;
   },

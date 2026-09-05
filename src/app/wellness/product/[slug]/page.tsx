@@ -117,8 +117,8 @@ export default function WellnessProductDetailPage() {
     showToast(isInWishlist(product.id) ? 'Removed from favorites' : 'Added to favorites', 'info');
   };
 
-  // Frequently Bought Together logic: Bundle Condoms with Durex Strawberry Lubricant (well-3)
-  const bundleProduct = PRODUCTS.find((p) => p.id === (product.id === 'well-3' ? 'well-1' : 'well-3'));
+  // Frequently Bought Together logic: Bundle with another verified wellness product
+  const bundleProduct = PRODUCTS.find((p) => p.category === 'wellness' && p.id !== product.id && p.wellnessVerified);
 
   // Related products (other wellness products from same brand or category)
   const relatedProducts = PRODUCTS

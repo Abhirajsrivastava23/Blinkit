@@ -213,19 +213,21 @@ export default function HomePage() {
         </section>
 
         {/* 4. TRENDING ON FATAFAT */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Trending On FATAFAT</h2>
-            <span className="text-[9px] bg-brand-burgundy/15 text-brand-burgundy font-black px-3 py-1 rounded-full uppercase tracking-wider animate-pulse">
-              ⚡ TOP PICKS
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {trendingProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {trendingProducts.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Trending On FATAFAT</h2>
+              <span className="text-[9px] bg-brand-burgundy/15 text-brand-burgundy font-black px-3 py-1 rounded-full uppercase tracking-wider animate-pulse">
+                ⚡ TOP PICKS
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {trendingProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 5. SHOP BY CATEGORY (SHOP WHAT YOU LOVE 4x2 grid) */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 border-y border-zinc-200/20 bg-brand-blush/40 my-6 rounded-[24px]">
@@ -265,170 +267,189 @@ export default function HomePage() {
         </section>
 
         {/* 6. CAKES SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Cakes For Every Celebration</h2>
-            <Link href="/cakes" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-              View All Cakes →
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {cakes.slice(0, 8).map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {cakes.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Cakes For Every Celebration</h2>
+              <Link href="/cakes" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All Cakes →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {cakes.slice(0, 8).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 7. FLOWERS SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Send Some Flowers 🌸</h2>
-            <Link href="/flowers" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-              View All Flowers →
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {flowers.slice(0, 8).map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {flowers.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Send Some Flowers 🌸</h2>
+              <Link href="/flowers" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All Flowers →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {flowers.slice(0, 8).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 8. GIFTS SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Gifts They&apos;ll Love</h2>
-            <Link href="/gifts" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-              View All Gifts →
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {gifts.slice(0, 8).map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {gifts.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Gifts They&apos;ll Love</h2>
+              <Link href="/gifts" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All Gifts →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {gifts.slice(0, 8).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 9. CHOCOLATES & BAKERY SPLIT SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Chocolates Column */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-baseline text-left">
-                <h3 className="text-base font-serif font-black text-brand-charcoal">Gourmet Chocolates 🍫</h3>
-                <Link href="/chocolates" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                  More chocolates →
-                </Link>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {chocolates.slice(0, 4).map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-            </div>
+        {(chocolates.length > 0 || bakery.length > 0) && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Chocolates Column */}
+              {chocolates.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-baseline text-left">
+                    <h3 className="text-base font-serif font-black text-brand-charcoal">Gourmet Chocolates 🍫</h3>
+                    <Link href="/chocolates" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                      More chocolates →
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {chocolates.slice(0, 4).map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            {/* Bakery Column */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-baseline text-left">
-                <h3 className="text-base font-serif font-black text-brand-charcoal">Bakery & Cookies 🥐</h3>
-                <Link href="/bakery" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                  More bakery →
-                </Link>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {bakery.slice(0, 4).map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
+              {/* Bakery Column */}
+              {bakery.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-baseline text-left">
+                    <h3 className="text-base font-serif font-black text-brand-charcoal">Bakery & Cookies 🥐</h3>
+                    <Link href="/bakery" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                      More bakery →
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {bakery.slice(0, 4).map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* 10. ACTIVE OFFERS (DEALS) */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">FATAFAT Deals</h2>
-            <span className="text-[8px] font-extrabold tracking-widest uppercase bg-amber-100 text-amber-800 px-3 py-1 rounded-full">
-              🏷️ Max discounts
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {deals.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {deals.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">FATAFAT Deals</h2>
+              <span className="text-[8px] font-extrabold tracking-widest uppercase bg-amber-100 text-amber-800 px-3 py-1 rounded-full">
+                🏷️ Max discounts
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {deals.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 11. BESTSELLERS (MOST LOVED) */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Most Loved</h2>
-            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Top Rated</p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {bestsellers.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {bestsellers.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Most Loved</h2>
+              <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Top Rated</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {bestsellers.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 12. NEW ARRIVALS (JUST LANDED) */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Just Landed</h2>
-            <span className="text-[8px] font-extrabold tracking-widest uppercase bg-brand-burgundy/10 text-brand-burgundy px-3 py-1 rounded-full">
-              ✨ Fresh arrivals
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-            {newArrivals.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </section>
+        {newArrivals.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Just Landed</h2>
+              <span className="text-[8px] font-extrabold tracking-widest uppercase bg-brand-burgundy/10 text-brand-burgundy px-3 py-1 rounded-full">
+                ✨ Fresh arrivals
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {newArrivals.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 13. CELEBRATION COMBOS */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-baseline mb-4 text-left">
-            <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Complete The Celebration</h2>
-            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Curated combinations</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {COMBOS.slice(0, 3).map((combo) => (
-              <div 
-                key={combo.id} 
-                className="bg-white border rounded-3xl p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-all duration-300"
-              >
-                <div className="flex gap-4">
-                  <div className="h-20 w-20 rounded-2xl overflow-hidden shrink-0 border bg-zinc-50">
-                    <SafeImage src={combo.image} alt={combo.name} className="h-full w-full object-cover" />
+        {COMBOS.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Complete The Celebration</h2>
+              <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Curated combinations</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {COMBOS.slice(0, 3).map((combo) => (
+                <div 
+                  key={combo.id} 
+                  className="bg-white border rounded-3xl p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-all duration-300"
+                >
+                  <div className="flex gap-4">
+                    <div className="h-20 w-20 rounded-2xl overflow-hidden shrink-0 border bg-zinc-50">
+                      <SafeImage src={combo.image} alt={combo.name} className="h-full w-full object-cover" />
+                    </div>
+                    <div className="text-left min-w-0 space-y-1">
+                      <span className="text-[8px] font-extrabold uppercase tracking-widest text-brand-burgundy block">COMBO SAVER</span>
+                      <h4 className="font-serif font-bold text-xs text-zinc-900 truncate">{combo.name}</h4>
+                      <p className="text-[10px] text-zinc-400 line-clamp-2 leading-relaxed">{combo.description}</p>
+                    </div>
                   </div>
-                  <div className="text-left min-w-0 space-y-1">
-                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-brand-burgundy block">COMBO SAVER</span>
-                    <h4 className="font-serif font-bold text-xs text-zinc-900 truncate">{combo.name}</h4>
-                    <p className="text-[10px] text-zinc-400 line-clamp-2 leading-relaxed">{combo.description}</p>
+                  
+                  <div className="flex items-center justify-between pt-3 border-t">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-sm font-extrabold text-zinc-900">₹{combo.price}</span>
+                      <span className="text-[10px] line-through opacity-35">₹{combo.originalPrice}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        showToast(`Added ${combo.name} to cart.`, 'success');
+                      }}
+                      className="px-4 py-2 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm"
+                    >
+                      Add Combo Basket
+                    </button>
                   </div>
                 </div>
-                
-                <div className="flex items-center justify-between pt-3 border-t">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-sm font-extrabold text-zinc-900">₹{combo.price}</span>
-                    <span className="text-[10px] line-through opacity-35">₹{combo.originalPrice}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      // Add mock items to cart or notify
-                      showToast(`Added ${combo.name} to cart.`, 'success');
-                    }}
-                    className="px-4 py-2 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm"
-                  >
-                    Add Combo Basket
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 14. PERSONALISATION BANNER */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">

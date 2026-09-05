@@ -41,10 +41,6 @@ export default function PersonalisationPage() {
   // Filter personalized products from catalog
   const personalisedProducts = useMemo(() => {
     return PRODUCTS.filter(p => 
-      p.id === 'cake-6' || 
-      p.id === 'cake-1' || 
-      p.id === 'cake-2' || 
-      p.id === 'cake-4' ||
       p.category === 'cakes' ||
       p.category === 'gifts'
     ).slice(0, 8);
@@ -60,7 +56,7 @@ export default function PersonalisationPage() {
       price: 'From ₹999',
       image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&auto=format&fit=crop&q=80',
       highlights: ['100% Edible Sugar Sheet', 'Eggless Available', 'Within 12 hours Delivery'],
-      targetUrl: '/product/cake-6',
+      targetUrl: '/cakes',
       actionLabel: 'Personalise Now',
       isDirectProduct: true
     },
@@ -73,7 +69,7 @@ export default function PersonalisationPage() {
       price: 'From ₹499',
       image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
       highlights: ['Free Custom Cake Message', 'Gold Mirror Topper Option', 'Fresh Baked On Order'],
-      targetUrl: '/product/cake-1',
+      targetUrl: '/cakes',
       actionLabel: 'Personalise Now',
       isDirectProduct: true
     },

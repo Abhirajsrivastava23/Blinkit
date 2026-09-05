@@ -5,13 +5,19 @@ import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import ProductCard from '../../components/ProductCard';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import { PRODUCTS, Product } from '../../data/mockData';
+import { PRODUCTS as fallbackProducts, Product } from '../../data/mockData';
 import { ProductGridSkeleton } from '../../components/LoadingSkeleton';
+import { useProducts } from '../../context/ProductContext';
 
 export default function PastriesPage() {
-  const pastries = useMemo(() => PRODUCTS.filter(
+  const { products, loading: productsLoading } = useProducts();
+  const allProducts: Product[] = useMemo(() => {
+    return products.length > 0 ? products : fallbackProducts;
+  }, [products]);
+
+  const pastries = useMemo(() => allProducts.filter(
     (p) => p.category === 'bakery' && p.subCategory === 'Pastries'
-  ), []);
+  ), [allProducts]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

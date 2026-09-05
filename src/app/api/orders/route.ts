@@ -250,8 +250,7 @@ export async function POST(request: Request) {
         };
       });
 
-      const isSpecial1Rs = sanitizedItems.length === 1 && sanitizedItems[0].productId === 'fatafat-special-1rs';
-      const deliveryFee = body.deliveryFee !== undefined ? Number(body.deliveryFee) : (isSpecial1Rs || calculatedSubtotal >= 799 ? 0 : 49);
+      const deliveryFee = body.deliveryFee !== undefined ? Number(body.deliveryFee) : (calculatedSubtotal >= 799 ? 0 : 49);
       let discount = Number(body.discount) || 0;
       let appliedCoupon: any = null;
 
