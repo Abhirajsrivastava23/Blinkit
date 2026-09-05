@@ -77,6 +77,14 @@ export async function POST(request: Request) {
       }
 
       if (!targetOrder && razorpayOrderId) {
+        targetOrder = await db.getOrderByRazorpayOrderId(razorpayOrderId);
+      }
+
+      if (!targetOrder && razorpayPaymentId) {
+        targetOrder = await db.getOrderByRazorpayPaymentId(razorpayPaymentId);
+      }
+
+      if (!targetOrder && razorpayOrderId) {
         const existingTx = await db.getPaymentByRazorpayOrderId(razorpayOrderId);
         if (existingTx?.orderId) {
           targetOrder = await db.getOrderById(String(existingTx.orderId));
@@ -85,7 +93,11 @@ export async function POST(request: Request) {
 
       if (!targetOrder && razorpayOrderId) {
         const allOrders = await db.readTable<any>('orders').catch(() => []);
-        targetOrder = allOrders.find((o: any) => o.razorpayOrderId === razorpayOrderId) || null;
+        targetOrder = allOrders.find((o: any) => {
+          const oRzp = String(o.razorpayOrderId || o.razorpayorderid || '').trim();
+          const oPay = String(o.razorpayPaymentId || o.razorpaypaymentid || o.paymentId || '').trim();
+          return (oRzp && oRzp === razorpayOrderId) || (razorpayPaymentId && oPay === razorpayPaymentId);
+        }) || null;
       }
 
       if (targetOrder) {

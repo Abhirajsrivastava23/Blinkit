@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // 1. Identify the authoritative database Order record
+    // 1. Multi-Stage Authoritative Order Resolution
     let cleanOrderId = rawOrderId;
     while (cleanOrderId.includes('%23') || cleanOrderId.includes('%20') || cleanOrderId.includes('%2F')) {
       try {
@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     cleanOrderId = cleanOrderId.replace(/^#+/, '').trim();
 
     let targetOrder: Record<string, any> | null = null;
+
+    // A. Lookup by internal Order ID variants
     if (cleanOrderId) {
       targetOrder = await db.getOrderById(cleanOrderId);
       if (!targetOrder) targetOrder = await db.getOrderById(rawOrderId);
@@ -50,22 +52,69 @@ export async function POST(request: Request) {
       if (!targetOrder && !cleanOrderId.startsWith('FT')) {
         targetOrder = await db.getOrderById('FT' + cleanOrderId);
       }
-    }
-
-    if (!targetOrder) {
-      const existingPayment = await db.getPaymentByRazorpayOrderId(razorpayOrderId);
-      if (existingPayment && existingPayment.orderId) {
-        targetOrder = await db.getOrderById(String(existingPayment.orderId));
+      if (!targetOrder && !cleanOrderId.startsWith('#')) {
+        targetOrder = await db.getOrderById('#' + cleanOrderId);
       }
     }
 
+    // B. Lookup by Razorpay Order ID
+    if (!targetOrder && razorpayOrderId) {
+      targetOrder = await db.getOrderByRazorpayOrderId(razorpayOrderId);
+    }
+
+    // C. Lookup by Razorpay Payment ID
+    if (!targetOrder && razorpayPaymentId) {
+      targetOrder = await db.getOrderByRazorpayPaymentId(razorpayPaymentId);
+    }
+
+    // D. Lookup from payment_transactions table
+    if (!targetOrder && razorpayOrderId) {
+      const paymentTx = await db.getPaymentByRazorpayOrderId(razorpayOrderId);
+      if (paymentTx?.orderId) {
+        targetOrder = await db.getOrderById(String(paymentTx.orderId));
+      }
+    }
+
+    // E. Lookup from in-memory / readTable orders list
     if (!targetOrder) {
       const allOrders = await db.readTable<any>('orders').catch(() => []);
       targetOrder = allOrders.find((o: any) => {
         const oid = String(o.id || '').replace(/^#+/, '').trim().toLowerCase();
-        const oRzp = String(o.razorpayOrderId || '').trim();
-        return oid === cleanOrderId.toLowerCase() || (oRzp && oRzp === razorpayOrderId);
+        const oRzp = String(o.razorpayOrderId || o.razorpayorderid || '').trim();
+        const oPay = String(o.razorpayPaymentId || o.razorpaypaymentid || o.paymentId || '').trim();
+        return (
+          (cleanOrderId && oid === cleanOrderId.toLowerCase()) ||
+          (cleanOrderId && (oid.includes(cleanOrderId.toLowerCase()) || cleanOrderId.toLowerCase().includes(oid))) ||
+          (razorpayOrderId && oRzp === razorpayOrderId) ||
+          (razorpayPaymentId && oPay === razorpayPaymentId)
+        );
       }) || null;
+    }
+
+    // F. Direct Gateway Reconciliation fallback: Query Razorpay API for notes / receipt if order was not in DB
+    if (!targetOrder && (razorpayOrderId || razorpayPaymentId)) {
+      const keyId = (process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '').trim();
+      const keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+      if (keyId && keySecret) {
+        try {
+          const authHeader = 'Basic ' + Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+          let rzpOrderInfo: any = null;
+          if (razorpayOrderId) {
+            const rzpRes = await fetch(`https://api.razorpay.com/v1/orders/${razorpayOrderId}`, {
+              headers: { 'Authorization': authHeader },
+              signal: AbortSignal.timeout(5000)
+            });
+            if (rzpRes.ok) rzpOrderInfo = await rzpRes.json();
+          }
+
+          const extractedOrderId = rzpOrderInfo?.notes?.dbOrderId || rzpOrderInfo?.notes?.orderId || rzpOrderInfo?.receipt;
+          if (extractedOrderId) {
+            targetOrder = await db.getOrderById(String(extractedOrderId));
+          }
+        } catch (fetchErr) {
+          console.warn('[RAZORPAY RECONCILIATION WARNING] Could not fetch order info from Razorpay API:', fetchErr);
+        }
+      }
     }
 
     if (!targetOrder) {

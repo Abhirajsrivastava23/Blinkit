@@ -105,11 +105,79 @@ export function getPool(): Pool | null {
       }
     });
     pool = globalWithPg._pgPool;
+    ensureDbSchema(pool).catch(() => {});
     return pool;
   } catch (err) {
     console.error('Failed to initialize PostgreSQL pool:', err);
     dbInitError = err instanceof Error ? err.message : String(err);
     return null;
+  }
+}
+
+let schemaEnsured = false;
+export async function ensureDbSchema(p: Pool): Promise<void> {
+  if (schemaEnsured) return;
+  try {
+    // 1. Ensure required columns in orders table
+    await p.query(`
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayOrderId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayPaymentId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentSubmittedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentRejectedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationName" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOtp" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpFailedAttempts" INTEGER DEFAULT 0;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpExpiresAt" TEXT;
+    `).catch(() => {});
+
+    // 2. Ensure payment_transactions table exists with indexes
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS "payment_transactions" (
+        id TEXT PRIMARY KEY,
+        "orderId" TEXT,
+        "customerId" TEXT,
+        amount NUMERIC,
+        currency TEXT DEFAULT 'INR',
+        status TEXT DEFAULT 'PENDING',
+        method TEXT,
+        provider TEXT,
+        "transactionReference" TEXT,
+        utr TEXT,
+        "proofImageUrl" TEXT,
+        "submittedAt" TEXT,
+        "verifiedAt" TEXT,
+        "verifiedBy" TEXT,
+        "rejectedAt" TEXT,
+        "rejectedBy" TEXT,
+        "rejectionReason" TEXT,
+        "paymentProofType" TEXT,
+        "paymentProofSize" NUMERIC,
+        "createdAt" TEXT,
+        "updatedAt" TEXT,
+        "paidAt" TEXT,
+        "failureReason" TEXT,
+        "attemptCount" INTEGER DEFAULT 0,
+        "lastAttemptAt" TEXT,
+        metadata JSONB,
+        "razorpayOrderId" TEXT,
+        "razorpayPaymentId" TEXT,
+        "razorpaySignature" TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_payment_order_id ON "payment_transactions" ("orderId");
+      CREATE INDEX IF NOT EXISTS idx_payment_rzp_order ON "payment_transactions" ("razorpayOrderId");
+      CREATE INDEX IF NOT EXISTS idx_payment_rzp_pay ON "payment_transactions" ("razorpayPaymentId");
+    `).catch(() => {});
+
+    schemaEnsured = true;
+  } catch (err) {
+    console.warn('[DB SCHEMA WARNING] Could not verify schema extensions:', err);
   }
 }
 
@@ -974,6 +1042,80 @@ export const db = {
       const oidClean = oid.replace(/^#+/, '').trim();
       const oidDigits = oidClean.replace(/^ft/i, '').trim();
       return candidateLowerSet.has(oid) || candidateLowerSet.has(oidClean) || candidateLowerSet.has(oidDigits) || (cleanDigitsOnly.length >= 4 && oid.includes(cleanDigitsOnly));
+    });
+    return found ? normalizeOrderRecord(found) : null;
+  },
+
+  async getOrderByRazorpayOrderId(rzpOrderId: string): Promise<Record<string, unknown> | null> {
+    const rawRzp = String(rzpOrderId || '').trim();
+    if (!rawRzp) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          `SELECT * FROM "orders" 
+           WHERE "razorpayOrderId" = $1 
+              OR LOWER(TRIM("razorpayOrderId")) = LOWER(TRIM($1))
+              OR (metadata IS NOT NULL AND metadata->>'razorpayOrderId' = $1)
+           LIMIT 1`,
+          [rawRzp]
+        );
+        if (res.rows.length > 0) {
+          return normalizeOrderRecord(res.rows[0]);
+        }
+      } catch (err) {}
+    }
+
+    // Check payment_transactions
+    const payment = await this.getPaymentByRazorpayOrderId(rawRzp);
+    if (payment && payment.orderId) {
+      const order = await this.getOrderById(String(payment.orderId));
+      if (order) return order;
+    }
+
+    // Check in-memory
+    const list = inMemoryData['orders'] || [];
+    const found = list.find((o: any) => {
+      const r1 = String(o.razorpayOrderId || o.razorpayorderid || '').trim();
+      return r1 === rawRzp || r1.toLowerCase() === rawRzp.toLowerCase();
+    });
+    return found ? normalizeOrderRecord(found) : null;
+  },
+
+  async getOrderByRazorpayPaymentId(rzpPaymentId: string): Promise<Record<string, unknown> | null> {
+    const rawPay = String(rzpPaymentId || '').trim();
+    if (!rawPay) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          `SELECT * FROM "orders" 
+           WHERE "razorpayPaymentId" = $1 
+              OR LOWER(TRIM("razorpayPaymentId")) = LOWER(TRIM($1))
+              OR "paymentId" = $1
+           LIMIT 1`,
+          [rawPay]
+        );
+        if (res.rows.length > 0) {
+          return normalizeOrderRecord(res.rows[0]);
+        }
+      } catch (err) {}
+    }
+
+    // Check payment_transactions
+    const payment = await this.getPaymentByRazorpayPaymentId(rawPay);
+    if (payment && payment.orderId) {
+      const order = await this.getOrderById(String(payment.orderId));
+      if (order) return order;
+    }
+
+    // Check in-memory
+    const list = inMemoryData['orders'] || [];
+    const found = list.find((o: any) => {
+      const p1 = String(o.razorpayPaymentId || o.razorpaypaymentid || o.paymentId || '').trim();
+      return p1 === rawPay || p1.toLowerCase() === rawPay.toLowerCase();
     });
     return found ? normalizeOrderRecord(found) : null;
   },
@@ -2170,6 +2312,33 @@ export const db = {
     const list = inMemoryData['payment_transactions'] || [];
     const found = list.find((p: Record<string, unknown>) => 
       String(p.razorpayOrderId || p.razorpayorderid || p.transactionReference || p.id || '').trim() === raw
+    );
+    return found ? normalizePaymentRecord(found) : null;
+  },
+
+  async getPaymentByRazorpayPaymentId(razorpayPaymentId: string): Promise<Record<string, unknown> | null> {
+    const raw = String(razorpayPaymentId || '').trim();
+    if (!raw) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          `SELECT * FROM payment_transactions 
+           WHERE "razorpayPaymentId" = $1 OR "paymentId" = $1 OR id = $1 LIMIT 1`,
+          [raw]
+        );
+        if (res.rows.length > 0) {
+          return normalizePaymentRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching payment by razorpayPaymentId from DB:', err);
+      }
+    }
+
+    const list = inMemoryData['payment_transactions'] || [];
+    const found = list.find((p: Record<string, unknown>) => 
+      String(p.razorpayPaymentId || p.razorpaypaymentid || p.paymentId || p.id || '').trim() === raw
     );
     return found ? normalizePaymentRecord(found) : null;
   },
