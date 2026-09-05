@@ -27,9 +27,13 @@ function createCategorySvg(emoji: string, label: string, bgGradientFrom: string,
 }
 
 export const CATEGORY_SVG_FALLBACKS: Record<string, string> = {
+  'birthday cakes': createCategorySvg('🎂', 'Birthday Cakes', '#2D0A14', '#5A1624', '#DFBA5E'),
+  'chocolate cakes': createCategorySvg('🍫', 'Chocolate Cakes', '#23120B', '#422416', '#DFBA5E'),
+  'pastries': createCategorySvg('🧁', 'Sweet Pastries', '#3D1A0C', '#6B3419', '#E58B75'),
+  'beer theme cakes': createCategorySvg('🍺', 'Beer Theme Cakes', '#2C1D06', '#54360C', '#E5A93C'),
+  'desserts': createCategorySvg('🍮', 'Gourmet Desserts', '#28112B', '#4A1D50', '#E585B5'),
   cakes: createCategorySvg('🎂', 'Artisanal Cakes', '#2D0A14', '#5A1624', '#DFBA5E'),
   bakery: createCategorySvg('🥐', 'Fresh Bakery', '#3D1A0C', '#6B3419', '#E58B75'),
-  pastries: createCategorySvg('🧁', 'Sweet Pastries', '#3D1A0C', '#6B3419', '#E58B75'),
   flowers: createCategorySvg('💐', 'Luxury Bouquets', '#1C2E1F', '#2D4A32', '#9BC19D'),
   gifts: createCategorySvg('🎁', 'Curated Gifts', '#261C3B', '#442F69', '#DFBA5E'),
   chocolates: createCategorySvg('🍫', 'Artisanal Chocolates', '#23120B', '#422416', '#DFBA5E'),
@@ -40,9 +44,13 @@ export const CATEGORY_SVG_FALLBACKS: Record<string, string> = {
 
 // Verified Tier-1 external image URLs with robust formatting
 export const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
+  'birthday cakes': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
+  'chocolate cakes': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
+  'pastries': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+  'beer theme cakes': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
+  'desserts': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
   cakes: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
   bakery: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-  pastries: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
   flowers: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=600&q=80',
   gifts: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80',
   chocolates: 'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=600&q=80',

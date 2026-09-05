@@ -9,8 +9,9 @@ export interface Review {
 export interface Product {
   id: string;
   name: string;
-  category: 'cakes' | 'bakery' | 'chocolates' | 'flowers' | 'gifts' | 'celebrations' | 'wellness' | 'pending' | string;
+  category: 'Birthday Cakes' | 'Chocolate Cakes' | 'Pastries' | 'Beer Theme Cakes' | 'Desserts' | 'cakes' | 'bakery' | 'chocolates' | 'flowers' | 'gifts' | 'celebrations' | 'wellness' | 'pending' | string;
   subCategory?: string;
+  shortDescription?: string;
   price: number;
   originalPrice: number;
   discount: number; // e.g. 20 for 20%
@@ -26,6 +27,7 @@ export interface Product {
   allergens: string[];
   storageInstructions: string;
   occasions: string[]; // e.g. ["Birthday", "Anniversary"]
+  tags?: string[];
   variants?: string[]; // e.g. ["0.5 KG", "1 KG"] or ["Pack of 10", "Pack of 20"]
   wellnessBrand?: string;
   wellnessType?: 'Condoms' | 'Lubricants' | 'Intimate Care';

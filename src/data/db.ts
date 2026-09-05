@@ -295,26 +295,40 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       ALTER TABLE partners ADD COLUMN IF NOT EXISTS status TEXT;
       ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN;
       CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
+      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shortDescription" TEXT;
+      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "tags" JSONB DEFAULT '[]'::jsonb;
     `).catch(() => {});
 
-    // Seed prepared products into PostgreSQL if empty
-    const prodCountRes = await p.query('SELECT count(*) FROM "products"').catch(() => null);
-    if (prodCountRes && parseInt(prodCountRes.rows[0]?.count || '0', 10) === 0 && productsJson.length > 0) {
+    // Seed and sync categorized products into PostgreSQL
+    if (productsJson.length > 0) {
       for (const pItem of productsJson as any[]) {
         await p.query(`
           INSERT INTO "products" (
-            id, name, description, price, "originalPrice", discount, image, gallery,
+            id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
             category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
-            ingredients, allergens, "storageInstructions", occasions, variants, "createdAt", "updatedAt"
+            ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
-          ) ON CONFLICT (id) DO NOTHING
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+          ) ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            "shortDescription" = EXCLUDED."shortDescription",
+            price = EXCLUDED.price,
+            "originalPrice" = EXCLUDED."originalPrice",
+            discount = EXCLUDED.discount,
+            category = EXCLUDED.category,
+            "subCategory" = EXCLUDED."subCategory",
+            occasions = EXCLUDED.occasions,
+            variants = EXCLUDED.variants,
+            tags = EXCLUDED.tags,
+            "updatedAt" = EXCLUDED."updatedAt"
         `, [
-          pItem.id, pItem.name, pItem.description || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
-          pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'pending', pItem.subCategory || null,
+          pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
+          pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
           pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
           JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
-          JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
+          JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
+          pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
         ]).catch(() => {});
       }
     }
@@ -368,7 +382,7 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   categories: ['id', 'name', 'slug', 'description', 'status', 'image', 'itemCount'],
   brands: ['id', 'name', 'slug', 'description', 'status', 'website', 'logo', 'itemCount'],
   products: [
-    'id', 'name', 'description', 'price', 'originalPrice', 'discount', 'image', 'gallery',
+    'id', 'name', 'description', 'shortDescription', 'price', 'originalPrice', 'discount', 'image', 'gallery',
     'category', 'subCategory', 'brand', 'rating', 'reviewCount', 'reviews', 'stock', 'unit',
     'inStock', 'deliveryTime', 'ingredients', 'allergens', 'storageInstructions', 'occasions',
     'variants', 'wellnessBrand', 'wellnessType', 'wellnessMaterial', 'wellnessPackSize',
@@ -416,6 +430,7 @@ export function normalizeProductRecord(row: Record<string, unknown> | Product | 
   }
 
   // Handle lowercase PostgreSQL column aliases
+  if (parsed.shortdescription !== undefined && parsed.shortDescription === undefined) parsed.shortDescription = parsed.shortdescription;
   if (parsed.originalprice !== undefined && parsed.originalPrice === undefined) parsed.originalPrice = parsed.originalprice;
   if (parsed.subcategory !== undefined && parsed.subCategory === undefined) parsed.subCategory = parsed.subcategory;
   if (parsed.deliverytime !== undefined && parsed.deliveryTime === undefined) parsed.deliveryTime = parsed.deliverytime;
@@ -437,7 +452,7 @@ export function normalizeProductRecord(row: Record<string, unknown> | Product | 
 
   parsed.id = String(parsed.id || '').trim();
   parsed.name = String(parsed.name || '').trim();
-  parsed.category = String(parsed.category || 'cakes') as any;
+  parsed.category = String(parsed.category || 'Birthday Cakes') as any;
   parsed.price = Number(parsed.price || 0);
   parsed.originalPrice = Number(parsed.originalPrice || parsed.price || 0);
   parsed.discount = parsed.discount !== undefined ? Number(parsed.discount) : (parsed.originalPrice > parsed.price ? Math.round(((parsed.originalPrice - parsed.price) / parsed.originalPrice) * 100) : 0);

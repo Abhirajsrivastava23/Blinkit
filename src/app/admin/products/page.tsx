@@ -35,7 +35,7 @@ export default function AdminProductsPage() {
   } | null>(null);
 
   // Filter lists
-  const categories = ['All', 'pending', 'cakes', 'bakery', 'pastries', 'flowers', 'gifts', 'chocolates', 'celebrations', 'wellness'];
+  const categories = ['All', 'Birthday Cakes', 'Chocolate Cakes', 'Pastries', 'Beer Theme Cakes', 'Desserts', 'wellness'];
   const brands = ['All', 'FATAFAT', 'Durex', 'KamaSutra', 'Skore', 'Manforce', 'Clean & Dry'];
   const statuses = ['All', 'Active', 'Draft', 'Hidden', 'Out of Stock'];
   const stocks = ['All', 'In Stock', 'Low Stock', 'Out of Stock'];
