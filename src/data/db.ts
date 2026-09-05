@@ -2351,8 +2351,8 @@ export const db = {
       }
     }
 
-    const list = inMemoryData['products'] || [];
-    const found = list.find((p: any) => {
+    const list = (inMemoryData['products'] && inMemoryData['products'].length > 0) ? inMemoryData['products'] : productsJson;
+    let found = list.find((p: any) => {
       const pId = String(p.id || '').toLowerCase().trim();
       const pName = String(p.name || '').toLowerCase().trim();
       const pSlug = pName.replace(/ /g, '-');
@@ -2360,6 +2360,17 @@ export const db = {
       const targetSlug = slug.toLowerCase();
       return pId === targetClean || pId === targetSlug || pName === targetClean || pSlug === targetSlug;
     });
+
+    if (!found && Array.isArray(productsJson)) {
+      found = (productsJson as any[]).find((p: any) => {
+        const pId = String(p.id || '').toLowerCase().trim();
+        const pName = String(p.name || '').toLowerCase().trim();
+        const pSlug = pName.replace(/ /g, '-');
+        const targetClean = clean.toLowerCase();
+        const targetSlug = slug.toLowerCase();
+        return pId === targetClean || pId === targetSlug || pName === targetClean || pSlug === targetSlug;
+      });
+    }
 
     return found ? normalizeProductRecord(found) : null;
   },

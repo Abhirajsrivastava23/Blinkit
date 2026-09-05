@@ -174,7 +174,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
 
   // Delivery fee logic
-  const deliveryFee = subtotal === 0 || subtotal >= freeDeliveryThreshold ? 0 : 49;
+  const isTestOnly = cartItems.length === 1 && cartItems[0].product.id === 'rzp-test-product-2';
+  const deliveryFee = subtotal === 0 || isTestOnly || subtotal >= freeDeliveryThreshold ? 0 : 49;
   const amountToFreeDelivery = subtotal >= freeDeliveryThreshold ? 0 : freeDeliveryThreshold - subtotal;
 
   // Recalculate promo discount if subtotal changes

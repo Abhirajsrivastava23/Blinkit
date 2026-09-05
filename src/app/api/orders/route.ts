@@ -244,7 +244,8 @@ export async function POST(request: Request) {
         };
       });
 
-      const deliveryFee = calculatedSubtotal >= 799 ? 0 : 49;
+      const isTestProductOnly = sanitizedItems.length === 1 && sanitizedItems[0].productId === 'rzp-test-product-2';
+      const deliveryFee = body.deliveryFee !== undefined ? Number(body.deliveryFee) : (isTestProductOnly || calculatedSubtotal >= 799 ? 0 : 49);
       let discount = Number(body.discount) || 0;
       let appliedCoupon: any = null;
 
