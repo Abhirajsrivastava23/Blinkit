@@ -301,6 +301,28 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
     await p.query(`
       DELETE FROM "products" WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
       DELETE FROM products WHERE id = 'rzp-test-product-2' OR LOWER(id) = 'rzp-test-product-2';
+      INSERT INTO "products" (id, name, category, "subCategory", price, "originalPrice", discount, rating, "reviewCount", image, "deliveryTime", "inStock", "egglessAvailable", "isEgglessDefault", description)
+      VALUES (
+        'fatafat-special-1rs',
+        'Fatafat ₹1 Special Treat',
+        'celebrations',
+        'Special Offers',
+        1,
+        10,
+        90,
+        5.0,
+        58,
+        'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
+        '10-15 mins',
+        true,
+        true,
+        true,
+        'Special ₹1 Fatafat Celebration Delight! Freshly prepared, limited edition special offer delivered directly in 10-15 minutes.'
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        price = 1,
+        "originalPrice" = 10,
+        "inStock" = true;
     `).catch(() => {});
 
     schemaEnsured = true;

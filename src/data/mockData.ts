@@ -111,6 +111,28 @@ export const COMBOS: Combo[] = [
 ];
 
 export const PRODUCTS: Product[] = [
+  // ======================= SPECIAL ₹1 OFFER =======================
+  {
+    id: 'fatafat-special-1rs',
+    name: 'Fatafat ₹1 Special Treat',
+    category: 'celebrations',
+    subCategory: 'Special Offers',
+    price: 1,
+    originalPrice: 10,
+    discount: 90,
+    rating: 5.0,
+    reviewCount: 58,
+    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
+    deliveryTime: '10-15 mins',
+    egglessAvailable: true,
+    isEgglessDefault: true,
+    inStock: true,
+    description: 'Special ₹1 Fatafat Celebration Delight! Freshly prepared, limited edition special offer delivered directly in 10-15 minutes.',
+    ingredients: ['Sugar', 'Cocoa Butter', 'Milk Solids', 'Vanilla Extract'],
+    allergens: ['Milk'],
+    storageInstructions: 'Store in a cool, dry place.',
+    occasions: ['Birthday', 'Anniversary', 'Congratulations', 'Thank You', 'Just Because']
+  },
   // ======================= CAKES (20) =======================
   {
     id: 'cake-1',
