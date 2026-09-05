@@ -466,15 +466,16 @@ export default function OrderPaymentPage() {
                 <CheckCircle2 className="h-12 w-12" />
               </div>
 
-              <div className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-200/60">
-                  Payment Verified
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200 text-xs font-bold shadow-xs">
+                  <span>✅</span>
+                  <span>Payment Verified</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 mt-1">
                   Payment of ₹{order.total} Received! 🎉
                 </h2>
                 <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-                  Your Razorpay payment has been verified server-side and recorded. Your order is confirmed and moving into quick packing and delivery dispatch.
+                  Your payment has been securely verified. Your order is confirmed and moving into quick packing and delivery dispatch.
                 </p>
               </div>
 
@@ -603,6 +604,15 @@ export default function OrderPaymentPage() {
                         </>
                       )}
                     </button>
+
+                    {/* Razorpay Trust Messaging */}
+                    <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center gap-3 text-left">
+                      <span className="text-base shrink-0">🔒</span>
+                      <div>
+                        <h5 className="font-bold text-xs text-slate-800 leading-tight">Secure Payment</h5>
+                        <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Payments are securely processed and verified by Razorpay.</p>
+                      </div>
+                    </div>
 
                     <p className="text-[11px] text-center text-slate-400">
                       Clicking will open the official Razorpay checkout popup.

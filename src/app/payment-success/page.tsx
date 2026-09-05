@@ -59,11 +59,15 @@ function PaymentSuccessContent() {
             </div>
 
             {/* Success message */}
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200 text-xs font-bold mb-3 shadow-xs">
+              <span>✅</span>
+              <span>Payment Verified</span>
+            </div>
             <h1 className="font-serif text-3xl font-extrabold text-zinc-900 mb-2">
               Payment Successful! 🎉
             </h1>
-            <p className="text-lg text-zinc-600 mb-8">
-              Your order has been confirmed and is being prepared.
+            <p className="text-base text-zinc-600 mb-8">
+              Your payment has been securely verified. Your order has been confirmed and is being prepared.
             </p>
 
             {/* Order details */}

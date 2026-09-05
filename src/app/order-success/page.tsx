@@ -50,13 +50,19 @@ function OrderSuccessContent() {
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
+          {isPaid && (
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200 text-xs font-bold shadow-xs">
+              <span>✅</span>
+              <span>Payment Verified</span>
+            </div>
+          )}
           <h1 className="text-2xl sm:text-3xl font-serif font-extrabold text-zinc-800">
             {paymentStatusLabel}
           </h1>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-500 max-w-md mx-auto">
             {isPaid
-              ? 'Thank you for ordering with FATAFAT. Your payment was verified securely with Razorpay and your delivery runner is being assigned.'
+              ? 'Your payment has been securely verified. Your delivery runner is being assigned.'
               : 'Your order has been recorded. Please complete payment via Razorpay to initiate immediate packaging and dispatch.'}
           </p>
         </div>

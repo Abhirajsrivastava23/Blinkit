@@ -241,8 +241,8 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
-          {/* Payment Status Alert Banner if not PAID */}
-          {order.paymentStatus !== 'PAID' && order.status !== 'Confirmed' && (
+          {/* Payment Status Alert Banner */}
+          {order.paymentStatus !== 'PAID' && order.status !== 'Confirmed' ? (
             <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs ${
               order.paymentStatus === 'REJECTED' || order.paymentStatus === 'FAILED'
                 ? 'bg-red-50 border-red-200 text-red-700'
@@ -259,6 +259,9 @@ export default function OrderTrackingPage() {
                     ? 'The payment attempt could not be verified. Please complete checkout to start order fulfillment.'
                     : 'Please complete your Razorpay payment to confirm your order and begin dispatch.'}
                 </p>
+                <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-1 justify-center sm:justify-start">
+                  <span>🔒</span> <span>Secure Payment: Payments are securely processed and verified by Razorpay.</span>
+                </p>
               </div>
               <Link
                 href={`/order/${order.id}/payment`}
@@ -266,6 +269,14 @@ export default function OrderTrackingPage() {
               >
                 Pay with Razorpay
               </Link>
+            </div>
+          ) : (
+            <div className="p-3.5 sm:p-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 flex items-center gap-3 text-xs text-emerald-900 shadow-xs">
+              <span className="text-base shrink-0">✅</span>
+              <div>
+                <p className="font-bold">Payment Verified</p>
+                <p className="text-[11px] text-emerald-700 font-medium">Your payment has been securely verified.</p>
+              </div>
             </div>
           )}
 

@@ -316,23 +316,37 @@ export default function AccountOrderDetailPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="p-4 border rounded-xl bg-zinc-50">
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Payment</p>
-              <p className="font-bold text-zinc-800 mt-2">{getPaymentStatusLabel(order.paymentStatus)}</p>
+              <p className="font-bold text-zinc-800 mt-1">{getPaymentStatusLabel(order.paymentStatus)}</p>
+              {order.paymentStatus === 'PAID' && (
+                <p className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-1">
+                  <span>✅</span> <span>Your payment has been securely verified.</span>
+                </p>
+              )}
             </div>
             <div className="p-4 border rounded-xl bg-zinc-50">
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Delivery</p>
-              <p className="font-bold text-zinc-800 mt-2">{getDeliveryPromise(order)}</p>
+              <p className="font-bold text-zinc-800 mt-1">{getDeliveryPromise(order)}</p>
             </div>
           </div>
 
           {/* Pay Button if unpaid */}
           {order.paymentStatus !== 'PAID' && order.status !== 'Cancelled' && (
-            <Link
-              href={`/order/${order.id}/payment`}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-burgundy text-white font-bold text-sm rounded-xl hover:bg-brand-burgundy-dark transition-all shadow"
-            >
-              <CreditCard className="h-4 w-4" />
-              <span>Pay Now with Razorpay (₹{order.total})</span>
-            </Link>
+            <div className="space-y-2">
+              <Link
+                href={`/order/${order.id}/payment`}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-burgundy text-white font-bold text-sm rounded-xl hover:bg-brand-burgundy-dark transition-all shadow"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span>Pay Now with Razorpay (₹{order.total})</span>
+              </Link>
+              <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center gap-3 text-left">
+                <span className="text-base shrink-0">🔒</span>
+                <div>
+                  <h5 className="font-bold text-xs text-slate-800 leading-tight">Secure Payment</h5>
+                  <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Payments are securely processed and verified by Razorpay.</p>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Cancellation Info / Error */}

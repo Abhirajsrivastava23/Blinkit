@@ -462,6 +462,15 @@ export default function CheckoutPage() {
                           <span className="text-[9px] font-bold uppercase text-zinc-500 bg-zinc-200 px-2 py-1 rounded-full">Disabled</span>
                         </div>
                       </div>
+
+                      {/* Razorpay Trust Messaging */}
+                      <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center gap-3 text-left">
+                        <span className="text-base shrink-0">🔒</span>
+                        <div>
+                          <h5 className="font-bold text-xs text-slate-800 leading-tight">Secure Payment</h5>
+                          <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Payments are securely processed and verified by Razorpay.</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -512,6 +521,15 @@ export default function CheckoutPage() {
                         <p className="text-[10px] text-zinc-500 mt-1">
                           You will be directed to complete secure payment via Razorpay.
                         </p>
+                      </div>
+
+                      {/* Razorpay Trust Messaging */}
+                      <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center gap-3 text-left">
+                        <span className="text-base shrink-0">🔒</span>
+                        <div>
+                          <h5 className="font-bold text-xs text-slate-800 leading-tight">Secure Payment</h5>
+                          <p className="text-[11px] text-slate-500 leading-tight mt-0.5">Payments are securely processed and verified by Razorpay.</p>
+                        </div>
                       </div>
 
                     </div>
