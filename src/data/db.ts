@@ -120,21 +120,98 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
   try {
     // 1. Ensure required columns in orders table
     await p.query(`
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayOrderId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayPaymentId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentSubmittedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentRejectedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
+      CREATE TABLE IF NOT EXISTS "orders" (
+        id TEXT PRIMARY KEY
+      );
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS id TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customerId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customerEmail" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "items" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "subtotal" NUMERIC;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryFee" NUMERIC;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discount" NUMERIC;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "total" NUMERIC;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "couponCode" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "address" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "status" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOption" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryTimeSlot" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "eta" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationId" TEXT;
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationName" TEXT;
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOtp" TEXT;
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpFailedAttempts" INTEGER DEFAULT 0;
       ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpExpiresAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedPartnerId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedPartnerName" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "scheduledDeliveryAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancellationReason" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancelledAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "delivery_otp_verified" BOOLEAN DEFAULT false;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otp_verified_at" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "verified_by_partner_id" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "delivery_completed_at" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "adminOverride" JSONB;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "utr" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "proofImageUrl" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentSubmittedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentRejectedAt" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayOrderId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayPaymentId" TEXT;
+      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS customerid TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS customeremail TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryfee NUMERIC;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount NUMERIC;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS total NUMERIC;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS couponcode TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS address JSONB;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS status TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryoption TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverytimeslot TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS eta TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS createdat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS updatedat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverylocationid TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverylocationname TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryotp TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS otpfailedattempts INTEGER DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS otpexpiresat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS statushistory JSONB;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedpartnerid TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedpartnername TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentstatus TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentmethod TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentid TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduleddeliveryat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancellationreason TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelledat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp_verified BOOLEAN DEFAULT false;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS otp_verified_at TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS verified_by_partner_id TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_completed_at TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS adminoverride JSONB;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS utr TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS proofimageurl TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentsubmittedat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentverifiedat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentrejectedat TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS rejectionreason TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpayorderid TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpaypaymentid TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpaysignature TEXT;
     `).catch(() => {});
 
     // 2. Ensure payment_transactions table exists with indexes
@@ -1042,6 +1119,9 @@ export const db = {
     try {
       let res = await activePool.query('SELECT * FROM "orders" ORDER BY "createdAt" DESC').catch(() => null);
       if (!res || !res.rows) {
+        res = await activePool.query('SELECT * FROM "orders" ORDER BY createdat DESC').catch(() => null);
+      }
+      if (!res || !res.rows) {
         res = await activePool.query('SELECT * FROM orders ORDER BY createdat DESC').catch(() => null);
       }
       if (!res || !res.rows) {
@@ -1051,7 +1131,26 @@ export const db = {
         res = await activePool.query('SELECT * FROM orders').catch(() => null);
       }
       if (res && res.rows) {
-        return res.rows.map(normalizeOrderRecord);
+        return res.rows.map((row: any) => {
+          const parsed: Record<string, unknown> = {};
+          for (const col of Object.keys(row)) {
+            const val = row[col];
+            if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address' || col === 'adminOverride' || col === 'metadata') {
+              if (typeof val === 'string') {
+                try {
+                  parsed[col] = JSON.parse(val);
+                } catch {
+                  parsed[col] = val;
+                }
+              } else {
+                parsed[col] = val;
+              }
+            } else {
+              parsed[col] = val;
+            }
+          }
+          return normalizeOrderRecord(parsed);
+        });
       }
     } catch (err) {
       console.error('Error in getOrders:', err);
@@ -1275,13 +1374,36 @@ export const db = {
           updateSetClauses.push(`"${canonicalCol}" = EXCLUDED."${canonicalCol}"`);
         }
 
-        const queryText = `INSERT INTO "orders" (${cols.join(', ')}) 
+        let queryText = `INSERT INTO "orders" (${cols.join(', ')}) 
                            VALUES (${valPlaceholders.join(', ')}) 
                            ON CONFLICT ("id") DO UPDATE SET ${updateSetClauses.join(', ')} 
                            RETURNING *`;
-        const res = await activePool.query(queryText, insertVals);
-        if (res.rows.length > 0) {
-          const persisted = normalizeOrderRecord(res.rows[0]);
+        let res = await activePool.query(queryText, insertVals).catch(() => null);
+
+        if (!res || !res.rows || res.rows.length === 0) {
+          queryText = `INSERT INTO orders (${cols.join(', ')}) 
+                         VALUES (${valPlaceholders.join(', ')}) 
+                         ON CONFLICT (id) DO UPDATE SET ${updateSetClauses.join(', ')} 
+                         RETURNING *`;
+          res = await activePool.query(queryText, insertVals).catch(() => null);
+        }
+
+        if (res && res.rows && res.rows.length > 0) {
+          const row = res.rows[0];
+          const parsed: Record<string, unknown> = {};
+          for (const col of Object.keys(row)) {
+            const val = row[col];
+            if (col === 'tags' || col === 'addresses' || col === 'items' || col === 'statusHistory' || col === 'address' || col === 'adminOverride' || col === 'metadata') {
+              if (typeof val === 'string') {
+                try { parsed[col] = JSON.parse(val); } catch { parsed[col] = val; }
+              } else {
+                parsed[col] = val;
+              }
+            } else {
+              parsed[col] = val;
+            }
+          }
+          const persisted = normalizeOrderRecord(parsed);
           if (idx >= 0) list[idx] = persisted;
           else list[0] = persisted;
           inMemoryData['orders'] = list;
