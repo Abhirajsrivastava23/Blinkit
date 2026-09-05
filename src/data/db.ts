@@ -642,14 +642,12 @@ async function bulkInsert(client: PoolClient, table: string, items: Record<strin
 
 export const db = {
   async testConnection(): Promise<{ ok: boolean; error?: string }> {
-    if (dbInitError && !pool) {
-      return { ok: false, error: dbInitError };
-    }
-    if (!pool) {
-      return { ok: false, error: 'PostgreSQL connection pool is not configured' };
+    const activePool = getPool();
+    if (!activePool) {
+      return { ok: false, error: dbInitError || 'PostgreSQL connection pool is not configured' };
     }
     try {
-      const res = await pool.query('SELECT NOW()');
+      const res = await activePool.query('SELECT NOW()');
       if (res.rows.length > 0) {
         return { ok: true };
       }
@@ -660,7 +658,8 @@ export const db = {
   },
 
   async query<T extends Record<string, unknown> = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
-    if (!pool) {
+    const activePool = getPool();
+    if (!activePool) {
       // Local fallback for basic queries if pool is not configured
       const lower = text.toLowerCase();
       if (lower.includes('insert into payment_transactions') && params && params.length >= 2) {
@@ -809,7 +808,7 @@ export const db = {
       }
       return { rows: [] };
     }
-    const res = await pool.query(text, params);
+    const res = await activePool.query(text, params);
     return {
       rows: res.rows.map(row => {
         const parsed: Record<string, unknown> = {};
