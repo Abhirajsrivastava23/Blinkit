@@ -77,6 +77,23 @@ export default function HomePage() {
   };
 
   // 2. Filter Database Products
+  const BEST_CAKE_IDS = [
+    'rich-chocolate-truffle-cake',
+    'belgian-chocolate-cake',
+    'classic-black-forest-cake',
+    'red-velvet-heart-shape-cake',
+    'blueberry-cheesecake'
+  ];
+
+  const bestCakes = useMemo(() => {
+    const map = new Map(PRODUCTS.map((p) => [p.id.toLowerCase(), p]));
+    const list = BEST_CAKE_IDS.map((id) => map.get(id)).filter((p): p is Product => Boolean(p));
+    if (list.length >= 4) return list;
+    return PRODUCTS.filter(
+      (p) => (p.category === 'Birthday Cakes' || p.category === 'Chocolate Cakes' || p.category === 'Desserts') && p.inStock
+    ).slice(0, 5);
+  }, [PRODUCTS]);
+
   const trendingProducts = PRODUCTS.filter(p => p.category !== 'wellness').slice(0, 8);
   const birthdayCakes = PRODUCTS.filter(p => p.category === 'Birthday Cakes' && p.inStock);
   const chocolateCakes = PRODUCTS.filter(p => p.category === 'Chocolate Cakes' && p.inStock);
@@ -211,6 +228,36 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+
+        {/* DEDICATED BEST CAKES SECTION */}
+        {bestCakes.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-burgundy/10 text-brand-burgundy text-[9px] font-black uppercase tracking-widest mb-1">
+                  <Sparkles className="h-3 w-3" /> Chef&apos;s Signature Top Picks
+                </div>
+                <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">
+                  Best Cakes 🎂
+                </h2>
+                <p className="text-[10px] sm:text-xs text-zinc-500 font-medium">
+                  Handcrafted perfection — our top 5 most loved celebratory cakes
+                </p>
+              </div>
+              <Link 
+                href="/cakes" 
+                className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline shrink-0"
+              >
+                View All Cakes →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+              {bestCakes.map((product) => (
+                <ProductCard key={`best-home-${product.id}`} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 4. TRENDING ON FATAFAT */}
         {trendingProducts.length > 0 && (

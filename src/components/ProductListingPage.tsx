@@ -44,6 +44,25 @@ export default function ProductListingPage({ categoryKey, title, description }: 
   
   const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false);
 
+  const isCakesPage = categoryKey.toLowerCase().trim() === 'cakes' || categoryKey.toLowerCase().trim() === 'all cakes';
+
+  const BEST_CAKE_IDS = [
+    'rich-chocolate-truffle-cake',
+    'belgian-chocolate-cake',
+    'classic-black-forest-cake',
+    'red-velvet-heart-shape-cake',
+    'blueberry-cheesecake'
+  ];
+
+  const bestCakes = useMemo(() => {
+    const map = new Map(PRODUCTS.map((p) => [p.id.toLowerCase(), p]));
+    const list = BEST_CAKE_IDS.map((id) => map.get(id)).filter((p): p is Product => Boolean(p));
+    if (list.length >= 4) return list;
+    return PRODUCTS.filter(
+      (p) => (p.category === 'Birthday Cakes' || p.category === 'Chocolate Cakes' || p.category === 'Desserts') && p.inStock
+    ).slice(0, 5);
+  }, [PRODUCTS]);
+
   // Get unique subcategories based on matching category products
   const categoryProducts = useMemo(() => {
     const key = categoryKey.toLowerCase().trim();
@@ -178,6 +197,33 @@ export default function ProductListingPage({ categoryKey, title, description }: 
               </div>
             )}
           </div>
+
+          {/* DEDICATED BEST CAKES SECTION FOR VIKI / CAKES */}
+          {isCakesPage && bestCakes.length > 0 && !searchVal && !initialOccasion && selectedSubCategory === 'All' && (
+            <section className="mb-10 bg-gradient-to-br from-brand-blush/60 via-white to-amber-50/40 border border-brand-burgundy/15 rounded-3xl p-5 sm:p-6 shadow-sm">
+              <div className="flex justify-between items-baseline mb-4 text-left">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-burgundy text-brand-gold text-[8px] font-black uppercase tracking-widest shadow-sm mb-1">
+                    <Sparkles className="h-3 w-3" /> VIKI Top Rated
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">
+                    Best Cakes 🎂
+                  </h2>
+                  <p className="text-[10px] sm:text-xs text-zinc-500 font-medium">
+                    Our top recommended signature creations for celebrations
+                  </p>
+                </div>
+                <span className="text-[9px] font-extrabold uppercase tracking-wider text-brand-burgundy/80">
+                  Featured (5)
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                {bestCakes.map((product) => (
+                  <ProductCard key={`viki-best-${product.id}`} product={product} />
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
             
