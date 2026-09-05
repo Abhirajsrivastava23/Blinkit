@@ -17,23 +17,46 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order ID and image file are required.' }, { status: 400 });
     }
 
-    // Load active orders to verify assignment
-    const orders = await db.readTable<any>('orders') || [];
-    const orderObj = orders.find(
-      o => o.id === orderId && 
-           o.assignedPartnerId === session.userId && 
-           o.status !== 'Delivered' && 
-           o.status !== 'Cancelled'
-    );
+    // Load active order to verify assignment
+    const cleanId = String(orderId || '').replace(/^#+/, '').trim();
+    const orderObj = await db.getOrderById(cleanId);
 
-    if (!orderObj) {
+    const assignedId = String(orderObj?.assignedPartnerId || '').trim().toLowerCase();
+    const sId = String(session.userId || '').trim().toLowerCase();
+    const sEmail = String(session.email || '').trim().toLowerCase();
+
+    let isAuthorized = false;
+    if (orderObj && orderObj.status !== 'Delivered' && orderObj.status !== 'Cancelled') {
+      if (assignedId === sId || assignedId === sEmail) {
+        isAuthorized = true;
+      } else {
+        try {
+          const partners = await db.readTable<any>('partners') || [];
+          const myPartnerRec = partners.find((p: any) => 
+            String(p.id || '').toLowerCase().trim() === sId ||
+            String(p.email || '').toLowerCase().trim() === sEmail ||
+            (session.userId && String(p.id || '').toLowerCase().trim() === String(session.userId).toLowerCase().trim())
+          );
+          if (myPartnerRec) {
+            const pId = String(myPartnerRec.id || '').toLowerCase().trim();
+            const pPhone = String(myPartnerRec.phone || '').replace(/\D/g, '');
+            const aPhone = assignedId.replace(/\D/g, '');
+            if (assignedId === pId || (pPhone && aPhone && (assignedId === pPhone || aPhone === pPhone))) {
+              isAuthorized = true;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (!orderObj || !isAuthorized) {
       return NextResponse.json({ error: 'Access Denied: You do not have an active delivery assigned with this Order ID.' }, { status: 403 });
     }
 
     // Supabase REST Storage API Upload Attempt
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const filename = `proof-${orderId}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+    const filename = `proof-${cleanId}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
 
     let photoUrl = '';
 
@@ -71,21 +94,20 @@ export async function POST(request: Request) {
     await db.query(
       `INSERT INTO delivery_photos (id, "orderId", "partnerId", "photoUrl", category, "uploadedAt") 
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [photoId, orderId, session.userId, photoUrl, 'Proof', new Date().toISOString()]
+      [photoId, cleanId, session.userId, photoUrl, 'Proof', new Date().toISOString()]
     );
 
-    // Update order status history to log photo upload
-    const orderIdx = orders.findIndex(o => o.id === orderId);
-    if (orderIdx > -1) {
-      const hist = orders[orderIdx].statusHistory || [];
-      hist.push({
-        status: orders[orderIdx].status,
-        updatedAt: new Date().toISOString(),
-        note: `Proof photo uploaded: ${photoId}`
-      });
-      orders[orderIdx].statusHistory = hist;
-      await db.writeTable('orders', orders);
-    }
+    // Update order status history atomically
+    const hist = Array.isArray(orderObj.statusHistory) ? [...orderObj.statusHistory] : [];
+    hist.push({
+      previousStatus: String(orderObj.status),
+      newStatus: String(orderObj.status),
+      changedByUserId: session.userId,
+      changedByRole: 'delivery_partner',
+      timestamp: new Date().toISOString(),
+      action: `Proof photo uploaded: ${photoId}`
+    });
+    await db.updateOrder(cleanId, { statusHistory: hist });
 
     return NextResponse.json({ success: true, photoUrl });
   } catch (err) {

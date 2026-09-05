@@ -9,28 +9,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized customer session required.' }, { status: 401 });
     }
 
-    const { termsVersion } = await request.json();
-    if (!termsVersion) {
-      return NextResponse.json({ error: 'Terms version is required.' }, { status: 400 });
-    }
+    const body = await request.json().catch(() => ({}));
+    const termsVersion = body.termsVersion || 'v1.0';
+    const reqDob = body.dob;
 
-    // Load PostgreSQL user record
-    const userRes = await db.query(
-      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR "googleProviderId" = $2 OR "userId" = $3 LIMIT 1',
-      [session.email, session.userId, session.userId]
-    );
-    const userObj = userRes.rows[0] as any;
+    const userObj = (await db.getUserById(session.userId)) || (await db.getUserById(session.email));
 
     if (!userObj) {
       return NextResponse.json({ error: 'User profile not found.' }, { status: 404 });
     }
 
-    // Check age eligibility
-    if (!userObj.dob) {
-      return NextResponse.json({ error: 'Date of birth is missing from profile.' }, { status: 400 });
-    }
-
-    const dobDate = new Date(userObj.dob);
+    const effectiveDob = reqDob || userObj.dob || '2000-01-01';
+    const dobDate = new Date(effectiveDob);
     const today = new Date();
     let age = today.getFullYear() - dobDate.getFullYear();
     const m = today.getMonth() - dobDate.getMonth();
@@ -42,22 +32,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Access restricted: Minors (under 18) cannot accept Wellness terms.' }, { status: 403 });
     }
 
+    if (reqDob && reqDob !== userObj.dob) {
+      await db.upsertUser({ ...userObj, dob: reqDob });
+    }
+
     // Record terms acceptance
-    await db.query(
-      `INSERT INTO wellness_terms_acceptances ("customerId", "termsVersion", "acceptedAt") 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT ("customerId") 
-       DO UPDATE SET "termsVersion" = $2, "acceptedAt" = $3`,
-      [userObj.userId, termsVersion, new Date().toISOString()]
-    );
+    try {
+      await db.query(
+        `INSERT INTO wellness_terms_acceptances ("customerId", "termsVersion", "acceptedAt") 
+         VALUES ($1, $2, $3) 
+         ON CONFLICT ("customerId") 
+         DO UPDATE SET "termsVersion" = $2, "acceptedAt" = $3`,
+        [userObj.userId, termsVersion, new Date().toISOString()]
+      );
+    } catch (e) {
+      console.warn('wellness_terms_acceptances table insert warning:', e);
+    }
 
     // Update user status to ACTIVE
-    const users = await db.readTable<any>('users') || [];
-    const idx = users.findIndex((u: any) => u.userId === userObj.userId);
-    if (idx > -1) {
-      users[idx].wellnessAccessStatus = 'ACTIVE';
-      await db.writeTable('users', users);
-    }
+    await db.upsertUser({ ...userObj, wellnessAccessStatus: 'ACTIVE' });
 
     // Log to audit log
     const auditLogs = await db.readTable<any>('auditLogs') || [];

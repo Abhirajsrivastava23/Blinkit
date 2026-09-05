@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, CheckCircle2, ArrowLeft, RefreshCw, ShoppingBag, Search, AlertCircle } from 'lucide-react';
+import { Truck, MapPin, Clock, CheckCircle2, ArrowLeft, ShoppingBag, Search, AlertCircle } from 'lucide-react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
@@ -22,7 +22,7 @@ const STATUS_PROGRESSION: Order['status'][] = [
 function TrackOrderContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { getOrderById, updateOrderStatus } = useOrders();
+  const { getOrderById } = useOrders();
   const { showToast } = useToast();
 
   const queryId = searchParams.get('id') || '';
@@ -33,18 +33,6 @@ function TrackOrderContent() {
     e.preventDefault();
     if (orderIdInput.trim()) {
       router.push(`/track-order?id=${orderIdInput.trim().toUpperCase()}`);
-    }
-  };
-
-  const handleSimulateNextStep = () => {
-    if (!order) return;
-    const currentIndex = STATUS_PROGRESSION.indexOf(order.status);
-    if (currentIndex > -1 && currentIndex < STATUS_PROGRESSION.length - 1) {
-      const nextStatus = STATUS_PROGRESSION[currentIndex + 1];
-      updateOrderStatus(order.id, nextStatus);
-      showToast(`Simulating status change: ${nextStatus}`, 'info');
-    } else {
-      showToast('Order is already fully delivered.', 'success');
     }
   };
 
@@ -116,16 +104,6 @@ function TrackOrderContent() {
               >
                 New Search
               </button>
-
-              {order.status !== 'Delivered' && (
-                <button
-                  onClick={handleSimulateNextStep}
-                  className="flex items-center gap-1 px-4 py-2 bg-brand-gold text-zinc-900 hover:bg-brand-gold-light text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow"
-                >
-                  <RefreshCw className="h-4 w-4 animate-spin-slow" />
-                  Fast-Forward
-                </button>
-              )}
             </div>
           </div>
 

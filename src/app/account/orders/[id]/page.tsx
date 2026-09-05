@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, ArrowLeft, RefreshCw, ShoppingBag, X, AlertTriangle } from 'lucide-react';
+import { Truck, MapPin, Clock, ArrowLeft, ShoppingBag, X, AlertTriangle, CreditCard } from 'lucide-react';
 import { useOrders, Order, STATUS_RANK } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
@@ -18,7 +19,7 @@ const STATUS_PROGRESSION: Order['status'][] = [
 export default function AccountOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { getOrderById, updateOrderStatus, refreshOrders } = useOrders();
+  const { getOrderById, refreshOrders } = useOrders();
   const { showToast } = useToast();
 
   const rawParamId = (params.id as string || '').trim();
@@ -131,19 +132,6 @@ export default function AccountOrderDetailPage() {
     );
   }
 
-  const handleSimulateNextStep = () => {
-    const currentIndex = STATUS_PROGRESSION.indexOf(order.status);
-    if (currentIndex > -1 && currentIndex < STATUS_PROGRESSION.length - 1) {
-      const nextStatus = STATUS_PROGRESSION[currentIndex + 1];
-      updateOrderStatus(order.id, nextStatus);
-      showToast(`Simulating status change: ${nextStatus}`, 'info');
-      // Refresh local copy
-      setOrder(getOrderById(orderId));
-    } else {
-      showToast('Order is already fully delivered.', 'success');
-    }
-  };
-
   // Check if order can be cancelled (only Pending and Confirmed statuses)
   const canCancelOrder = (order: Order): boolean => {
     const cancellableStatuses = ['Pending', 'Confirmed'];
@@ -235,16 +223,6 @@ export default function AccountOrderDetailPage() {
           </button>
           <h3 className="text-base font-serif font-extrabold text-zinc-800">Order ID: #{order.id}</h3>
         </div>
-
-        {order.status !== 'Delivered' && (
-          <button
-            onClick={handleSimulateNextStep}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-brand-gold hover:bg-brand-gold-light text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all shadow"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Fast-Forward
-          </button>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -325,6 +303,17 @@ export default function AccountOrderDetailPage() {
               <p className="font-bold text-zinc-800 mt-2">{getDeliveryPromise(order)}</p>
             </div>
           </div>
+
+          {/* Pay Button if unpaid */}
+          {order.paymentStatus !== 'PAID' && order.status !== 'Cancelled' && (
+            <Link
+              href={`/order/${order.id}/payment`}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-burgundy text-white font-bold text-sm rounded-xl hover:bg-brand-burgundy-dark transition-all shadow"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span>Pay Now with Razorpay (₹{order.total})</span>
+            </Link>
+          )}
 
           {/* Cancellation Info / Error */}
           {cancellationError && (

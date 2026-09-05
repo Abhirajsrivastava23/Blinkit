@@ -26,6 +26,9 @@ export default function AdminDeliveryPartnersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchSeqRef = React.useRef(0);
+  const isFetchingRef = React.useRef(false);
+
   // Form states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -42,29 +45,45 @@ export default function AdminDeliveryPartnersPage() {
   const [formStatus, setFormStatus] = useState<'Active' | 'Inactive'>('Active');
 
   const fetchDashboardData = async () => {
+    const thisSeq = ++fetchSeqRef.current;
     try {
       // 1. Fetch partners
-      const resP = await fetch('/api/admin/partners');
+      const resP = await fetch('/api/admin/partners', { 
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (resP.ok) {
         const dataP = await resP.json();
-        setPartners(dataP);
+        if (Array.isArray(dataP) && thisSeq >= fetchSeqRef.current) {
+          setPartners(dataP);
+        }
       }
 
       // 2. Fetch issues
-      const resI = await fetch('/api/admin/issues');
+      const resI = await fetch('/api/admin/issues', { 
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (resI.ok) {
         const dataI = await resI.json();
-        setIssues(dataI);
+        if (Array.isArray(dataI) && thisSeq >= fetchSeqRef.current) {
+          setIssues(dataI);
+        }
       }
 
       // 3. Fetch orders
-      const resO = await fetch('/api/orders');
+      const resO = await fetch('/api/orders', { 
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (resO.ok) {
         const dataO = await resO.json();
-        setOrders(dataO);
+        if (Array.isArray(dataO) && thisSeq >= fetchSeqRef.current) {
+          setOrders(dataO);
+        }
       }
     } catch (err) {
-      showToast('Error loading operational logistics details.', 'error');
+      console.error('Error loading operational logistics details:', err);
     } finally {
       setIsLoading(false);
     }
@@ -72,6 +91,8 @@ export default function AdminDeliveryPartnersPage() {
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleOpenAdd = () => {
@@ -114,31 +135,54 @@ export default function AdminDeliveryPartnersPage() {
         ? 'Nawabganj, Unnao' 
         : 'Chandigarh University, Uttar Pradesh';
 
+      const payload = {
+        id: formId.trim(),
+        name: formName.trim(),
+        phone: formPhone.trim(),
+        email: formEmail.trim().toLowerCase(),
+        password: formPassword.trim(),
+        locationId: formLocation,
+        locationName: locName,
+        status: formStatus,
+        isOnline: false
+      };
+
+      // Optimistically add to list
+      const optimisticPartner: Partner = {
+        id: payload.id,
+        name: payload.name,
+        phone: payload.phone,
+        email: payload.email,
+        locationId: payload.locationId,
+        locationName: payload.locationName,
+        status: payload.status as 'Active' | 'Inactive',
+        isOnline: false
+      };
+      setPartners(prev => [...prev.filter(p => p.id.toLowerCase() !== optimisticPartner.id.toLowerCase()), optimisticPartner]);
+
       const res = await fetch('/api/admin/partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: formId,
-          name: formName,
-          phone: formPhone,
-          email: formEmail,
-          password: formPassword,
-          locationId: formLocation,
-          locationName: locName,
-          status: formStatus
-        })
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
+        const resData = await res.json();
         showToast('Delivery Partner account created successfully!', 'success');
         setShowAddModal(false);
+        if (resData.partner) {
+          setPartners(prev => [...prev.filter(p => p.id.toLowerCase() !== resData.partner.id.toLowerCase()), resData.partner]);
+        }
         fetchDashboardData();
       } else {
         const data = await res.json();
         showToast(data.error || 'Failed to create partner.', 'error');
+        // Revert on error
+        fetchDashboardData();
       }
     } catch (err) {
       showToast('Server connection failed.', 'error');
+      fetchDashboardData();
     }
   };
 
@@ -151,18 +195,23 @@ export default function AdminDeliveryPartnersPage() {
         ? 'Nawabganj, Unnao' 
         : 'Chandigarh University, Uttar Pradesh';
 
+      const payload = {
+        id: selectedPartner.id,
+        name: formName.trim(),
+        phone: formPhone.trim(),
+        email: formEmail.trim().toLowerCase(),
+        locationId: formLocation,
+        locationName: locName,
+        status: formStatus
+      };
+
+      // Optimistic update
+      setPartners(prev => prev.map(p => p.id === selectedPartner.id ? { ...p, ...payload } : p));
+
       const res = await fetch('/api/admin/partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedPartner.id,
-          name: formName,
-          phone: formPhone,
-          email: formEmail,
-          locationId: formLocation,
-          locationName: locName,
-          status: formStatus
-        })
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
@@ -172,9 +221,11 @@ export default function AdminDeliveryPartnersPage() {
       } else {
         const data = await res.json();
         showToast(data.error || 'Failed to update partner details.', 'error');
+        fetchDashboardData();
       }
     } catch (err) {
       showToast('Server connection failed.', 'error');
+      fetchDashboardData();
     }
   };
 
@@ -190,7 +241,7 @@ export default function AdminDeliveryPartnersPage() {
           id: selectedPartner.id,
           name: selectedPartner.name,
           email: selectedPartner.email,
-          password: formPassword
+          password: formPassword.trim()
         })
       });
 
@@ -208,6 +259,9 @@ export default function AdminDeliveryPartnersPage() {
 
   const handleToggleStatus = async (partner: Partner) => {
     const nextStatus = partner.status === 'Active' ? 'Inactive' : 'Active';
+    // Optimistic toggle
+    setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: nextStatus } : p));
+
     try {
       const res = await fetch('/api/admin/partners', {
         method: 'POST',
@@ -224,17 +278,22 @@ export default function AdminDeliveryPartnersPage() {
         fetchDashboardData();
       } else {
         showToast('Failed to modify status.', 'error');
+        fetchDashboardData();
       }
     } catch (e) {
       showToast('Connection error.', 'error');
+      fetchDashboardData();
     }
   };
 
   const handleDeletePartner = async (partnerId: string) => {
     if (!confirm('Are you sure you want to delete this delivery partner account?')) return;
 
+    // Optimistic deletion
+    setPartners(prev => prev.filter(p => p.id !== partnerId));
+
     try {
-      const res = await fetch(`/api/admin/partners?id=${partnerId}`, {
+      const res = await fetch(`/api/admin/partners?id=${encodeURIComponent(partnerId)}`, {
         method: 'DELETE'
       });
 
@@ -242,10 +301,13 @@ export default function AdminDeliveryPartnersPage() {
         showToast('Delivery Partner deleted successfully.', 'success');
         fetchDashboardData();
       } else {
-        showToast('Failed to delete partner.', 'error');
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Failed to delete partner.', 'error');
+        fetchDashboardData();
       }
     } catch (err) {
       showToast('Server connection failed.', 'error');
+      fetchDashboardData();
     }
   };
 

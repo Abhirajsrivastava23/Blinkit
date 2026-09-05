@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
 
@@ -62,6 +63,18 @@ export async function PATCH(request: Request, context: any) {
       return NextResponse.json({ error: 'Failed to update product in database.' }, { status: 500 });
     }
 
+    // Next.js Route Cache Invalidation
+    try {
+      revalidatePath('/');
+      revalidatePath('/products');
+      revalidatePath(`/product/${encodeURIComponent(prevProduct.id)}`);
+      if (updatedProduct.category) {
+        revalidatePath(`/${updatedProduct.category}`);
+      }
+    } catch {
+      // ignore in environments where revalidatePath is no-op
+    }
+
     // Audit Log
     const auditLogs: string[] = [];
     if (body.name && body.name !== prevProduct.name) {
@@ -98,6 +111,14 @@ export async function DELETE(request: Request, context: any) {
     const deleted = await db.deleteProduct(existing.id);
     if (!deleted) {
       return NextResponse.json({ error: 'Failed to delete product.' }, { status: 500 });
+    }
+
+    try {
+      revalidatePath('/');
+      revalidatePath('/products');
+      revalidatePath(`/product/${encodeURIComponent(existing.id)}`);
+    } catch {
+      // ignore
     }
 
     // Audit Log

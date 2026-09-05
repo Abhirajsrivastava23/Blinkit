@@ -82,7 +82,7 @@ const RESET_ACTIONS: ResetActionConfig[] = [
   {
     id: 'PAYMENTS',
     title: 'Delete Payment / Transaction Records',
-    description: 'Purge all UPI transaction records, UTR references, uploaded screenshot proofs, and reset order payment states to NOT_STARTED.',
+    description: 'Purge all Razorpay transaction records, payment transaction IDs, and reset order payment states to NOT_STARTED.',
     badge: 'Financial Records',
     badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
     buttonColor: 'bg-amber-600 hover:bg-amber-700 text-white',
@@ -178,8 +178,7 @@ export default function AdminSettingsPage() {
   const [wellnessPublished, setWellnessPublished] = useState(false);
 
   // Payment Config state
-  const [paymentUpiId, setPaymentUpiId] = useState('8081988627@pthdfc');
-  const [savingPaymentConfig, setSavingPaymentConfig] = useState(false);
+  const [razorpaySettings, setRazorpaySettings] = useState<any>(null);
 
   // Data Management State
   const [entityCounts, setEntityCounts] = useState<EntityCounts | null>(null);
@@ -216,7 +215,7 @@ export default function AdminSettingsPage() {
       const pRes = await fetch('/api/admin/payment-settings');
       if (pRes.ok) {
         const pData = await pRes.json();
-        setPaymentUpiId(pData.upiId || '8081988627@pthdfc');
+        setRazorpaySettings(pData);
       }
     } catch (err) {
       console.error(err);
@@ -288,28 +287,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleSavePaymentConfig = async () => {
-    try {
-      setSavingPaymentConfig(true);
-      const res = await fetch('/api/admin/payment-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ upiId: paymentUpiId.trim() || '8081988627@pthdfc' })
-      });
 
-      if (res.ok) {
-        showToast('UPI configuration updated successfully.', 'success');
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        showToast(errData.error || 'Failed to save payment configuration.', 'error');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Error saving payment configuration.', 'error');
-    } finally {
-      setSavingPaymentConfig(false);
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -527,26 +505,39 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="bg-white border border-zinc-200/20 p-6 rounded-3xl space-y-4 shadow-sm">
-              <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2">Payment Configuration</h4>
-              <div className="space-y-1">
-                <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px]">Receiving UPI ID</label>
-                <input
-                  type="text"
-                  value={paymentUpiId}
-                  onChange={(e) => setPaymentUpiId(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-zinc-50/5 focus:bg-white focus:outline-none"
-                  placeholder="8081988627@pthdfc"
-                />
+              <div className="flex items-center justify-between border-b pb-2">
+                <h4 className="font-serif font-extrabold text-sm text-brand-burgundy flex items-center gap-1.5">
+                  <CreditCard className="h-4.5 w-4.5" /> Razorpay Payment Gateway
+                </h4>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  {razorpaySettings?.status === 'ACTIVE' ? '🟢 Gateway Active' : '🟢 Ready'}
+                </span>
               </div>
-              <p className="text-[10px] text-zinc-500">Used for customer UPI QR creation. This is the only payment credential shown to customers.</p>
-              <button
-                type="button"
-                onClick={handleSavePaymentConfig}
-                disabled={savingPaymentConfig}
-                className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all"
-              >
-                {savingPaymentConfig ? 'Saving...' : 'Save Payment Settings'}
-              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-zinc-50 border border-zinc-200/60 rounded-xl space-y-1">
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 block">Integration Mode</span>
+                  <span className="font-bold text-zinc-900 block">{razorpaySettings?.checkoutMode || 'Standard Checkout (checkout.js)'}</span>
+                </div>
+
+                <div className="p-3 bg-zinc-50 border border-zinc-200/60 rounded-xl space-y-1">
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 block">Server Signature Verification</span>
+                  <span className="font-bold text-emerald-700 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> HMAC-SHA256 Active
+                  </span>
+                </div>
+
+                <div className="p-3 bg-zinc-50 border border-zinc-200/60 rounded-xl space-y-1 sm:col-span-2">
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-400 block">Webhook Endpoint</span>
+                  <code className="font-mono text-[11px] font-bold text-zinc-800 select-all block">
+                    /api/payments/razorpay/webhook
+                  </code>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-zinc-500 leading-relaxed">
+                Customers pay seamlessly with UPI, Credit/Debit Cards, NetBanking, and Wallets via Razorpay Standard Checkout modal. All signatures are verified server-side.
+              </p>
             </div>
 
             {/* Hero Customizer */}

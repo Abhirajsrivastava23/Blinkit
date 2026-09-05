@@ -74,29 +74,25 @@ export async function GET(request: Request) {
       return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Unauthorized session' }, { status: 401, headers: noStoreHeaders });
     }
 
-    if (session.role === 'admin') {
+    if (session.role === 'admin' || session.role === 'super_admin') {
       const admins = await db.readTable<AdminRecord>('admin') || [];
-      const adminObj = admins.find(a => a.email.toLowerCase() === session.email.toLowerCase());
-      if (!adminObj) {
-        return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Admin record not found' }, { status: 401 });
-      }
+      const adminObj = admins.find(a => a.email && a.email.toLowerCase().trim() === session.email.toLowerCase().trim());
       return NextResponse.json({
         authenticated: true,
         wellnessPublished,
         user: {
-          name: adminObj.name,
-          email: adminObj.email,
-          phone: adminObj.phone,
+          name: adminObj?.name || 'Admin',
+          email: adminObj?.email || session.email,
+          phone: adminObj?.phone || '',
           role: 'admin'
         }
-      });
+      }, { headers: noStoreHeaders });
     }
 
     if (session.role === 'delivery_partner') {
-      const partners = await db.readTable<PartnerRecord>('partners') || [];
-      const partnerObj = partners.find(p => p.id === session.userId);
+      const partnerObj: any = await db.getPartnerById(session.userId) || await db.getPartnerById(session.email);
       if (!partnerObj) {
-        return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Delivery partner record not found' }, { status: 401 });
+        return NextResponse.json({ authenticated: false, wellnessPublished, error: 'Delivery partner record not found' }, { status: 401, headers: noStoreHeaders });
       }
       return NextResponse.json({
         authenticated: true,
@@ -112,7 +108,7 @@ export async function GET(request: Request) {
           status: partnerObj.status,
           isOnline: partnerObj.isOnline
         }
-      });
+      }, { headers: noStoreHeaders });
     }
 
     if (session.role === 'customer') {

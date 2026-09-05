@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   CheckCircle2, 
@@ -13,37 +12,40 @@ import {
   Clock, 
   XCircle, 
   RefreshCw, 
-  Copy, 
-  ExternalLink, 
-  UploadCloud, 
-  Check, 
+  Lock, 
+  CreditCard, 
+  Smartphone, 
+  Shield, 
   AlertCircle,
   MapPin,
-  Lock,
-  Smartphone,
   ChevronRight,
-  Shield,
-  CreditCard,
-  Zap,
-  HelpCircle,
-  FileCheck
+  ExternalLink,
+  Zap
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 import Header from '../../../../components/Header';
 import Footer from '../../../../components/Footer';
 import Logo from '../../../../components/Logo';
 import { useOrders, Order } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
-interface QrResponse {
-  success: boolean;
-  upiId: string;
-  amount: number;
-  uri: string;
-  merchantName: string;
-  orderId: string;
-  note?: string;
-  error?: string;
+// Helper to load Razorpay SDK dynamically
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+    if ((window as any).Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 }
 
 export default function OrderPaymentPage() {
@@ -65,72 +67,35 @@ export default function OrderPaymentPage() {
   }
   const orderId = cleanOrderId.replace(/^#+/, '').trim();
   const contextOrder = getOrderById(orderId) || getOrderById(rawParamId) || getOrderById(cleanOrderId);
+
   const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isConfirmedNotFound, setIsConfirmedNotFound] = useState(false);
-  const [copied, setCopied] = useState(false);
+
+  // Razorpay Checkout States
+  const [isInitiating, setIsInitiating] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const activeOrderRef = useRef<Order | null>(contextOrder || null);
   const isFetchingRef = useRef(false);
   const reqSeqRef = useRef(0);
   const latestHandledSeqRef = useRef(0);
 
-  // Dynamic UPI QR details from backend
-  const [qrDetails, setQrDetails] = useState<QrResponse | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
-
-  // Payment proof form state
-  const [utr, setUtr] = useState('');
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isSubmittingProof, setIsSubmittingProof] = useState(false);
-
-  // Monotonic state-safety: prevent out-of-order stale poll responses from reverting approved states
+  // Monotonic safety: once confirmed/paid, never revert
   const isMonotonicallySafe = useCallback((current: Order | null, incoming: Order): boolean => {
     if (!current) return true;
-
     const currentPaid = current.paymentStatus === 'PAID' || current.status === 'Confirmed' || current.status === 'Preparing' || current.status === 'Packed' || current.status === 'Out for Delivery' || current.status === 'Delivered';
     const incomingPaid = incoming.paymentStatus === 'PAID' || incoming.status === 'Confirmed' || incoming.status === 'Preparing' || incoming.status === 'Packed' || incoming.status === 'Out for Delivery' || incoming.status === 'Delivered';
 
-    // Rule 1: Once confirmed/paid, NEVER revert to pending or under review or rejected
     if (currentPaid && !incomingPaid) {
       return false;
     }
-
-    // Rule 2: If current is REJECTED, do not revert to pending/unpaid unless incoming has a newer paymentSubmittedAt
-    const currentRejected = current.paymentStatus === 'REJECTED';
-    const incomingRejected = incoming.paymentStatus === 'REJECTED';
-    if (currentRejected && !incomingRejected && !incomingPaid) {
-      if (incoming.paymentSubmittedAt && current.paymentRejectedAt) {
-        if (new Date(incoming.paymentSubmittedAt).getTime() <= new Date(current.paymentRejectedAt).getTime()) {
-          return false;
-        }
-      } else {
-        return false;
-      }
-    }
-
-    // Rule 3: If current has verified timestamp and incoming is older, reject
-    if (current.paymentVerifiedAt && incoming.paymentVerifiedAt) {
-      if (new Date(incoming.paymentVerifiedAt).getTime() < new Date(current.paymentVerifiedAt).getTime()) {
-        return false;
-      }
-    }
-
-    // Rule 4: If current state has newer updatedAt timestamp, reject older payment status
-    if (current.updatedAt && incoming.updatedAt) {
-      if (new Date(incoming.updatedAt).getTime() < new Date(current.updatedAt).getTime()) {
-        if (current.paymentStatus !== incoming.paymentStatus && incoming.paymentStatus === 'PAYMENT_VERIFICATION_PENDING') {
-          return false;
-        }
-      }
-    }
-
     return true;
   }, []);
 
-  // Fetch order details from API with cache: 'no-store'
+  // Fetch order details
   const fetchOrderDetails = useCallback(async (silent = false) => {
     if (!orderId || isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -155,7 +120,6 @@ export default function OrderPaymentPage() {
           setIsConfirmedNotFound(false);
         }
       } else if (res.status === 404) {
-        // Only set confirmed not-found if there is genuinely no existing order loaded anywhere
         if (!activeOrderRef.current && !fetchedOrder && !contextOrder) {
           setIsConfirmedNotFound(true);
           setFetchError(data?.error || 'Order not found in records.');
@@ -166,156 +130,159 @@ export default function OrderPaymentPage() {
         }
       }
     } catch (err) {
-      console.warn("[PAYMENT] Network error during order fetch:", err);
+      console.warn('[PAYMENT] Error fetching order:', err);
     } finally {
       isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [orderId, isMonotonicallySafe]);
+  }, [orderId, isMonotonicallySafe, fetchedOrder, contextOrder]);
 
-  // Initial load + fast live polling every 1.2s for instant admin-approve sync (with strict sequence/monotonic guard)
+  // Preload Razorpay Checkout SDK & fetch order
   useEffect(() => {
+    void loadRazorpayScript();
     void fetchOrderDetails(false);
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      void fetchOrderDetails(true);
-    }, 1200);
-    return () => clearInterval(interval);
   }, [fetchOrderDetails]);
 
   const order = fetchedOrder || activeOrderRef.current || contextOrder;
+  const isPaidOrConfirmed = order?.paymentStatus === 'PAID' || order?.status === 'Confirmed';
 
-  // Fetch dynamic QR code data from backend API whenever order is loaded
-  useEffect(() => {
-    if (!order?.id || !order?.total) return;
-    let isMounted = true;
-    setQrLoading(true);
+  // Handle Razorpay Checkout button click
+  const handlePayWithRazorpay = async () => {
+    if (!order || isInitiating || isVerifying) return;
 
-    fetch(`/api/payments/qr?orderId=${encodeURIComponent(order.id)}&amount=${encodeURIComponent(String(order.total))}`, { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: QrResponse | null) => {
-        if (isMounted && data && data.success) {
-          setQrDetails(data);
-        }
-      })
-      .catch((err) => console.error('Error loading QR code data:', err))
-      .finally(() => {
-        if (isMounted) setQrLoading(false);
+    if (isPaidOrConfirmed) {
+      showToast('This order has already been paid and confirmed.', 'info');
+      return;
+    }
+
+    setPaymentError(null);
+    setIsInitiating(true);
+
+    try {
+      // 1. Ensure Razorpay script is loaded
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded || !(window as any).Razorpay) {
+        throw new Error('Unable to load Razorpay payment gateway. Please check your internet connection.');
+      }
+
+      // 2. Request Server to create a Razorpay Order
+      const targetOrderId = String(order.id || orderId).replace(/^#+/, '').trim();
+      const createRes = await fetch('/api/payments/razorpay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: targetOrderId }),
       });
 
-    return () => {
-      isMounted = false;
-    };
-  }, [order?.id, order?.total]);
+      const createData = await createRes.json().catch(() => null);
 
-  // Handle local file preview cleanup
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        showToast('Please select a valid image file (PNG, JPG, JPEG, WebP).', 'error');
+      if (!createRes.ok || !createData || !createData.success) {
+        throw new Error(createData?.error || 'Failed to initialize payment gateway.');
+      }
+
+      if (createData.alreadyPaid) {
+        showToast('Payment already confirmed for this order.', 'success');
+        await fetchOrderDetails(false);
+        setIsInitiating(false);
         return;
       }
-      setProofFile(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
-  };
 
-  const handleCopyUpi = async () => {
-    const targetUpi = qrDetails?.upiId || '8081988627@pthdfc';
-    try {
-      await navigator.clipboard.writeText(targetUpi);
-      setCopied(true);
-      showToast(`UPI ID copied: ${targetUpi}`, 'success');
-      setTimeout(() => setCopied(false), 3000);
-    } catch {
-      showToast(`UPI ID: ${targetUpi}`, 'info');
-    }
-  };
+      // 3. Open Razorpay Standard Checkout Modal
+      const options = {
+        key: createData.keyId,
+        amount: createData.amount,
+        currency: createData.currency || 'INR',
+        name: 'FATAFAT',
+        description: `Payment for Order #${targetOrderId}`,
+        image: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
+        order_id: createData.orderId,
+        prefill: {
+          name: createData.customer?.name || '',
+          email: createData.customer?.email || '',
+          contact: createData.customer?.contact || '',
+        },
+        notes: {
+          orderId: targetOrderId,
+        },
+        theme: {
+          color: '#701A28', // Brand Burgundy
+        },
+        handler: async function (response: {
+          razorpay_payment_id: string;
+          razorpay_order_id: string;
+          razorpay_signature: string;
+        }) {
+          try {
+            setIsVerifying(true);
+            setIsInitiating(false);
 
-  const handleProofSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!order || isSubmittingProof) return;
+            // 4. Server-Side HMAC Signature Verification
+            const verifyRes = await fetch('/api/payments/razorpay/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId: targetOrderId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
 
-    const trimmedUtr = utr.trim();
-    if (!trimmedUtr) {
-      showToast('Please enter the 12-digit UTR / transaction reference number.', 'error');
-      return;
-    }
+            const verifyData = await verifyRes.json().catch(() => null);
 
-    if (!proofFile) {
-      showToast('Please upload a screenshot of your payment confirmation.', 'error');
-      return;
-    }
+            if (!verifyRes.ok || !verifyData || !verifyData.success) {
+              throw new Error(verifyData?.error || 'Payment signature verification failed on the server.');
+            }
 
-    try {
-      setIsSubmittingProof(true);
+            // Immediately transition local state to Confirmed
+            if (verifyData.order) {
+              setFetchedOrder(verifyData.order);
+              activeOrderRef.current = verifyData.order;
+            } else {
+              setFetchedOrder((prev) => prev ? {
+                ...prev,
+                paymentStatus: 'PAID',
+                status: 'Confirmed',
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpayOrderId: response.razorpay_order_id,
+              } : null);
+            }
 
-      // Fast single-request atomic multipart submit
-      const targetOrderId = String(order?.id || orderId || rawParamId || '').replace(/^#+/, '').trim();
-      const formData = new FormData();
-      formData.append('orderId', targetOrderId);
-      formData.append('paymentId', order?.paymentId || `pay-${targetOrderId}`);
-      formData.append('amount', String(order?.total || 0));
-      formData.append('utr', trimmedUtr);
-      formData.append('file', proofFile);
-      if (order) {
-        formData.append('orderData', JSON.stringify(order));
-      }
-
-      const submitRes = await fetch('/api/payments/submit', {
-        method: 'POST',
-        body: formData,
-        signal: AbortSignal.timeout(30000)
-      });
-
-      const submitData = await submitRes.json().catch(() => null) as { success?: boolean; error?: string; paymentStatus?: string; order?: Order } | null;
-      if (!submitRes.ok || !submitData || !submitData.success) {
-        const errorMsg = submitData?.error || `Failed to submit payment verification (HTTP ${submitRes.status})`;
-        throw new Error(errorMsg);
-      }
-
-      // Immediately transition UI to "Verification in Progress"
-      const now = new Date().toISOString();
-      const updatedOrderData: Order = submitData.order || {
-        ...order,
-        paymentStatus: 'PAYMENT_VERIFICATION_PENDING' as const,
-        utr: trimmedUtr,
-        proofImageUrl: previewUrl || '',
-        paymentSubmittedAt: now,
-        updatedAt: now,
+            showToast('Payment successful! Your order has been placed and confirmed.', 'success');
+          } catch (verifyErr) {
+            console.error('[RAZORPAY VERIFY ERROR]', verifyErr);
+            const msg = verifyErr instanceof Error ? verifyErr.message : 'Payment verification failed.';
+            setPaymentError(msg);
+            showToast(msg, 'error');
+          } finally {
+            setIsVerifying(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsInitiating(false);
+            setPaymentError('Payment was cancelled or closed. You can retry anytime.');
+          },
+        },
       };
 
-      setFetchedOrder(updatedOrderData);
-      activeOrderRef.current = updatedOrderData;
-      setIsConfirmedNotFound(false);
+      const rzp = new (window as any).Razorpay(options);
 
-      showToast('Payment submitted successfully! Your payment is under review.', 'success');
-      setUtr('');
-      setProofFile(null);
-      setPreviewUrl(null);
+      rzp.on('payment.failed', function (response: any) {
+        setIsInitiating(false);
+        const reason = response.error?.description || 'Payment was declined or failed.';
+        setPaymentError(reason);
+        showToast(reason, 'error');
+      });
+
+      rzp.open();
     } catch (err) {
-      console.error('[PAYMENT SUBMIT ERROR]', err);
-      const msg = err instanceof Error ? err.message : 'Submission failed. Please try again.';
+      console.error('[RAZORPAY CHECKOUT ERROR]', err);
+      const msg = err instanceof Error ? err.message : 'Could not start payment. Please try again.';
+      setPaymentError(msg);
       showToast(msg, 'error');
-    } finally {
-      setIsSubmittingProof(false);
+      setIsInitiating(false);
     }
   };
-
-  // UPI configuration fallback
-  const merchantUpi = qrDetails?.upiId || '8081988627@pthdfc';
-  const merchantName = qrDetails?.merchantName || 'FATAFAT';
-  const finalAmount = Number(order?.total || qrDetails?.amount || 0);
-  const formattedAmount = finalAmount.toFixed(2);
-  const upiUri = qrDetails?.uri || `upi://pay?pa=${merchantUpi}&pn=${encodeURIComponent(merchantName)}&am=${formattedAmount}&cu=INR&tr=${encodeURIComponent(order?.id || '')}`;
-
-  // Status flags
-  const isPaidOrConfirmed = order?.paymentStatus === 'PAID' || order?.status === 'Confirmed';
-  const isRejected = order?.paymentStatus === 'REJECTED';
-  const isPendingVerification = order?.paymentStatus === 'PAYMENT_VERIFICATION_PENDING';
-  const hasSubmittedProof = Boolean(order?.utr || order?.proofImageUrl);
 
   // 1. Loading State
   if (loading && !order) {
@@ -324,9 +291,9 @@ export default function OrderPaymentPage() {
         <Header />
         <main className="flex-1 flex flex-col items-center justify-center p-8 text-center">
           <div className="w-12 h-12 rounded-full border-2 border-brand-burgundy/20 border-t-brand-burgundy animate-spin mb-4" />
-          <h2 className="text-base font-semibold text-slate-900">Loading Secure Payment Gateway...</h2>
+          <h2 className="text-base font-semibold text-slate-900">Loading Payment Gateway...</h2>
           <p className="text-xs text-slate-500 mt-1 max-w-sm">
-            Retrieving payment parameters and verifying session for Order #{orderId}.
+            Retrieving secure payment parameters for Order #{orderId}.
           </p>
         </main>
         <Footer />
@@ -334,7 +301,7 @@ export default function OrderPaymentPage() {
     );
   }
 
-  // 2. Confirmed Order Not Found (404 from backend and no existing order in state)
+  // 2. Order Not Found
   if (!order && isConfirmedNotFound) {
     return (
       <div className="min-h-screen flex flex-col bg-[#F8F9FA]">
@@ -345,7 +312,7 @@ export default function OrderPaymentPage() {
           </div>
           <h2 className="text-lg font-bold text-slate-900">Order Not Found</h2>
           <p className="text-xs text-slate-500 mt-1 max-w-sm">
-            {fetchError || 'We could not locate this order in our records. Please verify in your account.'}
+            {fetchError || 'We could not locate this order. Please check in your account orders.'}
           </p>
           <div className="mt-6 flex gap-3">
             <button
@@ -367,7 +334,7 @@ export default function OrderPaymentPage() {
     );
   }
 
-  // 3. Temporary connection / retrieval issue when no order in state
+  // 3. Temporary connection state
   if (!order) {
     return (
       <div className="min-h-screen flex flex-col bg-[#F8F9FA]">
@@ -378,7 +345,7 @@ export default function OrderPaymentPage() {
           </div>
           <h2 className="text-lg font-bold text-slate-900">Connecting to Gateway...</h2>
           <p className="text-xs text-slate-500 mt-1 max-w-sm">
-            {fetchError || 'Synchronizing your order details with the payment gateway.'}
+            {fetchError || 'Synchronizing your order details with Razorpay.'}
           </p>
           <div className="mt-6 flex gap-3">
             <button
@@ -400,30 +367,32 @@ export default function OrderPaymentPage() {
     );
   }
 
+  const orderAddress = (order.address && typeof order.address === 'object') ? (order.address as any) : {};
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 font-sans antialiased">
       <Header />
 
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-[1040px] w-full space-y-6">
+        <div className="mx-auto max-w-[960px] w-full space-y-6">
 
-          {/* 1. PROFESSIONAL GATEWAY HEADER BAR */}
-          <div className="bg-white border border-slate-200/80 rounded-xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {/* 1. HEADER BAR */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="h-10 w-10 rounded-lg bg-brand-burgundy/10 flex items-center justify-center text-brand-burgundy shrink-0">
+              <div className="h-11 w-11 rounded-xl bg-brand-burgundy/10 flex items-center justify-center text-brand-burgundy shrink-0">
                 <Logo iconOnly size="sm" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                    Complete Payment
+                    {isPaidOrConfirmed ? 'Payment Confirmed' : 'Complete Online Payment'}
                   </h1>
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                    <Lock className="h-3 w-3 text-slate-500" /> 256-Bit Encrypted
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60">
+                    <Lock className="h-3 w-3 text-emerald-600" /> Razorpay 256-Bit Encrypted
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Order ID: <span className="font-mono font-semibold text-slate-800">#{order.id}</span>
+                  Order Reference: <span className="font-mono font-semibold text-slate-800">#{order.id}</span>
                 </p>
               </div>
             </div>
@@ -433,517 +402,286 @@ export default function OrderPaymentPage() {
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-tight border ${
                 isPaidOrConfirmed 
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                  : isRejected 
-                  ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                  : (isPendingVerification && hasSubmittedProof)
-                  ? 'bg-amber-50 text-amber-800 border-amber-200' 
-                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
               }`}>
                 {isPaidOrConfirmed ? (
                   <>
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Payment Confirmed
                   </>
-                ) : isRejected ? (
-                  <>
-                    <XCircle className="h-3.5 w-3.5 text-rose-600" /> Verification Failed
-                  </>
-                ) : (isPendingVerification && hasSubmittedProof) ? (
-                  <>
-                    <Clock className="h-3.5 w-3.5 text-amber-600 animate-spin" /> Verification in Progress
-                  </>
                 ) : (
                   <>
-                    <Clock className="h-3.5 w-3.5 text-slate-500" /> Payment Pending
+                    <Clock className="h-3.5 w-3.5 text-amber-600" /> Awaiting Payment
                   </>
                 )}
               </span>
             </div>
           </div>
 
-          {/* 2. MAIN 2-COLUMN PAYMENT CONTAINER */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* 2. MAIN CONTAINER */}
+          {isPaidOrConfirmed ? (
 
-            {/* LEFT COLUMN (7 COLS): PAYMENT FLOW */}
-            <div className="lg:col-span-7 space-y-6">
-
-              {/* A: PAYMENT CONFIRMED STATE */}
-              {isPaidOrConfirmed ? (
-                <div className="bg-white border border-slate-200/80 rounded-xl p-6 sm:p-8 shadow-sm text-center space-y-6">
-                  <div className="inline-flex p-3 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
-                    <CheckCircle2 className="h-10 w-10" />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
-                      Payment Successful
-                    </span>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                      Payment of ₹{order.total} Received!
-                    </h2>
-                    <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-                      Your UPI payment has been verified and confirmed. Your order has been placed successfully and is now moving to packing and delivery.
-                    </p>
-                  </div>
-
-                  {/* Transaction Details Box */}
-                  <div className="bg-slate-50/80 border border-slate-200 rounded-lg p-4 text-xs space-y-2.5 text-left">
-                    <div className="flex justify-between border-b border-slate-200 pb-2">
-                      <span className="text-slate-500">Order ID</span>
-                      <span className="font-mono font-semibold text-slate-900">#{order.id}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-200 pb-2">
-                      <span className="text-slate-500">Amount Paid</span>
-                      <span className="font-bold text-slate-900">₹{order.total}</span>
-                    </div>
-                    {order.utr && (
-                      <div className="flex justify-between border-b border-slate-200 pb-2">
-                        <span className="text-slate-500">Transaction Reference (UTR)</span>
-                        <span className="font-mono font-semibold text-slate-800">{order.utr}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between border-b border-slate-200 pb-2">
-                      <span className="text-slate-500">Delivery Option</span>
-                      <span className="font-medium text-slate-800">{order.deliveryOption} ({order.eta})</span>
-                    </div>
-                    <div className="flex justify-between pt-0.5">
-                      <span className="text-slate-500">Estimated Delivery</span>
-                      <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                        <Truck className="h-3.5 w-3.5" /> Within 12 hours
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* CTAs */}
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                    <Link
-                      href={`/track/${order.id}`}
-                      className="px-6 py-2.5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      Track Order <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                    <Link
-                      href="/account/orders"
-                      className="px-6 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center"
-                    >
-                      View All Orders
-                    </Link>
-                  </div>
-                </div>
-              ) : isPendingVerification && hasSubmittedProof ? (
-
-                /* B: UNDER VERIFICATION STATE */
-                <div className="bg-white border border-slate-200/80 rounded-xl p-6 sm:p-8 shadow-sm text-center space-y-6">
-                  <div className="inline-flex p-3 bg-amber-50 text-amber-600 rounded-full border border-amber-100">
-                    <Clock className="h-10 w-10 animate-pulse" />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
-                      Verification in Progress
-                    </span>
-                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
-                      Payment Details Submitted
-                    </h2>
-                    <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-                      Your payment proof has been received. Our operations team is verifying your UTR with the bank. Order confirmation will update here automatically.
-                    </p>
-                  </div>
-
-                  {/* Submission Details */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs space-y-2.5 text-left">
-                    <div className="flex justify-between border-b border-slate-200 pb-2">
-                      <span className="text-slate-500">Order ID</span>
-                      <span className="font-mono font-semibold text-slate-900">#{order.id}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-200 pb-2">
-                      <span className="text-slate-500">Payable Amount</span>
-                      <span className="font-bold text-slate-900">₹{order.total}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-200 pb-2">
-                      <span className="text-slate-500">Submitted UTR</span>
-                      <span className="font-mono font-semibold text-slate-800">{order.utr || 'Under Review'}</span>
-                    </div>
-                    <div className="flex justify-between pt-0.5">
-                      <span className="text-slate-500">Status</span>
-                      <span className="font-semibold text-amber-700 flex items-center gap-1">
-                        <RefreshCw className="h-3 w-3 animate-spin" /> Verifying with Bank
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Auto-Sync Banner */}
-                  <div className="p-3.5 bg-blue-50/70 border border-blue-200/70 rounded-lg text-left flex items-start gap-2.5">
-                    <ShieldCheck className="h-4 w-4 text-blue-700 shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-900 leading-relaxed">
-                      <strong>Auto-Refresh Active:</strong> This screen automatically synchronizes with our backend every 3 seconds. You do not need to refresh manually.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                    <Link
-                      href={`/track/${order.id}`}
-                      className="px-6 py-2.5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      Track Order Status
-                    </Link>
-                    <Link
-                      href="/account/orders"
-                      className="px-6 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center"
-                    >
-                      Go to Orders
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-
-                /* C: ACTIVE PAYMENT CHECKOUT FORM */
-                <div className="space-y-6">
-
-                  {/* Rejection Notification if failed previously */}
-                  {isRejected && (
-                    <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-left space-y-1">
-                      <div className="flex items-center gap-2 text-xs font-bold text-rose-800">
-                        <XCircle className="h-4 w-4 text-rose-600" />
-                        <span>Payment Verification Failed</span>
-                      </div>
-                      <p className="text-xs text-rose-700 leading-relaxed">
-                        {order.rejectionReason || 'The submitted transaction reference could not be verified against the bank statement. Please verify your payment and submit the correct 12-digit UTR and screenshot.'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* 1. UPI QR & SCAN BOX */}
-                  <div className="bg-white border border-slate-200/80 rounded-xl p-6 sm:p-7 shadow-sm space-y-6">
-                    
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                      <div>
-                        <h2 className="text-base font-bold text-slate-900">
-                          Pay Securely using UPI
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Scan with Google Pay, PhonePe, Paytm, BHIM, or any UPI app
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-burgundy bg-brand-burgundy/10 px-2.5 py-1 rounded-md">
-                        UPI QR
-                      </span>
-                    </div>
-
-                    {/* Amount & QR Display */}
-                    <div className="flex flex-col items-center justify-center py-2 space-y-4 text-center">
-                      
-                      {/* Amount Callout */}
-                      <div className="space-y-0.5">
-                        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Amount to Pay</span>
-                        <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                          ₹{order.total}
-                        </div>
-                      </div>
-
-                      {/* Clean QR Code Container */}
-                      <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm inline-flex flex-col items-center">
-                        {qrLoading ? (
-                          <div className="w-[220px] h-[220px] flex flex-col items-center justify-center gap-2 bg-slate-50 rounded-lg">
-                            <RefreshCw className="h-6 w-6 text-brand-burgundy animate-spin" />
-                            <span className="text-[11px] text-slate-500 font-medium">Generating UPI QR...</span>
-                          </div>
-                        ) : (
-                          <QRCodeSVG 
-                            value={upiUri} 
-                            size={220} 
-                            level="H" 
-                            includeMargin={true}
-                          />
-                        )}
-                        <span className="text-[11px] font-semibold text-slate-600 mt-2 flex items-center gap-1">
-                          <Smartphone className="h-3.5 w-3.5 text-slate-500" /> Scan & Pay ₹{order.total}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-slate-500 max-w-sm">
-                        Open any UPI app on your phone, select QR scanner, and scan this code to pay.
-                      </p>
-                    </div>
-
-                    {/* Merchant UPI ID & Direct Pay Row */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] font-semibold uppercase text-slate-400">Merchant UPI ID</span>
-                          <p className="font-mono text-xs sm:text-sm font-bold text-slate-800 select-all">
-                            {merchantUpi}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={handleCopyUpi}
-                            className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-                          >
-                            {copied ? (
-                              <>
-                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                <span className="text-emerald-700">Copied ✓</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-3.5 w-3.5 text-slate-500" />
-                                <span>Copy</span>
-                              </>
-                            )}
-                          </button>
-
-                          <a
-                            href={upiUri}
-                            className="px-3 py-1.5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            <span>Pay on Mobile</span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* 2. CONFIRM PAYMENT & UTR FORM */}
-                  <div className="bg-white border border-slate-200/80 rounded-xl p-6 sm:p-7 shadow-sm space-y-5">
-                    
-                    <div className="border-b border-slate-100 pb-3">
-                      <h3 className="text-base font-bold text-slate-900">
-                        Confirm Your Payment
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        After completing the UPI payment, enter your 12-digit UTR and upload the payment receipt.
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleProofSubmit} className="space-y-4">
-                      
-                      {/* UTR Input */}
-                      <div className="space-y-1.5">
-                        <label htmlFor="utr-input" className="block text-xs font-semibold text-slate-700">
-                          UPI Transaction / UTR Number <span className="text-rose-600">*</span>
-                        </label>
-                        <input
-                          id="utr-input"
-                          type="text"
-                          required
-                          value={utr}
-                          onChange={(e) => setUtr(e.target.value)}
-                          placeholder="e.g. 423456789012"
-                          className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-xs text-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-burgundy/20 focus:border-brand-burgundy transition-all"
-                        />
-                        <p className="text-[11px] text-slate-400">
-                          Found under Transaction Details / Ref No. in your UPI app receipt.
-                        </p>
-                      </div>
-
-                      {/* Screenshot Upload */}
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-slate-700">
-                          Upload Payment Screenshot <span className="text-rose-600">*</span>
-                        </label>
-
-                        <div className="border-2 border-dashed border-slate-200 rounded-lg p-5 bg-slate-50/60 hover:bg-slate-50 transition-colors text-center cursor-pointer relative group">
-                          <input
-                            type="file"
-                            required
-                            accept="image/png,image/jpeg,image/webp"
-                            onChange={handleFileChange}
-                            aria-label="Upload payment screenshot"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                          />
-
-                          {previewUrl ? (
-                            <div className="flex flex-col items-center justify-center space-y-2.5 pointer-events-none">
-                              <div className="relative w-28 h-28 rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-white">
-                                <Image 
-                                  src={previewUrl} 
-                                  alt="Payment Confirmation Screenshot Preview" 
-                                  fill 
-                                  className="object-cover" 
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                                <FileCheck className="h-4 w-4 text-emerald-600" />
-                                <span className="truncate max-w-[200px]">{proofFile?.name}</span>
-                              </div>
-                              <span className="text-[11px] text-slate-400">Click or tap to change file</span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center space-y-1.5 pointer-events-none py-2">
-                              <div className="p-2.5 bg-white rounded-full border border-slate-200 text-slate-400 group-hover:text-brand-burgundy group-hover:border-brand-burgundy/30 transition-colors">
-                                <UploadCloud className="h-5 w-5" />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-700">
-                                Click or drag receipt screenshot here
-                              </span>
-                              <span className="text-[11px] text-slate-400">
-                                PNG, JPG, JPEG, WebP up to 8MB
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Submit CTA */}
-                      <div className="pt-2">
-                        <button
-                          type="submit"
-                          disabled={isSubmittingProof || !utr.trim() || !proofFile}
-                          className="w-full bg-brand-burgundy hover:bg-brand-burgundy-dark active:bg-brand-burgundy text-white font-semibold rounded-lg py-3 px-4 text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
-                        >
-                          {isSubmittingProof ? (
-                            <>
-                              <RefreshCw className="h-4 w-4 animate-spin" />
-                              <span>Submitting Payment Proof...</span>
-                            </>
-                          ) : (
-                            <>
-                              <ShieldCheck className="h-4 w-4" />
-                              <span>Submit Payment Proof</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                    </form>
-
-                  </div>
-
-                </div>
-              )}
-
-            </div>
-
-            {/* RIGHT COLUMN (5 COLS): ORDER SUMMARY & ADDRESS */}
-            <div className="lg:col-span-5 space-y-6">
-
-              {/* Order Summary Card */}
-              <div className="bg-white border border-slate-200/80 rounded-xl p-5 sm:p-6 shadow-sm space-y-5">
-                
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <ShoppingBag className="h-4 w-4 text-brand-burgundy" /> Order Summary
-                  </h3>
-                  <span className="text-xs text-slate-400 font-medium">
-                    {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
-                  </span>
-                </div>
-
-                {/* Items List */}
-                <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto pr-1">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="py-2.5 flex justify-between items-center gap-3 text-xs">
-                      <div className="min-w-0">
-                        <p className="font-semibold truncate text-slate-800">{item.name}</p>
-                        <p className="text-[11px] text-slate-400">
-                          Qty: {item.quantity} {item.selectedSize && `• ${item.selectedSize}`} {item.selectedType && `• ${item.selectedType}`}
-                        </p>
-                      </div>
-                      <span className="font-semibold text-slate-800 shrink-0">₹{item.price * item.quantity}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pricing Table */}
-                <div className="border-t border-slate-100 pt-3.5 space-y-2 text-xs text-slate-600">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Subtotal</span>
-                    <span className="font-medium text-slate-800">₹{order.subtotal}</span>
-                  </div>
-                  {order.discount > 0 && (
-                    <div className="flex justify-between text-emerald-700 font-medium">
-                      <span>Discount</span>
-                      <span>-₹{order.discount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Delivery Charges</span>
-                    <span className="font-medium text-slate-800">
-                      {order.deliveryFee === 0 ? (
-                        <span className="text-emerald-700 font-semibold uppercase text-[10px]">Free</span>
-                      ) : (
-                        `₹${order.deliveryFee}`
-                      )}
-                    </span>
-                  </div>
-                  
-                  {/* Grand Total */}
-                  <div className="flex justify-between items-center text-sm font-bold text-slate-900 border-t border-slate-200 pt-3 mt-2">
-                    <span>Grand Total</span>
-                    <span className="text-lg text-brand-burgundy font-black">₹{order.total}</span>
-                  </div>
-                </div>
-
-                {/* Delivery Address Block */}
-                <div className="border-t border-slate-100 pt-4 space-y-1.5 text-xs text-slate-600">
-                  <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-[11px] uppercase tracking-wider">
-                    <MapPin className="h-3.5 w-3.5 text-brand-burgundy" /> Delivery Address
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200/80 leading-relaxed text-slate-700">
-                    <p className="font-semibold text-slate-900">{order.address.name} • +91 {order.address.mobile}</p>
-                    <p className="text-slate-600 mt-0.5">
-                      {order.address.house}, {order.address.street}, {order.address.area}, {order.address.city} - {order.address.pincode}
-                    </p>
-                    {order.address.landmark && (
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        Landmark: {order.address.landmark}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
+            /* A: PAYMENT CONFIRMED RECEIPT VIEW */
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-10 shadow-xs text-center space-y-6">
+              <div className="inline-flex p-4 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                <CheckCircle2 className="h-12 w-12" />
               </div>
 
-              {/* Security Badges Card */}
-              <div className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-sm space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  <span>Trusted & Secure Checkout</span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                  <div className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-md border border-slate-200/60">
-                    <Lock className="h-3.5 w-3.5 text-slate-500" />
-                    <span>256-Bit Encrypted</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-md border border-slate-200/60">
-                    <Zap className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Instant UPI Match</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-md border border-slate-200/60">
-                    <Truck className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Fast Dispatch</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-md border border-slate-200/60">
-                    <Shield className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Verified Merchant</span>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-slate-400 text-center pt-1">
-                  Payment processed securely for FATAFAT Commerce
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-200/60">
+                  Payment Verified
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900">
+                  Payment of ₹{order.total} Received! 🎉
+                </h2>
+                <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                  Your Razorpay payment has been verified server-side and recorded. Your order is confirmed and moving into quick packing and delivery dispatch.
                 </p>
               </div>
 
+              {/* Transaction Summary Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-xs space-y-3 text-left max-w-lg mx-auto">
+                <div className="flex justify-between border-b border-slate-200/70 pb-2">
+                  <span className="text-slate-500">Order ID</span>
+                  <span className="font-mono font-semibold text-slate-900">#{order.id}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-200/70 pb-2">
+                  <span className="text-slate-500">Amount Paid</span>
+                  <span className="font-bold text-slate-900">₹{order.total}</span>
+                </div>
+                {order.razorpayPaymentId && (
+                  <div className="flex justify-between border-b border-slate-200/70 pb-2">
+                    <span className="text-slate-500">Razorpay Payment ID</span>
+                    <span className="font-mono font-semibold text-brand-burgundy">{order.razorpayPaymentId}</span>
+                  </div>
+                )}
+                {order.razorpayOrderId && (
+                  <div className="flex justify-between border-b border-slate-200/70 pb-2">
+                    <span className="text-slate-500">Razorpay Order ID</span>
+                    <span className="font-mono text-slate-700">{order.razorpayOrderId}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-b border-slate-200/70 pb-2">
+                  <span className="text-slate-500">Delivery Option</span>
+                  <span className="font-medium text-slate-800">{order.deliveryOption} ({order.eta || 'Within 12 hours'})</span>
+                </div>
+                <div className="flex justify-between pt-0.5">
+                  <span className="text-slate-500">Estimated Delivery</span>
+                  <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                    <Truck className="h-3.5 w-3.5" /> Within 12 hours
+                  </span>
+                </div>
+              </div>
+
+              {/* CTAs */}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                <Link
+                  href={`/track/${order.id}`}
+                  className="px-7 py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  Track Live Order <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+                <Link
+                  href="/account/orders"
+                  className="px-7 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center"
+                >
+                  View All Orders
+                </Link>
+              </div>
             </div>
 
-          </div>
+          ) : (
 
-          {/* 3. TRUST & SECURITY GATEWAY FOOTER */}
-          <div className="py-4 text-center text-xs text-slate-500 space-y-2 border-t border-slate-200/60">
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-slate-400 text-[11px]">
-              <span className="flex items-center gap-1"><Lock className="h-3 w-3" /> End-to-End Encrypted</span>
-              <span className="flex items-center gap-1"><Smartphone className="h-3 w-3" /> Universal UPI Support</span>
-              <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Anti-Fraud Verification</span>
-              <span className="flex items-center gap-1"><Logo iconOnly size="sm" className="h-4 w-4 text-[9px]" /> FATAFAT Verified</span>
+            /* B: ACTIVE RAZORPAY CHECKOUT INTERFACE */
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Left Column (7 cols): Payment CTA & Gateways */}
+              <div className="lg:col-span-7 space-y-6">
+
+                {/* Error Banner if any */}
+                {paymentError && (
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-left flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-bold text-rose-900">Payment Notice</h4>
+                      <p className="text-xs text-rose-700 mt-0.5">{paymentError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Card */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-burgundy bg-brand-burgundy/10 px-2.5 py-1 rounded-md">
+                      Instant Checkout
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 mt-2">
+                      Pay with Razorpay
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Complete your payment securely via UPI, Credit/Debit Cards, NetBanking, or Wallets.
+                    </p>
+                  </div>
+
+                  {/* Amount Callout */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-5 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total Payable</span>
+                      <div className="text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                        ₹{order.total}
+                      </div>
+                    </div>
+                    <div className="text-right text-xs">
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1 justify-end">
+                        <ShieldCheck className="h-4 w-4" /> 100% Buyer Protection
+                      </span>
+                      <span className="text-slate-400 text-[11px] mt-0.5 block">Zero Convenience Fee</span>
+                    </div>
+                  </div>
+
+                  {/* Primary Pay with Razorpay Button */}
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={handlePayWithRazorpay}
+                      disabled={isInitiating || isVerifying}
+                      className="w-full bg-brand-burgundy hover:bg-brand-burgundy-dark active:scale-[0.99] text-white font-semibold rounded-xl py-4 px-6 text-sm uppercase tracking-wider transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
+                    >
+                      {isVerifying ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Verifying Payment Signature...</span>
+                        </>
+                      ) : isInitiating ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>Connecting to Razorpay...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4 text-amber-400 fill-amber-400" />
+                          <span>Pay with Razorpay (₹{order.total})</span>
+                        </>
+                      )}
+                    </button>
+
+                    <p className="text-[11px] text-center text-slate-400">
+                      Clicking will open the official Razorpay checkout popup.
+                    </p>
+                  </div>
+
+                  {/* Supported Payment Channels */}
+                  <div className="border-t border-slate-100 pt-5 space-y-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Accepted Payment Methods
+                    </span>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-slate-700">
+                      <div className="p-2.5 bg-slate-50 border border-slate-200/70 rounded-lg flex items-center gap-2">
+                        <Smartphone className="h-4 w-4 text-brand-burgundy" />
+                        <span className="font-medium">UPI / QR</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 border border-slate-200/70 rounded-lg flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-brand-burgundy" />
+                        <span className="font-medium">Cards</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 border border-slate-200/70 rounded-lg flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-brand-burgundy" />
+                        <span className="font-medium">Net Banking</span>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 border border-slate-200/70 rounded-lg flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-brand-burgundy" />
+                        <span className="font-medium">Wallets</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security Guarantee */}
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60 flex items-center gap-3 text-xs text-slate-500">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
+                    <span>Your transaction is secured with bank-grade 256-bit encryption. No payment details are stored on our servers.</span>
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* Right Column (5 cols): Order Summary & Delivery Preview */}
+              <div className="lg:col-span-5 space-y-6">
+                
+                {/* Order Summary Box */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-brand-burgundy" />
+                    Order Summary (#{order.id})
+                  </h3>
+
+                  {/* Items List */}
+                  <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto pr-1">
+                    {Array.isArray(order.items) && order.items.length > 0 ? (
+                      order.items.map((item: any, idx: number) => (
+                        <div key={idx} className="py-2.5 flex justify-between gap-3 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800 truncate">{item.name}</p>
+                            <p className="text-[11px] text-slate-400">Qty: {item.quantity} {item.selectedSize && `• ${item.selectedSize}`}</p>
+                          </div>
+                          <span className="font-semibold text-slate-700 shrink-0">₹{Number(item.price || 0) * Number(item.quantity || 1)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 py-2">Items detail recorded.</p>
+                    )}
+                  </div>
+
+                  {/* Pricing Breakdown */}
+                  <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-500">
+                      <span>Subtotal</span>
+                      <span className="font-medium text-slate-800">₹{order.subtotal || order.total}</span>
+                    </div>
+                    {Number(order.discount || 0) > 0 && (
+                      <div className="flex justify-between text-emerald-600 font-semibold">
+                        <span>Discount Applied</span>
+                        <span>-₹{order.discount}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-500">
+                      <span>Delivery Fee</span>
+                      <span className="font-medium text-slate-800">
+                        {Number(order.deliveryFee || 0) === 0 ? <span className="text-emerald-600 font-bold uppercase text-[10px]">Free</span> : `₹${order.deliveryFee}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-100 pt-3">
+                      <span>Total Amount</span>
+                      <span className="text-base text-brand-burgundy font-extrabold">₹{order.total}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delivery Destination Box */}
+                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-2 text-xs">
+                  <h4 className="font-bold text-slate-900 flex items-center gap-1.5 mb-2">
+                    <MapPin className="h-4 w-4 text-brand-burgundy" /> Delivery Destination
+                  </h4>
+                  <p className="font-semibold text-slate-800">{orderAddress.name || 'Customer'}</p>
+                  <p className="text-slate-600 leading-relaxed">
+                    {orderAddress.house ? `${orderAddress.house}, ` : ''}
+                    {orderAddress.street ? `${orderAddress.street}, ` : ''}
+                    {orderAddress.area ? `${orderAddress.area}, ` : ''}
+                    {orderAddress.city ? `${orderAddress.city} ` : ''}
+                    {orderAddress.pincode ? `- ${orderAddress.pincode}` : ''}
+                  </p>
+                  {orderAddress.mobile && (
+                    <p className="text-slate-500 font-mono text-[11px] pt-1">
+                      Phone: +91 {orderAddress.mobile}
+                    </p>
+                  )}
+                </div>
+
+              </div>
+
             </div>
-            <p className="text-[11px] text-slate-400">
-              Need help with your payment? Contact support at <a href="mailto:support@fatafatapp.me" className="text-brand-burgundy underline hover:opacity-80">support@fatafatapp.me</a>
-            </p>
-          </div>
+
+          )}
 
         </div>
       </main>

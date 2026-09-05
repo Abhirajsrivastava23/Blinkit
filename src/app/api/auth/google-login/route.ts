@@ -300,3 +300,61 @@ export async function GET(request: Request) {
     }, { status: 500 });
   }
 }
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const { email, name, googleId, picture, profileImage } = body;
+
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+
+    const sub = googleId || 'goog_' + Date.now();
+    const userRes = await db.query<UserRecord>(
+      'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR "googleProviderId" = $2 LIMIT 1',
+      [email, sub]
+    );
+    const customer = userRes.rows[0] || null;
+    const now = new Date().toISOString();
+    const userId = customer ? customer.userId : 'u-' + Math.floor(1000 + Math.random() * 9000);
+
+    if (customer) {
+      await db.query(
+        'UPDATE users SET "googleProviderId" = $1, name = $2, "profileImage" = $3, "lastLoginAt" = $4 WHERE "userId" = $5',
+        [sub, name || customer.name, picture || profileImage || customer.profileImage || null, now, userId]
+      );
+    } else {
+      await db.query(
+        'INSERT INTO users ("userId", "googleProviderId", name, email, "profileImage", "createdAt", "lastLoginAt", "wellnessAccessStatus") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [userId, sub, name || email.split('@')[0], email, picture || profileImage || '', now, now, 'NOT_REQUESTED']
+      );
+    }
+
+    const session = await createSession(userId, email, 'customer');
+
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        userId,
+        name: name || customer?.name || email.split('@')[0],
+        email,
+        role: 'customer'
+      }
+    });
+
+    response.cookies.set('fatafat_session_token', session.sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60
+    });
+
+    return response;
+  } catch (err: unknown) {
+    const errorObject = err instanceof Error ? err : new Error(String(err));
+    console.error('Error handling Google login POST:', errorObject);
+    return NextResponse.json({ error: 'Server error', message: errorObject.message }, { status: 500 });
+  }
+}

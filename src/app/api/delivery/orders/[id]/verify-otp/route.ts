@@ -8,7 +8,7 @@ export const revalidate = 0;
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession(request);
-    if (!session || (session.role !== 'delivery_partner' && session.role !== 'admin')) {
+    if (!session || (session.role !== 'delivery_partner' && session.role !== 'admin' && session.role !== 'super_admin')) {
       return NextResponse.json({ error: 'Unauthorized: delivery partner session required.' }, { status: 403 });
     }
 
@@ -30,7 +30,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const sId = String(session.userId || '').trim().toLowerCase();
     const sEmail = String(session.email || '').trim().toLowerCase();
 
-    if (session.role !== 'admin' && assignedId && assignedId !== sId && assignedId !== sEmail) {
+    let isAllowedPartner = false;
+    if (session.role === 'admin' || session.role === 'super_admin' || !assignedId) {
+      isAllowedPartner = true;
+    } else if (assignedId === sId || assignedId === sEmail) {
+      isAllowedPartner = true;
+    } else {
+      try {
+        const partnerRec = await db.getPartnerById(session.userId) || await db.getPartnerById(session.email);
+        if (partnerRec) {
+          const pId = String(partnerRec.id || '').toLowerCase().trim();
+          const pPhone = String(partnerRec.phone || '').replace(/\D/g, '');
+          const aPhone = assignedId.replace(/\D/g, '');
+          if (assignedId === pId || (pPhone && aPhone && (assignedId === pPhone || aPhone === pPhone))) {
+            isAllowedPartner = true;
+          }
+        }
+      } catch {}
+    }
+
+    if (!isAllowedPartner) {
       return NextResponse.json({ error: 'Forbidden: this order is not assigned to your rider account.' }, { status: 403 });
     }
 

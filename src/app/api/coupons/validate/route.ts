@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
 
     const code = String(body.code || '').trim().toUpperCase();
-    const subtotal = Number(body.subtotal) || 0;
+    const subtotal = Number(body.subtotal ?? body.orderTotal ?? body.total ?? body.amount) || 0;
 
     if (!code) {
       return NextResponse.json(
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       valid: true,
+      discount: validation.discountAmount || 0,
       discountAmount: validation.discountAmount || 0,
       discountType: coupon?.discountType || 'percentage',
       discountValue: coupon?.discountValue || 0,

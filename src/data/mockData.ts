@@ -1658,7 +1658,7 @@ export const PRODUCTS: Product[] = [
       manufacturer: 'Reckitt Benckiser Healthcare India Pvt Ltd'
     },
     gallery: [
-      'https://images.unsplash.com/photo-1601049676099-e7ed07d825b0?w=600&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600&auto=format&fit=crop&q=80'
     ]
   },
   {

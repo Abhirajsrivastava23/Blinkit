@@ -35,8 +35,11 @@ export interface Order {
   address: OrderAddress;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Packed' | 'Ready for Delivery' | 'Waiting for Partner' | 'Assigned' | 'Accepted' | 'Picked Up' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
   paymentStatus: 'PENDING' | 'PAYMENT_VERIFICATION_PENDING' | 'COMPLETED' | 'FAILED' | 'PAID' | 'PROCESSING' | 'REJECTED' | 'NOT_STARTED';
-  paymentMethod?: 'UPI' | 'Card' | 'NetBanking';
+  paymentMethod?: 'Razorpay' | 'UPI' | 'Card' | 'NetBanking' | string;
   paymentId?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
   utr?: string;
   proofImageUrl?: string;
   submittedAt?: string;
@@ -73,7 +76,7 @@ interface OrderContextType {
     deliveryOption: 'ASAP' | 'Scheduled',
     deliveryTimeSlot: string,
     pricing: { subtotal: number; deliveryFee: number; discount: number; total: number },
-    paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
+    paymentMethod?: 'Razorpay' | 'UPI' | 'Card' | 'NetBanking' | string,
     scheduledDeliveryAt?: string
   ) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<Order | null>;
@@ -165,12 +168,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return serverOrder;
             });
 
-            // Preserve freshly created local orders placed in last 24 hours
+            // Preserve freshly created local orders placed in last 15 seconds while in-flight
             for (const prevOrder of prev) {
               const key = String(prevOrder.id).toLowerCase();
               if (!serverIds.has(key)) {
                 const ageMs = Date.now() - new Date(prevOrder.createdAt || 0).getTime();
-                if (ageMs < 24 * 60 * 60 * 1000) {
+                if (ageMs < 15 * 1000) {
                   updated.push(prevOrder);
                 }
               }
@@ -219,7 +222,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     deliveryOption: 'ASAP' | 'Scheduled',
     deliveryTimeSlot: string,
     pricing: { subtotal: number; deliveryFee: number; discount: number; total: number },
-    paymentMethod?: 'UPI' | 'Card' | 'NetBanking',
+    paymentMethod?: 'Razorpay' | 'UPI' | 'Card' | 'NetBanking' | string,
     scheduledDeliveryAt?: string
   ): Promise<Order> => {
     // Determine delivery location ID based on current selection
@@ -272,10 +275,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateOrderStatus = async (orderId: string, status: Order['status']): Promise<Order | null> => {
+    const cleanId = String(orderId).replace(/^#+/, '').trim();
+    const currentOrder = orders.find(o => 
+      String(o.id).replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase() ||
+      String(o.id).trim().toLowerCase() === String(orderId).trim().toLowerCase()
+    );
+
     // Optimistic local update
     const now = new Date().toISOString();
     setOrders(prev => {
-      const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? { ...o, status, updatedAt: now } : o));
+      const updated = prev.map((o) => (
+        String(o.id).toLowerCase() === String(orderId).toLowerCase() || 
+        String(o.id).replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase() 
+          ? { ...o, status, updatedAt: now } 
+          : o
+      ));
       if (typeof window !== 'undefined') {
         localStorage.setItem('fatafat_orders', JSON.stringify(updated));
       }
@@ -287,13 +301,22 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const res = await fetch('/api/orders/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: orderId, updates: { status } })
+        body: JSON.stringify({ 
+          id: cleanId, 
+          orderData: currentOrder, 
+          updates: { status } 
+        })
       });
       const data = await res.json();
       if (res.ok && data.success && data.order) {
         const serverOrder = data.order as Order;
         setOrders(prev => {
-          const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? serverOrder : o));
+          const updated = prev.map((o) => (
+            String(o.id).toLowerCase() === String(orderId).toLowerCase() ||
+            String(o.id).replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase()
+              ? serverOrder 
+              : o
+          ));
           if (typeof window !== 'undefined') {
             localStorage.setItem('fatafat_orders', JSON.stringify(updated));
           }
@@ -309,9 +332,20 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateOrderDetails = async (orderId: string, updates: Partial<Order>): Promise<Order | null> => {
+    const cleanId = String(orderId).replace(/^#+/, '').trim();
+    const currentOrder = orders.find(o => 
+      String(o.id).replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase() ||
+      String(o.id).trim().toLowerCase() === String(orderId).trim().toLowerCase()
+    );
+
     const now = new Date().toISOString();
     setOrders(prev => {
-      const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? { ...o, ...updates, updatedAt: now } : o));
+      const updated = prev.map((o) => (
+        String(o.id).toLowerCase() === String(orderId).toLowerCase() ||
+        String(o.id).replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase()
+          ? { ...o, ...updates, updatedAt: now } 
+          : o
+      ));
       if (typeof window !== 'undefined') {
         localStorage.setItem('fatafat_orders', JSON.stringify(updated));
       }
@@ -323,13 +357,22 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const res = await fetch('/api/orders/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: orderId, updates })
+        body: JSON.stringify({ 
+          id: cleanId, 
+          orderData: currentOrder, 
+          updates 
+        })
       });
       const data = await res.json();
       if (res.ok && data.success && data.order) {
         const serverOrder = data.order as Order;
         setOrders(prev => {
-          const updated = prev.map((o) => (String(o.id).toLowerCase() === String(orderId).toLowerCase() ? serverOrder : o));
+          const updated = prev.map((o) => (
+            String(o.id).toLowerCase() === String(orderId).toLowerCase() ||
+            String(o.id).replace(/^#+/, '').trim().toLowerCase() === cleanId.toLowerCase()
+              ? serverOrder 
+              : o
+          ));
           if (typeof window !== 'undefined') {
             localStorage.setItem('fatafat_orders', JSON.stringify(updated));
           }

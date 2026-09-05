@@ -178,10 +178,11 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'paymentStatus', 'paymentMethod', 'paymentId', 'scheduledDeliveryAt',
     'cancellationReason', 'cancelledAt', 'delivery_otp_verified', 'otp_verified_at',
     'verified_by_partner_id', 'delivery_completed_at', 'adminOverride',
-    'utr', 'proofImageUrl', 'paymentSubmittedAt', 'paymentVerifiedAt', 'paymentRejectedAt', 'rejectionReason'
+    'utr', 'proofImageUrl', 'paymentSubmittedAt', 'paymentVerifiedAt', 'paymentRejectedAt', 'rejectionReason',
+    'razorpayOrderId', 'razorpayPaymentId', 'razorpaySignature'
   ],
   product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive'],
-  payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata'],
+  payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata', 'razorpayOrderId', 'razorpayPaymentId', 'razorpaySignature'],
   coupons: ['id', 'code', 'discountType', 'discountValue', 'minSpend', 'maxDiscount', 'startDate', 'expiryDate', 'isActive', 'usageLimit', 'usageCount', 'perCustomerLimit', 'targetAudience', 'selectedCustomerIds', 'createdAt', 'updatedAt', 'createdBy'],
   coupon_usages: ['id', 'couponId', 'couponCode', 'customerId', 'customerEmail', 'orderId', 'discountAmount', 'usedAt']
 };
@@ -262,8 +263,35 @@ export function normalizeOrderRecord(row: Record<string, unknown>): Record<strin
     }
   }
 
+  // Guarantee structured array for items
+  if (Array.isArray(parsed.items)) {
+    parsed.items = parsed.items.map((item: any) => {
+      if (!item || typeof item !== 'object') return item;
+      const price = Number(item.price || 0);
+      const qty = Number(item.quantity || 1);
+      return {
+        productId: String(item.productId || item.id || '').trim(),
+        id: String(item.id || item.productId || '').trim(),
+        name: String(item.name || item.title || 'Product').trim(),
+        price,
+        quantity: qty,
+        image: item.image || item.imageUrl || '',
+        unit: item.unit || '',
+        category: item.category || undefined,
+        subtotal: Number(item.subtotal || (price * qty))
+      };
+    });
+  } else {
+    parsed.items = [];
+  }
+
+  // Guarantee structured object for address
+  if (!parsed.address || typeof parsed.address !== 'object') {
+    parsed.address = {};
+  }
+
   // Canonical ID normalization
-  parsed.id = String(parsed.id || parsed.ID || '').trim();
+  parsed.id = String(parsed.id || parsed.ID || '').replace(/^#+/, '').trim();
 
   // Customer ID & email normalization
   if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
@@ -314,6 +342,9 @@ export function normalizeOrderRecord(row: Record<string, unknown>): Record<strin
   if (parsed.paymentverifiedat && !parsed.paymentVerifiedAt) parsed.paymentVerifiedAt = parsed.paymentverifiedat;
   if (parsed.paymentrejectedat && !parsed.paymentRejectedAt) parsed.paymentRejectedAt = parsed.paymentrejectedat;
   if (parsed.rejectionreason && !parsed.rejectionReason) parsed.rejectionReason = parsed.rejectionreason;
+  if (parsed.razorpayorderid && !parsed.razorpayOrderId) parsed.razorpayOrderId = parsed.razorpayorderid;
+  if (parsed.razorpaypaymentid && !parsed.razorpayPaymentId) parsed.razorpayPaymentId = parsed.razorpaypaymentid;
+  if (parsed.razorpaysignature && !parsed.razorpaySignature) parsed.razorpaySignature = parsed.razorpaysignature;
   if (parsed.cancellationreason && !parsed.cancellationReason) parsed.cancellationReason = parsed.cancellationreason;
   if (parsed.cancelledat && !parsed.cancelledAt) parsed.cancelledAt = parsed.cancelledat;
   if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
@@ -335,6 +366,8 @@ export function normalizePaymentRecord(row: Record<string, unknown>): Record<str
   }
 
   if (parsed.orderid && !parsed.orderId) parsed.orderId = parsed.orderid;
+  if (parsed.orderId) parsed.orderId = String(parsed.orderId).replace(/^#+/, '').trim();
+  if (parsed.id) parsed.id = String(parsed.id).trim();
   if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
   if (parsed.transactionreference && !parsed.transactionReference) parsed.transactionReference = parsed.transactionreference;
   if (parsed.proofimageurl && !parsed.proofImageUrl) parsed.proofImageUrl = parsed.proofimageurl;
@@ -352,6 +385,9 @@ export function normalizePaymentRecord(row: Record<string, unknown>): Record<str
   if (parsed.failurereason && !parsed.failureReason) parsed.failureReason = parsed.failurereason;
   if (parsed.attemptcount !== undefined && parsed.attemptCount === undefined) parsed.attemptCount = Number(parsed.attemptcount || 0);
   if (parsed.lastattemptat && !parsed.lastAttemptAt) parsed.lastAttemptAt = parsed.lastattemptat;
+  if (parsed.razorpayorderid && !parsed.razorpayOrderId) parsed.razorpayOrderId = parsed.razorpayorderid;
+  if (parsed.razorpaypaymentid && !parsed.razorpayPaymentId) parsed.razorpayPaymentId = parsed.razorpaypaymentid;
+  if (parsed.razorpaysignature && !parsed.razorpaySignature) parsed.razorpaySignature = parsed.razorpaysignature;
 
   parsed.amount = Number(parsed.amount || 0);
 
@@ -378,10 +414,14 @@ export function normalizeCouponRecord(row: Record<string, unknown>): Record<stri
   parsed.code = String(parsed.code || '').trim().toUpperCase();
   parsed.discountType = String(parsed.discountType || parsed.discounttype || 'percentage').toLowerCase();
   parsed.discountValue = Number(parsed.discountValue ?? parsed.discountvalue ?? 0);
-  parsed.minSpend = Number(parsed.minSpend ?? parsed.minspend ?? 0);
+  parsed.minSpend = Number(parsed.minSpend ?? parsed.minspend ?? parsed.minOrderAmount ?? parsed.minorderamount ?? 0);
   parsed.maxDiscount = parsed.maxDiscount !== undefined && parsed.maxDiscount !== null 
     ? Number(parsed.maxDiscount) 
-    : (parsed.maxdiscount !== undefined && parsed.maxdiscount !== null ? Number(parsed.maxdiscount) : undefined);
+    : (parsed.maxdiscount !== undefined && parsed.maxdiscount !== null 
+        ? Number(parsed.maxdiscount) 
+        : (parsed.maxDiscountAmount !== undefined && parsed.maxDiscountAmount !== null 
+            ? Number(parsed.maxDiscountAmount) 
+            : (parsed.maxdiscountamount !== undefined && parsed.maxdiscountamount !== null ? Number(parsed.maxdiscountamount) : undefined)));
   parsed.isActive = parsed.isActive !== undefined 
     ? Boolean(parsed.isActive) 
     : (parsed.isactive !== undefined ? Boolean(parsed.isactive) : true);
@@ -850,22 +890,43 @@ export const db = {
       }
     }
 
-    const cleanId = rawId.replace(/^#+/, '').trim();
-    const hashId = '#' + cleanId;
-    const activePool = getPool();
+    const cleanNoHash = rawId.replace(/^#+/, '').trim();
+    const cleanDigitsOnly = cleanNoHash.replace(/^FT/i, '').trim();
+    const candidateIds = Array.from(new Set([
+      rawId,
+      rawId.toLowerCase(),
+      cleanNoHash,
+      cleanNoHash.toLowerCase(),
+      cleanDigitsOnly,
+      cleanDigitsOnly.toLowerCase(),
+      '#' + cleanNoHash,
+      'FT' + cleanDigitsOnly,
+      '#FT' + cleanDigitsOnly,
+      'ft' + cleanDigitsOnly,
+      '#ft' + cleanDigitsOnly,
+    ].filter(Boolean)));
 
+    const activePool = getPool();
     if (activePool) {
       try {
+        const candidateLower = Array.from(new Set(candidateIds.map(c => c.toLowerCase())));
+        const candidateNoHashLower = Array.from(new Set(candidateIds.map(c => c.replace(/^#+/, '').toLowerCase())));
+
         const res = await activePool.query(
-          'SELECT * FROM "orders" WHERE LOWER(TRIM("id")) = LOWER(TRIM($1)) OR LOWER(TRIM("id")) = LOWER(TRIM($2)) OR LOWER(TRIM("id")) = LOWER(TRIM($3)) LIMIT 1',
-          [cleanId, rawId, hashId]
+          `SELECT * FROM "orders" 
+           WHERE LOWER(TRIM("id")) = ANY($1::text[]) 
+              OR REPLACE(LOWER(TRIM("id")), '#', '') = ANY($2::text[])
+              OR REGEXP_REPLACE(LOWER(TRIM("id")), '^#?ft', '', 'i') = $3
+           LIMIT 1`,
+          [candidateLower, candidateNoHashLower, cleanDigitsOnly.toLowerCase()]
         );
         if (res.rows.length > 0) {
           const normalized = normalizeOrderRecord(res.rows[0]);
+          const authoritativeId = String(normalized.id || '').replace(/^#+/, '').trim().toLowerCase();
           const list = inMemoryData['orders'] || [];
           const idx = list.findIndex(o => {
             const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
-            return oid === cleanId.toLowerCase();
+            return oid === authoritativeId || candidateLower.includes(oid);
           });
           if (idx >= 0) list[idx] = normalized;
           else list.unshift(normalized);
@@ -874,11 +935,10 @@ export const db = {
         }
 
         // Secondary fallback for IDs with numeric suffix matching
-        const rawNumeric = cleanId.replace(/\D/g, '');
-        if (rawNumeric.length >= 4) {
+        if (cleanDigitsOnly.length >= 4) {
           const fallbackRes = await activePool.query(
             `SELECT * FROM "orders" WHERE "id" LIKE '%' || $1 || '%' LIMIT 1`,
-            [rawNumeric]
+            [cleanDigitsOnly]
           );
           if (fallbackRes.rows.length > 0) {
             const normalized = normalizeOrderRecord(fallbackRes.rows[0]);
@@ -886,15 +946,18 @@ export const db = {
           }
         }
       } catch (err) {
-        console.error(`[DATABASE ERROR] getOrderById query failed for ID "${cleanId}":`, err);
+        console.error(`[DATABASE ERROR] getOrderById query failed for ID "${cleanNoHash}":`, err);
       }
     }
 
+    // In-memory fallback
     const list = inMemoryData['orders'] || [];
+    const candidateLowerSet = new Set(candidateIds.map(c => c.toLowerCase()));
     const found = list.find(o => {
-      const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
-      const oRaw = String(o.id || o.ID || '').trim().toLowerCase();
-      return oid === cleanId.toLowerCase() || oRaw === rawId.toLowerCase() || oRaw === hashId.toLowerCase() || (rawId.replace(/\D/g, '').length >= 4 && oid.includes(rawId.replace(/\D/g, '')));
+      const oid = String(o.id || o.ID || '').trim().toLowerCase();
+      const oidClean = oid.replace(/^#+/, '').trim();
+      const oidDigits = oidClean.replace(/^ft/i, '').trim();
+      return candidateLowerSet.has(oid) || candidateLowerSet.has(oidClean) || candidateLowerSet.has(oidDigits) || (cleanDigitsOnly.length >= 4 && oid.includes(cleanDigitsOnly));
     });
     return found ? normalizeOrderRecord(found) : null;
   },
@@ -975,24 +1038,52 @@ export const db = {
   },
 
   async updateOrder(orderId: string, updates: Record<string, unknown>): Promise<Record<string, unknown> | null> {
-    const rawId = String(orderId || '').trim();
+    let rawId = String(orderId || '').trim();
     if (!rawId) return null;
-    const cleanId = rawId.replace(/^#+/, '').trim();
+
+    while (rawId.includes('%23') || rawId.includes('%20') || rawId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(rawId);
+        if (decoded === rawId) break;
+        rawId = decoded;
+      } catch {
+        break;
+      }
+    }
+
+    // Attempt to resolve existing order first to obtain authoritative ID
+    const existing = await this.getOrderById(rawId);
+    const authoritativeId = existing?.id ? String(existing.id).replace(/^#+/, '').trim() : rawId.replace(/^#+/, '').trim();
+    const cleanDigitsOnly = authoritativeId.replace(/^FT/i, '').trim();
+
+    const candidateIds = Array.from(new Set([
+      rawId,
+      authoritativeId,
+      cleanDigitsOnly,
+      '#' + authoritativeId,
+      'FT' + cleanDigitsOnly,
+      '#FT' + cleanDigitsOnly
+    ].filter(Boolean)));
+    const candidateLower = Array.from(new Set(candidateIds.map(c => c.toLowerCase())));
 
     const list = inMemoryData['orders'] || [];
     const idx = list.findIndex(o => {
       const oid = String(o.id || o.ID || '').replace(/^#+/, '').trim().toLowerCase();
-      return oid === cleanId.toLowerCase() || oid === rawId.toLowerCase();
+      return oid === authoritativeId.toLowerCase() || candidateLower.includes(oid);
     });
+
     const now = new Date().toISOString();
-    const cleanUpdates = { ...updates, id: cleanId, updatedAt: updates.updatedAt || now };
+    const cleanUpdates = { ...updates, id: authoritativeId, updatedAt: updates.updatedAt || now };
 
     let merged: Record<string, unknown>;
     if (idx >= 0) {
       merged = normalizeOrderRecord({ ...list[idx], ...cleanUpdates });
       list[idx] = merged;
+    } else if (existing) {
+      merged = normalizeOrderRecord({ ...existing, ...cleanUpdates });
+      list.unshift(merged);
     } else {
-      merged = normalizeOrderRecord({ ...cleanUpdates, id: cleanId });
+      merged = normalizeOrderRecord({ ...cleanUpdates, id: authoritativeId });
       list.unshift(merged);
     }
     inMemoryData['orders'] = list;
@@ -1003,7 +1094,7 @@ export const db = {
     }
 
     try {
-      const allowedOrderCols = ALLOWED_COLUMNS['orders'];
+      const allowedOrderCols = ALLOWED_COLUMNS['orders'] || [];
       const allowedLowerMap = new Map<string, string>();
       for (const col of allowedOrderCols) {
         allowedLowerMap.set(col.toLowerCase(), col);
@@ -1026,14 +1117,16 @@ export const db = {
       }
 
       if (setClauses.length > 0) {
-        values.push(cleanId);
-        values.push(rawId);
-        const queryText = `UPDATE "orders" SET ${setClauses.join(', ')} WHERE LOWER(TRIM("id")) = LOWER(TRIM($${values.length - 1})) OR LOWER(TRIM("id")) = LOWER(TRIM($${values.length})) RETURNING *`;
+        values.push(candidateLower);
+        const queryText = `UPDATE "orders" SET ${setClauses.join(', ')} 
+                           WHERE LOWER(TRIM("id")) = ANY($${values.length}::text[]) 
+                              OR REPLACE(LOWER(TRIM("id")), '#', '') = ANY($${values.length}::text[]) 
+                           RETURNING *`;
         const res = await activePool.query(queryText, values);
         if (res.rows.length > 0) {
           const persisted = normalizeOrderRecord(res.rows[0]);
           if (idx >= 0) list[idx] = persisted;
-          else list.unshift(persisted);
+          else list[0] = persisted;
           inMemoryData['orders'] = list;
           return persisted;
         }
@@ -1042,7 +1135,7 @@ export const db = {
       // 2. If row was not found in DB, perform atomic UPSERT with RETURNING *
       const cols: string[] = ['"id"'];
       const valPlaceholders: string[] = ['$1'];
-      const insertVals: unknown[] = [cleanId];
+      const insertVals: unknown[] = [authoritativeId];
       const updateSetClauses: string[] = [];
       const processedUpsertCols = new Set<string>();
 
@@ -1068,7 +1161,7 @@ export const db = {
       if (upsertRes.rows.length > 0) {
         const persisted = normalizeOrderRecord(upsertRes.rows[0]);
         if (idx >= 0) list[idx] = persisted;
-        else list.unshift(persisted);
+        else list[0] = persisted;
         inMemoryData['orders'] = list;
         return persisted;
       }
@@ -1678,6 +1771,176 @@ export const db = {
   },
 
   /**
+   * Delivery Partner Management Methods (PostgreSQL Atomic CRUD)
+   */
+  async getPartners(locationId?: string): Promise<Record<string, unknown>[]> {
+    let rawList: Record<string, unknown>[] = [];
+    const activePool = getPool();
+    if (!activePool) {
+      rawList = inMemoryData['partners'] || [];
+    } else {
+      try {
+        const query = locationId
+          ? 'SELECT * FROM partners WHERE LOWER(TRIM("locationId")) = LOWER(TRIM($1)) ORDER BY id ASC'
+          : 'SELECT * FROM partners ORDER BY id ASC';
+        const params = locationId ? [locationId] : [];
+        const res = await activePool.query(query, params);
+        rawList = res.rows;
+      } catch (err) {
+        console.error('Error fetching partners from PostgreSQL:', err);
+        rawList = inMemoryData['partners'] || [];
+      }
+    }
+    const normalized = rawList.map(normalizePartnerRecord);
+    return normalized;
+  },
+
+  async getPartnerById(idOrEmailOrPhone: string): Promise<Record<string, unknown> | null> {
+    const rawInput = String(idOrEmailOrPhone || '').trim();
+    if (!rawInput) return null;
+    const cleanLower = rawInput.toLowerCase();
+    const cleanDigits = rawInput.replace(/\D/g, '');
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const query = `
+          SELECT * FROM partners 
+          WHERE LOWER(TRIM(id)) = $1 
+             OR LOWER(TRIM(email)) = $1 
+             OR (LENGTH($2) >= 4 AND REGEXP_REPLACE(phone, '\\D', '', 'g') = $2)
+          LIMIT 1
+        `;
+        const res = await activePool.query(query, [cleanLower, cleanDigits || '']);
+        if (res.rows && res.rows.length > 0) {
+          return normalizePartnerRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching partner by identifier from DB:', err);
+      }
+    }
+
+    const memList = inMemoryData['partners'] || [];
+    const found = memList.find((p: any) => {
+      const pId = String(p.id || '').toLowerCase().trim();
+      const pEmail = String(p.email || '').toLowerCase().trim();
+      const pPhoneDigits = String(p.phone || '').replace(/\D/g, '');
+      return (
+        pId === cleanLower ||
+        pEmail === cleanLower ||
+        (cleanDigits.length >= 4 && pPhoneDigits === cleanDigits)
+      );
+    });
+
+    return found ? normalizePartnerRecord(found) : null;
+  },
+
+  async upsertPartner(partnerData: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const normalized = normalizePartnerRecord(partnerData);
+    const cleanId = String(normalized.id || '').trim();
+    const cleanName = String(normalized.name || '').trim();
+    const cleanEmail = String(normalized.email || '').trim().toLowerCase();
+    const cleanPhone = String(normalized.phone || '').trim();
+    const passwordHash = String(normalized.passwordHash || '').trim();
+    const role = 'delivery_partner';
+    const locationId = String(normalized.locationId || 'nawabganj-unnao').trim();
+    const locationName = String(normalized.locationName || (locationId === 'nawabganj-unnao' ? 'Nawabganj, Unnao' : 'Chandigarh University, UP')).trim();
+    const status = String(normalized.status || 'Active').trim();
+    const isOnline = Boolean(normalized.isOnline);
+
+    const partnerRecord: Record<string, unknown> = {
+      id: cleanId,
+      name: cleanName,
+      phone: cleanPhone,
+      email: cleanEmail,
+      passwordHash,
+      role,
+      locationId,
+      locationName,
+      status,
+      isOnline
+    };
+
+    // 1. Update in-memory
+    const list = inMemoryData['partners'] || [];
+    const idx = list.findIndex((p: any) => 
+      String(p.id || '').toLowerCase().trim() === cleanId.toLowerCase() ||
+      String(p.email || '').toLowerCase().trim() === cleanEmail
+    );
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...partnerRecord };
+    } else {
+      list.push(partnerRecord);
+    }
+    inMemoryData['partners'] = list;
+
+    // 2. Persist to PostgreSQL single row atomically
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const query = `
+          INSERT INTO partners (id, name, phone, email, "passwordHash", role, "locationId", "locationName", status, "isOnline")
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            phone = COALESCE(EXCLUDED.phone, partners.phone),
+            email = COALESCE(EXCLUDED.email, partners.email),
+            "passwordHash" = CASE WHEN EXCLUDED."passwordHash" != '' THEN EXCLUDED."passwordHash" ELSE partners."passwordHash" END,
+            "locationId" = COALESCE(EXCLUDED."locationId", partners."locationId"),
+            "locationName" = COALESCE(EXCLUDED."locationName", partners."locationName"),
+            status = COALESCE(EXCLUDED.status, partners.status),
+            "isOnline" = COALESCE(EXCLUDED."isOnline", partners."isOnline")
+          RETURNING *;
+        `;
+        const res = await activePool.query(query, [
+          cleanId,
+          cleanName,
+          cleanPhone,
+          cleanEmail,
+          passwordHash,
+          role,
+          locationId,
+          locationName,
+          status,
+          isOnline
+        ]);
+        if (res.rows.length > 0) {
+          return normalizePartnerRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error upserting partner in PostgreSQL:', err);
+      }
+    }
+
+    return partnerRecord;
+  },
+
+  async deletePartner(partnerId: string): Promise<boolean> {
+    const cleanId = String(partnerId || '').trim();
+    if (!cleanId) return false;
+
+    // 1. Remove from in-memory
+    const list = inMemoryData['partners'] || [];
+    inMemoryData['partners'] = list.filter((p: any) => 
+      String(p.id || '').toLowerCase().trim() !== cleanId.toLowerCase()
+    );
+
+    // 2. Atomic single-row DELETE in PostgreSQL
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        await activePool.query('DELETE FROM partners WHERE LOWER(TRIM(id)) = LOWER(TRIM($1))', [cleanId]);
+        // Also cleanup active sessions for this partner
+        await activePool.query('DELETE FROM sessions WHERE LOWER(TRIM("userId")) = LOWER(TRIM($1))', [cleanId]);
+      } catch (err) {
+        console.error('Error deleting partner from PostgreSQL:', err);
+      }
+    }
+
+    return true;
+  },
+
+  /**
    * Payment Transaction Methods
    */
   async getPaymentByOrderId(orderId: string): Promise<Record<string, unknown> | null> {
@@ -1693,18 +1956,58 @@ export const db = {
         break;
       }
     }
-    const clean = raw.replace(/^#+/, '').trim();
-    const hash = '#' + clean;
+    const cleanNoHash = raw.replace(/^#+/, '').trim();
+    const cleanNoPay = cleanNoHash.replace(/^pay[-_]/i, '').trim();
+    const cleanDigitsOnly = cleanNoPay.replace(/^#?ft/i, '').trim();
+
+    const candidateIds = Array.from(new Set([
+      raw,
+      raw.toLowerCase(),
+      cleanNoHash,
+      cleanNoHash.toLowerCase(),
+      cleanNoPay,
+      cleanNoPay.toLowerCase(),
+      cleanDigitsOnly,
+      cleanDigitsOnly.toLowerCase(),
+      '#' + cleanNoHash,
+      'FT' + cleanDigitsOnly,
+      '#FT' + cleanDigitsOnly,
+      'ft' + cleanDigitsOnly,
+      '#ft' + cleanDigitsOnly,
+      'pay-' + cleanNoHash,
+      'pay-' + cleanNoPay,
+      'pay-FT' + cleanDigitsOnly,
+      'pay-' + cleanDigitsOnly
+    ].filter(Boolean)));
 
     const activePool = getPool();
     if (activePool) {
       try {
+        const candidateLower = Array.from(new Set(candidateIds.map(c => c.toLowerCase())));
+        const candidateNoHashLower = Array.from(new Set(candidateIds.map(c => c.replace(/^#+/, '').toLowerCase())));
+
         const res = await activePool.query(
-          'SELECT * FROM payment_transactions WHERE LOWER(TRIM("orderId")) = LOWER(TRIM($1)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($2)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($3)) OR LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) LIMIT 1',
-          [clean, raw, hash]
+          `SELECT * FROM payment_transactions 
+           WHERE LOWER(TRIM("orderId")) = ANY($1::text[]) 
+              OR LOWER(TRIM(id)) = ANY($1::text[])
+              OR REPLACE(LOWER(TRIM("orderId")), '#', '') = ANY($2::text[])
+              OR REGEXP_REPLACE(LOWER(TRIM("orderId")), '^#?ft', '', 'i') = $3
+              OR REGEXP_REPLACE(LOWER(TRIM(id)), '^pay-(#?ft)?', '', 'i') = $3
+           LIMIT 1`,
+          [candidateLower, candidateNoHashLower, cleanDigitsOnly.toLowerCase()]
         );
         if (res.rows.length > 0) {
           return normalizePaymentRecord(res.rows[0]);
+        }
+
+        if (cleanDigitsOnly.length >= 4) {
+          const fallbackRes = await activePool.query(
+            `SELECT * FROM payment_transactions WHERE "orderId" LIKE '%' || $1 || '%' OR id LIKE '%' || $1 || '%' LIMIT 1`,
+            [cleanDigitsOnly]
+          );
+          if (fallbackRes.rows.length > 0) {
+            return normalizePaymentRecord(fallbackRes.rows[0]);
+          }
         }
       } catch (err) {
         console.error('Error fetching payment by orderId from DB:', err);
@@ -1712,11 +2015,24 @@ export const db = {
     }
 
     const list = inMemoryData['payment_transactions'] || [];
+    const candidateLowerSet = new Set(candidateIds.map(c => c.toLowerCase()));
     const found = list.find((p: Record<string, unknown>) => {
-      const pOid = String(p.orderId || p.orderid || '').replace(/^#+/, '').trim().toLowerCase();
-      const pId = String(p.id || '').replace(/^#+/, '').trim().toLowerCase();
-      const targetLower = clean.toLowerCase();
-      return pOid === targetLower || pId === targetLower || String(p.orderId || '').toLowerCase() === raw.toLowerCase();
+      const pOid = String(p.orderId || p.orderid || '').toLowerCase();
+      const pOidClean = pOid.replace(/^#+/, '').trim();
+      const pOidDigits = pOidClean.replace(/^ft/i, '').trim();
+      const pId = String(p.id || '').toLowerCase();
+      const pIdClean = pId.replace(/^pay[-_]/i, '').replace(/^#+/, '').trim();
+      const pIdDigits = pIdClean.replace(/^ft/i, '').trim();
+
+      return (
+        candidateLowerSet.has(pOid) ||
+        candidateLowerSet.has(pOidClean) ||
+        candidateLowerSet.has(pOidDigits) ||
+        candidateLowerSet.has(pId) ||
+        candidateLowerSet.has(pIdClean) ||
+        candidateLowerSet.has(pIdDigits) ||
+        (cleanDigitsOnly.length >= 4 && (pOid.includes(cleanDigitsOnly) || pId.includes(cleanDigitsOnly)))
+      );
     });
     return found ? normalizePaymentRecord(found) : null;
   },
@@ -1734,17 +2050,58 @@ export const db = {
         break;
       }
     }
-    const clean = raw.replace(/^#+/, '').trim();
+    const cleanNoHash = raw.replace(/^#+/, '').trim();
+    const cleanNoPay = cleanNoHash.replace(/^pay[-_]/i, '').trim();
+    const cleanDigitsOnly = cleanNoPay.replace(/^#?ft/i, '').trim();
+
+    const candidateIds = Array.from(new Set([
+      raw,
+      raw.toLowerCase(),
+      cleanNoHash,
+      cleanNoHash.toLowerCase(),
+      cleanNoPay,
+      cleanNoPay.toLowerCase(),
+      cleanDigitsOnly,
+      cleanDigitsOnly.toLowerCase(),
+      '#' + cleanNoHash,
+      'FT' + cleanDigitsOnly,
+      '#FT' + cleanDigitsOnly,
+      'ft' + cleanDigitsOnly,
+      '#ft' + cleanDigitsOnly,
+      'pay-' + cleanNoHash,
+      'pay-' + cleanNoPay,
+      'pay-FT' + cleanDigitsOnly,
+      'pay-' + cleanDigitsOnly
+    ].filter(Boolean)));
 
     const activePool = getPool();
     if (activePool) {
       try {
+        const candidateLower = Array.from(new Set(candidateIds.map(c => c.toLowerCase())));
+        const candidateNoHashLower = Array.from(new Set(candidateIds.map(c => c.replace(/^#+/, '').toLowerCase())));
+
         const res = await activePool.query(
-          'SELECT * FROM payment_transactions WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($1)) OR LOWER(TRIM("orderId")) = LOWER(TRIM($2)) LIMIT 1',
-          [clean, raw]
+          `SELECT * FROM payment_transactions 
+           WHERE LOWER(TRIM(id)) = ANY($1::text[]) 
+              OR LOWER(TRIM("orderId")) = ANY($1::text[]) 
+              OR REPLACE(LOWER(TRIM("orderId")), '#', '') = ANY($2::text[])
+              OR REGEXP_REPLACE(LOWER(TRIM(id)), '^pay-(#?ft)?', '', 'i') = $3
+              OR REGEXP_REPLACE(LOWER(TRIM("orderId")), '^#?ft', '', 'i') = $3
+           LIMIT 1`,
+          [candidateLower, candidateNoHashLower, cleanDigitsOnly.toLowerCase()]
         );
         if (res.rows.length > 0) {
           return normalizePaymentRecord(res.rows[0]);
+        }
+
+        if (cleanDigitsOnly.length >= 4) {
+          const fallbackRes = await activePool.query(
+            `SELECT * FROM payment_transactions WHERE id LIKE '%' || $1 || '%' OR "orderId" LIKE '%' || $1 || '%' LIMIT 1`,
+            [cleanDigitsOnly]
+          );
+          if (fallbackRes.rows.length > 0) {
+            return normalizePaymentRecord(fallbackRes.rows[0]);
+          }
         }
       } catch (err) {
         console.error('Error fetching payment by id from DB:', err);
@@ -1752,11 +2109,52 @@ export const db = {
     }
 
     const list = inMemoryData['payment_transactions'] || [];
+    const candidateLowerSet = new Set(candidateIds.map(c => c.toLowerCase()));
     const found = list.find((p: Record<string, unknown>) => {
       const pId = String(p.id || '').toLowerCase();
+      const pIdClean = pId.replace(/^pay[-_]/i, '').replace(/^#+/, '').trim();
+      const pIdDigits = pIdClean.replace(/^ft/i, '').trim();
       const pOid = String(p.orderId || p.orderid || '').toLowerCase();
-      return pId === clean.toLowerCase() || pId === raw.toLowerCase() || pOid === clean.toLowerCase();
+      const pOidClean = pOid.replace(/^#+/, '').trim();
+      const pOidDigits = pOidClean.replace(/^ft/i, '').trim();
+
+      return (
+        candidateLowerSet.has(pId) ||
+        candidateLowerSet.has(pIdClean) ||
+        candidateLowerSet.has(pIdDigits) ||
+        candidateLowerSet.has(pOid) ||
+        candidateLowerSet.has(pOidClean) ||
+        candidateLowerSet.has(pOidDigits) ||
+        (cleanDigitsOnly.length >= 4 && (pId.includes(cleanDigitsOnly) || pOid.includes(cleanDigitsOnly)))
+      );
     });
+    return found ? normalizePaymentRecord(found) : null;
+  },
+
+  async getPaymentByRazorpayOrderId(razorpayOrderId: string): Promise<Record<string, unknown> | null> {
+    const raw = String(razorpayOrderId || '').trim();
+    if (!raw) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          `SELECT * FROM payment_transactions 
+           WHERE "razorpayOrderId" = $1 OR "transactionReference" = $1 OR id = $1 LIMIT 1`,
+          [raw]
+        );
+        if (res.rows.length > 0) {
+          return normalizePaymentRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching payment by razorpayOrderId from DB:', err);
+      }
+    }
+
+    const list = inMemoryData['payment_transactions'] || [];
+    const found = list.find((p: Record<string, unknown>) => 
+      String(p.razorpayOrderId || p.razorpayorderid || p.transactionReference || p.id || '').trim() === raw
+    );
     return found ? normalizePaymentRecord(found) : null;
   },
 
@@ -1772,6 +2170,7 @@ export const db = {
     status: string;
     method?: string;
     provider?: string;
+    transactionReference?: string;
     utr?: string;
     proofImageUrl?: string;
     submittedAt?: string;
@@ -1784,6 +2183,9 @@ export const db = {
     paidAt?: string | null;
     createdAt?: string;
     metadata?: Record<string, unknown>;
+    razorpayOrderId?: string;
+    razorpayPaymentId?: string;
+    razorpaySignature?: string;
   }): Promise<Record<string, unknown>> {
     const rawOrderId = String(payment.orderId || '').trim();
     const cleanOrderId = rawOrderId.replace(/^#+/, '').trim();
@@ -1791,7 +2193,7 @@ export const db = {
     const now = new Date().toISOString();
 
     const currentSubmittedAt = payment.submittedAt || (payment.status === 'PAYMENT_VERIFICATION_PENDING' ? now : undefined);
-    const paidAt = payment.status === 'PAID' ? (payment.verifiedAt || now) : null;
+    const paidAt = payment.status === 'PAID' ? (payment.verifiedAt || payment.paidAt || now) : null;
 
     const list = inMemoryData['payment_transactions'] || [];
     const idx = list.findIndex((p: Record<string, unknown>) => 
@@ -1807,8 +2209,9 @@ export const db = {
       amount: payment.amount !== undefined ? payment.amount : (idx >= 0 ? list[idx].amount : 0),
       currency: payment.currency || (idx >= 0 ? list[idx].currency : 'INR') || 'INR',
       status: payment.status,
-      method: payment.method || (idx >= 0 ? list[idx].method : 'UPI') || 'UPI',
-      provider: payment.provider || (idx >= 0 ? list[idx].provider : 'MANUAL_UPI') || 'MANUAL_UPI',
+      method: payment.method || (idx >= 0 ? list[idx].method : 'Razorpay') || 'Razorpay',
+      provider: payment.provider || (idx >= 0 ? list[idx].provider : 'RAZORPAY') || 'RAZORPAY',
+      transactionReference: payment.transactionReference !== undefined ? payment.transactionReference : (payment.razorpayPaymentId || (idx >= 0 ? list[idx].transactionReference : undefined)),
       utr: payment.utr !== undefined ? payment.utr : (idx >= 0 ? list[idx].utr : ''),
       proofImageUrl: payment.proofImageUrl !== undefined ? payment.proofImageUrl : (idx >= 0 ? list[idx].proofImageUrl : ''),
       submittedAt: currentSubmittedAt || (idx >= 0 ? list[idx].submittedAt : now),
@@ -1818,6 +2221,9 @@ export const db = {
       rejectedBy: payment.rejectedBy !== undefined ? payment.rejectedBy : (idx >= 0 ? list[idx].rejectedBy : undefined),
       rejectionReason: payment.rejectionReason !== undefined ? payment.rejectionReason : (idx >= 0 ? list[idx].rejectionReason : undefined),
       paymentProofType: payment.paymentProofType || (idx >= 0 ? list[idx].paymentProofType : 'image') || 'image',
+      razorpayOrderId: payment.razorpayOrderId !== undefined ? payment.razorpayOrderId : (idx >= 0 ? list[idx].razorpayOrderId : undefined),
+      razorpayPaymentId: payment.razorpayPaymentId !== undefined ? payment.razorpayPaymentId : (idx >= 0 ? list[idx].razorpayPaymentId : undefined),
+      razorpaySignature: payment.razorpaySignature !== undefined ? payment.razorpaySignature : (idx >= 0 ? list[idx].razorpaySignature : undefined),
       updatedAt: now,
       createdAt: (idx >= 0 && list[idx].createdAt) ? list[idx].createdAt : now,
       paidAt: paidAt || (idx >= 0 ? list[idx].paidAt : null),
@@ -1843,14 +2249,18 @@ export const db = {
       const res = await activePool.query(
         `INSERT INTO payment_transactions (
           id, "orderId", "customerId", amount, currency, status, method, provider,
-          utr, "proofImageUrl", "submittedAt", "verifiedAt", "verifiedBy",
+          "transactionReference", utr, "proofImageUrl", "submittedAt", "verifiedAt", "verifiedBy",
           "rejectedAt", "rejectedBy", "rejectionReason", "paymentProofType",
-          "createdAt", "updatedAt", "paidAt", "attemptCount", metadata
+          "createdAt", "updatedAt", "paidAt", "attemptCount", metadata,
+          "razorpayOrderId", "razorpayPaymentId", "razorpaySignature"
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
         ON CONFLICT ("orderId") DO UPDATE
         SET status = EXCLUDED.status,
             amount = CASE WHEN EXCLUDED.amount > 0 THEN EXCLUDED.amount ELSE payment_transactions.amount END,
+            method = COALESCE(EXCLUDED.method, payment_transactions.method),
+            provider = COALESCE(EXCLUDED.provider, payment_transactions.provider),
+            "transactionReference" = COALESCE(EXCLUDED."transactionReference", payment_transactions."transactionReference"),
             utr = COALESCE(EXCLUDED.utr, payment_transactions.utr),
             "proofImageUrl" = COALESCE(EXCLUDED."proofImageUrl", payment_transactions."proofImageUrl"),
             "submittedAt" = COALESCE(EXCLUDED."submittedAt", payment_transactions."submittedAt"),
@@ -1860,7 +2270,10 @@ export const db = {
             "rejectedBy" = COALESCE(EXCLUDED."rejectedBy", payment_transactions."rejectedBy"),
             "rejectionReason" = COALESCE(EXCLUDED."rejectionReason", payment_transactions."rejectionReason"),
             "paymentProofType" = COALESCE(EXCLUDED."paymentProofType", payment_transactions."paymentProofType"),
-            "paidAt" = CASE WHEN EXCLUDED.status = 'PAID' THEN COALESCE(EXCLUDED."paidAt", $19) ELSE payment_transactions."paidAt" END,
+            "paidAt" = CASE WHEN EXCLUDED.status = 'PAID' THEN COALESCE(EXCLUDED."paidAt", $21) ELSE payment_transactions."paidAt" END,
+            "razorpayOrderId" = COALESCE(EXCLUDED."razorpayOrderId", payment_transactions."razorpayOrderId"),
+            "razorpayPaymentId" = COALESCE(EXCLUDED."razorpayPaymentId", payment_transactions."razorpayPaymentId"),
+            "razorpaySignature" = COALESCE(EXCLUDED."razorpaySignature", payment_transactions."razorpaySignature"),
             "updatedAt" = EXCLUDED."updatedAt",
             metadata = COALESCE(payment_transactions.metadata, '{}'::jsonb) || COALESCE(EXCLUDED.metadata, '{}'::jsonb)
         RETURNING *`,
@@ -1873,6 +2286,7 @@ export const db = {
           mergedRecord.status,
           mergedRecord.method,
           mergedRecord.provider,
+          mergedRecord.transactionReference || null,
           mergedRecord.utr || null,
           mergedRecord.proofImageUrl || null,
           mergedRecord.submittedAt || null,
@@ -1886,7 +2300,10 @@ export const db = {
           now,
           paidAt || null,
           1,
-          JSON.stringify(mergedRecord.metadata || {})
+          JSON.stringify(mergedRecord.metadata || {}),
+          mergedRecord.razorpayOrderId || null,
+          mergedRecord.razorpayPaymentId || null,
+          mergedRecord.razorpaySignature || null
         ]
       );
 
@@ -2808,6 +3225,26 @@ export const db = {
       `);
       await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS gallery JSONB');
       await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "inStock" BOOLEAN DEFAULT TRUE');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "subCategory" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "discount" NUMERIC DEFAULT 0');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "deliveryTime" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "ingredients" JSONB');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "allergens" JSONB');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "storageInstructions" TEXT');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "occasions" JSONB');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "variants" JSONB');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessBrand" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessType" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessMaterial" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessPackSize" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessTexture" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessFlavor" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessVerified" BOOLEAN DEFAULT TRUE');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessSku" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "wellnessDetails" JSONB');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "reviewCount" INTEGER DEFAULT 0');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "createdAt" VARCHAR(255)');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS "updatedAt" VARCHAR(255)');
       await client.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
       await client.query('ALTER TABLE categories ALTER COLUMN image TYPE TEXT').catch(() => {});
 
@@ -2963,6 +3400,16 @@ export const db = {
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "customerEmail" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "updatedAt" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryTimeSlot" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryLocationId" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryLocationName" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryOtp" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "otpFailedAttempts" INTEGER DEFAULT 0');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "otpExpiresAt" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "statusHistory" JSONB');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "assignedPartnerId" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "assignedPartnerName" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "assignedAt" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "couponCode" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "delivery_otp_verified" BOOLEAN DEFAULT FALSE');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "otp_verified_at" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "verified_by_partner_id" VARCHAR(255)');
@@ -2975,6 +3422,9 @@ export const db = {
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "paymentRejectedAt" VARCHAR(255)');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "razorpayOrderId" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "razorpayPaymentId" VARCHAR(255)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS wellness_terms_acceptances (
@@ -3037,6 +3487,9 @@ export const db = {
           "failureReason" TEXT,
           "attemptCount" INTEGER DEFAULT 0,
           "lastAttemptAt" VARCHAR(255),
+          "razorpayOrderId" VARCHAR(255),
+          "razorpayPaymentId" VARCHAR(255),
+          "razorpaySignature" TEXT,
           metadata JSONB
         );
       `);
@@ -3051,6 +3504,9 @@ export const db = {
       await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT');
       await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "paymentProofType" VARCHAR(50)');
       await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "paymentProofSize" INTEGER');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "razorpayOrderId" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "razorpayPaymentId" VARCHAR(255)');
+      await client.query('ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT');
 
       await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
       await client.query('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders("customerId")');

@@ -21,14 +21,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { orderId, reason } = body;
+    const body = await request.json().catch(() => ({}));
+    const rawId = body.orderId || body.id;
+    const { reason } = body;
 
-    if (!orderId) {
+    if (!rawId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const cleanId = decodeURIComponent(String(orderId || '')).replace(/^#/, '').trim();
+    const cleanId = decodeURIComponent(String(rawId || '')).replace(/^#/, '').trim();
     const order = await db.getOrderById(cleanId);
 
     if (!order) {

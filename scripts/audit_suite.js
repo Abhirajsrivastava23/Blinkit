@@ -92,13 +92,13 @@ async function runAudit() {
   record('Rider Session Identity (/api/auth/me)', meRider.authenticated && meRider.user?.role === 'delivery_partner');
 
   // Role Security Isolation
-  const custAccessAdminApi = await fetch(`${baseUrl}/api/admin/payments/pending`, { headers: { 'Cookie': custACookie } });
+  const custAccessAdminApi = await fetch(`${baseUrl}/api/admin/payment-settings`, { headers: { 'Cookie': custACookie } });
   record('Security: Customer Blocked from Admin APIs (403)', custAccessAdminApi.status === 403);
 
-  const riderAccessAdminApi = await fetch(`${baseUrl}/api/admin/payments/pending`, { headers: { 'Cookie': riderCookie } });
+  const riderAccessAdminApi = await fetch(`${baseUrl}/api/admin/payment-settings`, { headers: { 'Cookie': riderCookie } });
   record('Security: Delivery Partner Blocked from Admin APIs (403)', riderAccessAdminApi.status === 403);
 
-  const unauthAccessAdminApi = await fetch(`${baseUrl}/api/admin/payments/pending`);
+  const unauthAccessAdminApi = await fetch(`${baseUrl}/api/admin/payment-settings`);
   record('Security: Unauthenticated Blocked from Admin APIs (403/401)', unauthAccessAdminApi.status === 403 || unauthAccessAdminApi.status === 401);
 
   // -------------------------------------------------------------------------
@@ -198,83 +198,79 @@ async function runAudit() {
   record('Security: Customer B Forbidden from Cancelling Customer A Order (403)', custBCancelA.status === 403);
 
   // -------------------------------------------------------------------------
-  // 4. FULL PAYMENT VERIFICATION LIFECYCLE (APPROVAL, REJECTION, RE-SUBMIT)
+  // 4. RAZORPAY GATEWAY PAYMENT FLOW (CREATE -> FRAUD REJECT -> HMAC VERIFY)
   // -------------------------------------------------------------------------
-  console.log('\n--- SECTION 4: FULL PAYMENT LIFECYCLE (REJECT -> RESUBMIT -> APPROVE) ---');
+  console.log('\n--- SECTION 4: RAZORPAY PAYMENT LIFECYCLE (CREATE -> VERIFY -> CONFIRM) ---');
 
-  const fakeJpgBuffer = Buffer.alloc(10 * 1024, 0xFF);
-  const fakeBlob = new Blob([fakeJpgBuffer], { type: 'image/jpeg' });
-
-  // 4a. Initial Submission
-  const proofFormData1 = new FormData();
-  proofFormData1.append('orderId', orderAId);
-  proofFormData1.append('paymentId', `pay-${orderAId}`);
-  proofFormData1.append('amount', '249');
-  proofFormData1.append('utr', '123456789012');
-  proofFormData1.append('file', fakeBlob, 'screenshot1.jpg');
-
-  const submitRes1 = await fetch(`${baseUrl}/api/payments/submit`, {
+  // 4a. Razorpay Order Creation
+  const rzpOrderRes = await fetch(`${baseUrl}/api/payments/razorpay/create-order`, {
     method: 'POST',
-    headers: { 'Cookie': custACookie },
-    body: proofFormData1
+    headers: { 'Content-Type': 'application/json', 'Cookie': custACookie },
+    body: JSON.stringify({ orderId: orderAId })
   });
-  record('Payment Proof Initial Submission (/api/payments/submit)', submitRes1.status === 200);
+  const rzpOrderData = await rzpOrderRes.json();
+  const rzpOrderId = rzpOrderData?.orderId;
+  record('Razorpay Gateway Order Creation (/api/payments/razorpay/create-order)', rzpOrderRes.status === 200 && Boolean(rzpOrderId));
 
-  // 4b. Admin Pending Queue
-  const pendingRes1 = await fetch(`${baseUrl}/api/admin/payments/pending`, { headers: { 'Cookie': adminCookie } });
-  const pendingData1 = await pendingRes1.json();
-  const list1 = Array.isArray(pendingData1.pendingPayments) ? pendingData1.pendingPayments : (Array.isArray(pendingData1) ? pendingData1 : []);
-  const foundInQueue1 = list1.some((p) => p.orderId === orderAId);
-  record('Admin Pending Review Queue Presence', foundInQueue1);
-
-  // 4c. Admin Rejection with Reason
-  const rejectReason = 'UTR reference mismatch with bank statement';
-  const rejectRes = await fetch(`${baseUrl}/api/payments/verify`, {
+  // 4b. Security Check: Invalid HMAC Signature Rejection
+  const fakeSig = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
+  const fraudVerifyRes = await fetch(`${baseUrl}/api/payments/razorpay/verify`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cookie': adminCookie },
+    headers: { 'Content-Type': 'application/json', 'Cookie': custACookie },
     body: JSON.stringify({
       orderId: orderAId,
-      paymentId: `pay-${orderAId}`,
-      action: 'reject',
-      rejectionReason: rejectReason
+      razorpay_order_id: rzpOrderId,
+      razorpay_payment_id: `pay_fake_${Date.now()}`,
+      razorpay_signature: fakeSig
     })
   });
-  record('Admin Rejects Payment with Reason (/api/payments/verify)', rejectRes.status === 200);
+  record('Security: Server Rejects Invalid Signature with HTTP 400', fraudVerifyRes.status === 400);
 
-  // 4d. Customer sees Rejected State
-  const custAfterReject = await fetch(`${baseUrl}/api/orders/${orderAId}`, { headers: { 'Cookie': custACookie } }).then(r => r.json());
-  record('Customer Receives REJECTED Status with Reason', custAfterReject.paymentStatus === 'REJECTED' && custAfterReject.rejectionReason === rejectReason);
+  // 4c. Server-Side HMAC-SHA256 Signature Verification
+  let keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keySecret) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const envContent = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8');
+      const match = envContent.match(/RAZORPAY_KEY_SECRET=["']?([^"'\r\n]+)/);
+      if (match) keySecret = match[1];
+    } catch {}
+  }
+  keySecret = keySecret || 'Exu52JSFtzFtar9AwgZEE57H';
+  const crypto = require('crypto');
+  const validPaymentId = `pay_audit_${Date.now()}`;
+  const validSignature = crypto.createHmac('sha256', keySecret).update(`${rzpOrderId}|${validPaymentId}`).digest('hex');
 
-  // 4e. Customer Re-submits Payment Proof
-  const proofFormData2 = new FormData();
-  proofFormData2.append('orderId', orderAId);
-  proofFormData2.append('paymentId', `pay-${orderAId}`);
-  proofFormData2.append('amount', '249');
-  proofFormData2.append('utr', '987654321098');
-  proofFormData2.append('file', fakeBlob, 'screenshot_corrected.jpg');
-
-  const submitRes2 = await fetch(`${baseUrl}/api/payments/submit`, {
+  const verifyRes = await fetch(`${baseUrl}/api/payments/razorpay/verify`, {
     method: 'POST',
-    headers: { 'Cookie': custACookie },
-    body: proofFormData2
-  });
-  record('Customer Re-submits Corrected Payment Proof', submitRes2.status === 200);
-
-  // 4f. Admin Approves Payment
-  const approveRes = await fetch(`${baseUrl}/api/payments/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cookie': adminCookie },
+    headers: { 'Content-Type': 'application/json', 'Cookie': custACookie },
     body: JSON.stringify({
       orderId: orderAId,
-      paymentId: `pay-${orderAId}`,
-      action: 'approve'
+      razorpay_order_id: rzpOrderId,
+      razorpay_payment_id: validPaymentId,
+      razorpay_signature: validSignature
     })
   });
-  record('Admin Approves Re-submitted Payment', approveRes.status === 200);
+  const verifyData = await verifyRes.json();
+  record('Razorpay HMAC Signature Server-Side Verification', verifyRes.status === 200 && verifyData.paymentStatus === 'PAID');
 
-  // 4g. Customer Status is PAID / Confirmed
+  // 4d. Idempotency Check
+  const repeatVerifyRes = await fetch(`${baseUrl}/api/payments/razorpay/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Cookie': custACookie },
+    body: JSON.stringify({
+      orderId: orderAId,
+      razorpay_order_id: rzpOrderId,
+      razorpay_payment_id: validPaymentId,
+      razorpay_signature: validSignature
+    })
+  });
+  record('Idempotency on Repeated Razorpay Verification', repeatVerifyRes.status === 200);
+
+  // 4e. Customer Status is PAID / Confirmed in PostgreSQL
   const custAfterApprove = await fetch(`${baseUrl}/api/orders/${orderAId}`, { headers: { 'Cookie': custACookie } }).then(r => r.json());
-  record('Customer Order State is PAID / Confirmed', custAfterApprove.paymentStatus === 'PAID' && custAfterApprove.status === 'Confirmed');
+  record('Customer Order State is PAID / Confirmed in DB', custAfterApprove.paymentStatus === 'PAID' && custAfterApprove.status === 'Confirmed');
 
   // -------------------------------------------------------------------------
   // 5. DELIVERY PARTNER LIFECYCLE & MULTI-CLIENT SYNCHRONIZATION

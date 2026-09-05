@@ -18,11 +18,10 @@ function OrderSuccessContent() {
   
   const orderId = searchParams.get('orderId') || '';
   const order = orderId ? getOrderById(orderId) : undefined;
-  const paymentStatusLabel = order?.paymentStatus === 'PAYMENT_VERIFICATION_PENDING'
-    ? 'Payment Submitted — Awaiting Admin Verification'
-    : order?.status === 'Confirmed' || order?.paymentStatus === 'PAID'
-      ? 'Order Confirmed'
-      : 'Order Received — Awaiting Payment Verification';
+  const isPaid = order?.status === 'Confirmed' || order?.paymentStatus === 'PAID';
+  const paymentStatusLabel = isPaid
+    ? 'Order Confirmed & Payment Verified'
+    : 'Order Received — Payment In Progress';
 
   if (!orderId || !order) {
     return (
@@ -56,11 +55,9 @@ function OrderSuccessContent() {
             {paymentStatusLabel}
           </h1>
           <p className="text-xs text-zinc-500">
-            {order.paymentStatus === 'PAYMENT_VERIFICATION_PENDING'
-              ? 'Your payment proof has been submitted. We will confirm the order only after admin verification.'
-              : order.status === 'Confirmed' || order.paymentStatus === 'PAID'
-                ? 'Thank you for celebrating with FATAFAT. Your delivery runner is being assigned.'
-                : 'Your order has been received. Please complete the UPI verification step to receive final confirmation.'}
+            {isPaid
+              ? 'Thank you for ordering with FATAFAT. Your payment was verified securely with Razorpay and your delivery runner is being assigned.'
+              : 'Your order has been recorded. Please complete payment via Razorpay to initiate immediate packaging and dispatch.'}
           </p>
         </div>
 

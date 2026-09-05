@@ -1,33 +1,76 @@
 /**
- * Centralized Image Resolution & Fallback System for FATAFAT
+ * Centralized Image Resolution & Multi-Tier Fallback System for FATAFAT
  */
 
-export const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
-  cakes: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
-  bakery: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80',
-  pastries: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80',
-  flowers: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=600&auto=format&fit=crop&q=80',
-  gifts: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80',
-  chocolates: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=600&auto=format&fit=crop&q=80',
-  celebrations: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80',
-  wellness: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop&q=80',
-  default: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80'
+// Helper to create branded vector SVG data URIs that NEVER fail
+function createCategorySvg(emoji: string, label: string, bgGradientFrom: string, bgGradientTo: string, accentColor: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="${bgGradientFrom}"/>
+        <stop offset="100%" stop-color="${bgGradientTo}"/>
+      </linearGradient>
+      <radialGradient id="r" cx="50%" cy="40%" r="60%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.25"/>
+      </radialGradient>
+    </defs>
+    <rect width="600" height="600" fill="url(#g)"/>
+    <rect width="600" height="600" fill="url(#r)"/>
+    <circle cx="300" cy="260" r="130" fill="${accentColor}" fill-opacity="0.15" stroke="${accentColor}" stroke-width="2" stroke-opacity="0.3"/>
+    <text x="300" y="295" font-size="110" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">${emoji}</text>
+    <rect x="180" y="415" width="240" height="42" rx="21" fill="#6B1D2F" fill-opacity="0.9" stroke="#DFBA5E" stroke-width="1.5"/>
+    <text x="300" y="442" font-size="16" font-weight="900" letter-spacing="2" text-anchor="middle" fill="#DFBA5E" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">⚡ FATAFAT</text>
+    <text x="300" y="495" font-size="22" font-weight="800" text-anchor="middle" fill="#ffffff" font-family="'Playfair Display',Georgia,serif" letter-spacing="0.5">${label}</text>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export const CATEGORY_SVG_FALLBACKS: Record<string, string> = {
+  cakes: createCategorySvg('🎂', 'Artisanal Cakes', '#2D0A14', '#5A1624', '#DFBA5E'),
+  bakery: createCategorySvg('🥐', 'Fresh Bakery', '#3D1A0C', '#6B3419', '#E58B75'),
+  pastries: createCategorySvg('🧁', 'Sweet Pastries', '#3D1A0C', '#6B3419', '#E58B75'),
+  flowers: createCategorySvg('💐', 'Luxury Bouquets', '#1C2E1F', '#2D4A32', '#9BC19D'),
+  gifts: createCategorySvg('🎁', 'Curated Gifts', '#261C3B', '#442F69', '#DFBA5E'),
+  chocolates: createCategorySvg('🍫', 'Artisanal Chocolates', '#23120B', '#422416', '#DFBA5E'),
+  celebrations: createCategorySvg('🎈', 'Celebration Kits', '#142238', '#1F3C63', '#DFBA5E'),
+  wellness: createCategorySvg('🌿', 'Wellness Collection', '#111827', '#1F2937', '#C28E58'),
+  default: createCategorySvg('✨', 'FATAFAT Collection', '#2D0A14', '#5A1624', '#DFBA5E')
 };
+
+// Verified Tier-1 external image URLs with robust formatting
+export const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
+  cakes: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
+  bakery: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+  pastries: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+  flowers: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=600&q=80',
+  gifts: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80',
+  chocolates: 'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=600&q=80',
+  celebrations: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=600&q=80',
+  wellness: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+  default: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80'
+};
+
+export function getCategoryFallbackSvg(category?: string): string {
+  const key = category ? category.toLowerCase().trim() : 'default';
+  return CATEGORY_SVG_FALLBACKS[key] || CATEGORY_SVG_FALLBACKS['default'];
+}
 
 /**
  * Resolves any raw database or catalog image string into a valid, production-ready URL.
  * Handles missing values, relative /public paths, absolute URLs, and category-based fallbacks.
  */
 export function resolveImageUrl(src?: string | null, category?: string): string {
+  const catKey = category ? category.toLowerCase().trim() : 'default';
+  const defaultFallback = CATEGORY_FALLBACK_IMAGES[catKey] || CATEGORY_FALLBACK_IMAGES['default'];
+
   if (!src || typeof src !== 'string') {
-    const catKey = category ? category.toLowerCase().trim() : 'default';
-    return CATEGORY_FALLBACK_IMAGES[catKey] || CATEGORY_FALLBACK_IMAGES['default'] || '';
+    return defaultFallback;
   }
 
   const trimmed = src.trim();
   if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined' || trimmed === '[object Object]') {
-    const catKey = category ? category.toLowerCase().trim() : 'default';
-    return CATEGORY_FALLBACK_IMAGES[catKey] || CATEGORY_FALLBACK_IMAGES['default'] || '';
+    return defaultFallback;
   }
 
   // Handle data URIs and blob URLs

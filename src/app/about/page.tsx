@@ -4,6 +4,7 @@ import React from 'react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import SafeImage from '../../components/SafeImage';
 
 export default function AboutPage() {
   return (
@@ -36,10 +37,11 @@ export default function AboutPage() {
             </div>
             
             <div className="lg:col-span-5 relative h-80 w-full rounded-3xl overflow-hidden shadow-xl border border-white/50 bg-zinc-100">
-              <img
+              <SafeImage
                 src="https://images.unsplash.com/photo-1469371670807-013ccf25f16a?w=700&auto=format&fit=crop&q=80"
                 alt="Table setup"
-                className="w-full h-full object-cover animate-pulse"
+                category="celebrations"
+                className="w-full h-full object-cover"
               />
             </div>
           </div>
@@ -57,9 +59,10 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="relative h-72 w-full rounded-3xl overflow-hidden border border-zinc-200/25 shadow-md">
-              <img 
+              <SafeImage 
                 src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80" 
                 alt="Close up chocolate velvet cake details photoshoot" 
+                category="cakes"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -68,9 +71,10 @@ export default function AboutPage() {
           {/* Section 2: Our Mission (Image Left, Text Right) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center md:flex-row-reverse">
             <div className="relative h-72 w-full rounded-3xl overflow-hidden border border-zinc-200/25 shadow-md md:order-first">
-              <img 
+              <SafeImage 
                 src="https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=600&auto=format&fit=crop&q=80" 
                 alt="Floral bouquet arrangement workspace" 
+                category="flowers"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -99,9 +103,10 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="relative h-72 w-full rounded-3xl overflow-hidden border border-zinc-200/25 shadow-md">
-              <img 
+              <SafeImage 
                 src="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80" 
                 alt="Gifting hamper with ribbon wrapping" 
+                category="gifts"
                 className="w-full h-full object-cover"
               />
             </div>

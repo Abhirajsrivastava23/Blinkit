@@ -6,6 +6,7 @@ import { useToast } from './Toast';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/mockData';
 import { ShieldCheck, Sparkles, Image as ImageIcon, Eye, Trash2, Plus, ArrowLeft, RefreshCw, Upload, UploadCloud } from 'lucide-react';
+import SafeImage from './SafeImage';
 
 interface ProductFormProps {
   initialProduct?: Product;
@@ -531,7 +532,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                 />
                 {primaryImage && (
                   <div className="h-14 w-14 rounded-xl overflow-hidden border bg-zinc-50 shrink-0 relative group">
-                    <img src={primaryImage} alt="Preview" className="h-full w-full object-cover" />
+                    <SafeImage src={primaryImage} alt="Preview" category={category} className="h-full w-full object-cover" />
                   </div>
                 )}
               </div>
@@ -561,7 +562,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                     <div key={item.id || idx} className="pt-2 first:pt-0 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
                         <div className="h-10 w-10 rounded-lg overflow-hidden border bg-white shrink-0">
-                          <img src={item.imageUrl} alt="Historical shot" className="h-full w-full object-cover" />
+                          <SafeImage src={item.imageUrl} alt="Historical shot" category={category} className="h-full w-full object-cover" />
                         </div>
                         <div className="text-[10px] text-zinc-600">
                           <div className="flex items-center gap-1.5">
@@ -619,7 +620,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                 <div className="grid grid-cols-4 gap-4 pt-2">
                   {galleryImages.map((url, idx) => (
                     <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-zinc-200/50 bg-zinc-50">
-                      <img src={url} alt="Gallery slide" className="w-full h-full object-cover" />
+                      <SafeImage src={url} alt="Gallery slide" category={category} className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => handleRemoveGalleryImage(idx)}
@@ -930,9 +931,10 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
             
             <div className="bg-white border rounded-2xl overflow-hidden shadow-sm aspect-[3/4] flex flex-col justify-between p-4 max-w-[240px] mx-auto">
               <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-50 border border-zinc-200/20">
-                <img
+                <SafeImage
                   src={primaryImage || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&auto=format&fit=crop&q=80'}
                   alt="Card Preview"
+                  category={category}
                   className="w-full h-full object-cover"
                 />
                 {discountPct > 0 && (

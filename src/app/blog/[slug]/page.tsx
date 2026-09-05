@@ -6,6 +6,7 @@ import { Calendar, User, ArrowLeft, Clock } from 'lucide-react';
 import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import Breadcrumbs from '../../../components/Breadcrumbs';
+import SafeImage from '../../../components/SafeImage';
 
 const BLOG_POSTS = [
   {
@@ -120,7 +121,12 @@ export default function BlogDetailPage() {
           </div>
 
           <div className="relative h-64 sm:h-96 w-full rounded-3xl overflow-hidden shadow">
-            <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+            <SafeImage 
+              src={post.image} 
+              alt={post.title} 
+              category="celebrations"
+              className="w-full h-full object-cover" 
+            />
           </div>
 
           {/* Article Content */}

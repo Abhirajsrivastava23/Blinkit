@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       };
     });
 
-    if (session.role === 'admin') {
+    if (session.role === 'admin' || session.role === 'super_admin') {
       return NextResponse.json(enrichedList);
     }
 
@@ -58,9 +58,32 @@ export async function GET(request: Request) {
       // Filter orders assigned to this partner and strip deliveryOtp
       const cleanPartnerId = String(session.userId || '').toLowerCase().trim();
       const cleanPartnerEmail = String(session.email || '').toLowerCase().trim();
+
+      let myPartnerCustomId = '';
+      let myPartnerPhone = '';
+      try {
+        const partners = await db.readTable<any>('partners') || [];
+        const myPartnerRec = partners.find((p: any) => 
+          String(p.id || '').toLowerCase().trim() === cleanPartnerId ||
+          String(p.email || '').toLowerCase().trim() === cleanPartnerEmail ||
+          (session.userId && String(p.id || '').toLowerCase().trim() === String(session.userId).toLowerCase().trim())
+        );
+        if (myPartnerRec) {
+          myPartnerCustomId = String(myPartnerRec.id || '').toLowerCase().trim();
+          myPartnerPhone = String(myPartnerRec.phone || '').replace(/\D/g, '');
+        }
+      } catch {}
+
       const filtered = enrichedList.filter((o: any) => {
         const aId = String(o.assignedPartnerId || '').toLowerCase().trim();
-        return aId && (aId === cleanPartnerId || aId === cleanPartnerEmail);
+        if (!aId) return false;
+        const aPhone = aId.replace(/\D/g, '');
+        return (
+          aId === cleanPartnerId ||
+          aId === cleanPartnerEmail ||
+          (myPartnerCustomId && aId === myPartnerCustomId) ||
+          (myPartnerPhone && aPhone && (aId === myPartnerPhone || aPhone === myPartnerPhone))
+        );
       });
       const sanitized = filtered.map((o: any) => {
         const { deliveryOtp, ...rest } = o;
@@ -201,14 +224,25 @@ export async function POST(request: Request) {
       }
 
       // 2. Server-side calculations & ID generation
-      const orderId = body.id || `FT${Math.floor(100000 + Math.random() * 900000)}`;
+      const orderId = body.id ? String(body.id).replace(/^#+/, '').trim() : `FT${Math.floor(100000 + Math.random() * 900000)}`;
       
       let calculatedSubtotal = 0;
-      for (const item of body.items) {
+      const sanitizedItems = (body.items || []).map((item: any) => {
         const price = Number(item.price) || 0;
         const qty = Number(item.quantity) || 1;
         calculatedSubtotal += price * qty;
-      }
+        return {
+          productId: String(item.productId || item.id || '').trim(),
+          id: String(item.id || item.productId || '').trim(),
+          name: String(item.name || item.title || 'Product').trim(),
+          price,
+          quantity: qty,
+          image: item.image || item.imageUrl || '',
+          unit: item.unit || '',
+          category: item.category || undefined,
+          subtotal: price * qty
+        };
+      });
 
       const deliveryFee = calculatedSubtotal >= 799 ? 0 : 49;
       let discount = Number(body.discount) || 0;
@@ -236,7 +270,7 @@ export async function POST(request: Request) {
         id: orderId,
         customerId: session.userId,
         customerEmail: session.email,
-        items: body.items,
+        items: sanitizedItems,
         subtotal: calculatedSubtotal,
         deliveryFee,
         discount,
@@ -244,8 +278,8 @@ export async function POST(request: Request) {
         total: grandTotal,
         address: body.address,
         status: 'Pending',
-        paymentStatus: 'PAYMENT_VERIFICATION_PENDING',
-        paymentMethod: 'UPI',
+        paymentStatus: 'PENDING',
+        paymentMethod: body.paymentMethod || 'Razorpay',
         deliveryOption: body.deliveryOption || 'ASAP',
         deliveryTimeSlot: body.deliveryOption === 'Scheduled' ? body.deliveryTimeSlot : undefined,
         scheduledDeliveryAt: body.scheduledDeliveryAt || undefined,
@@ -291,7 +325,7 @@ export async function POST(request: Request) {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT ("orderId") DO UPDATE 
            SET amount = $4, "updatedAt" = $10`,
-          [paymentId, orderId, session.userId, grandTotal, 'INR', 'NOT_STARTED', 'UPI', 'MANUAL_UPI', now, now, 0]
+          [paymentId, orderId, session.userId, grandTotal, 'INR', 'NOT_STARTED', body.paymentMethod || 'Razorpay', 'RAZORPAY', now, now, 0]
         );
       } catch (payErr) {
         console.warn('Non-fatal payment_transactions insert warning:', payErr);

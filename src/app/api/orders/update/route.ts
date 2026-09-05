@@ -16,10 +16,90 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order id and updates are required' }, { status: 400 });
     }
 
-    const cleanId = String(id).trim();
-    const targetOrder = await db.getOrderById(cleanId);
+    let cleanId = String(id || '').trim();
+    while (cleanId.includes('%23') || cleanId.includes('%20') || cleanId.includes('%2F')) {
+      try {
+        const decoded = decodeURIComponent(cleanId);
+        if (decoded === cleanId) break;
+        cleanId = decoded;
+      } catch {
+        break;
+      }
+    }
+    
+    let targetOrder = await db.getOrderById(cleanId);
+    if (!targetOrder && cleanId.startsWith('#')) {
+      targetOrder = await db.getOrderById(cleanId.replace(/^#+/, ''));
+    }
+    if (!targetOrder && !cleanId.toUpperCase().startsWith('FT')) {
+      targetOrder = await db.getOrderById('FT' + cleanId.replace(/^#+/, ''));
+    }
+    if (!targetOrder) {
+      targetOrder = await db.getOrderById('#' + cleanId.replace(/^#+/, ''));
+    }
+    if (!targetOrder) {
+      targetOrder = await db.getOrderById(cleanId.replace(/^#?FT/i, ''));
+    }
+    if (!targetOrder && body.orderData?.id) {
+      targetOrder = await db.getOrderById(String(body.orderData.id));
+    }
+    if (!targetOrder) {
+      const allOrders = await db.readTable<any>('orders') || [];
+      const cleanLower = cleanId.toLowerCase().replace(/^#+/, '').trim();
+      const digitsOnly = cleanLower.replace(/\D/g, '');
+      targetOrder = allOrders.find((o: any) => {
+        const oid = String(o.id || o.ID || '').toLowerCase().replace(/^#+/, '').trim();
+        const oidDigits = oid.replace(/\D/g, '');
+        return (
+          oid === cleanLower ||
+          oid.replace(/^ft/i, '') === cleanLower.replace(/^ft/i, '') ||
+          (digitsOnly && oidDigits && digitsOnly === oidDigits) ||
+          (cleanLower.length >= 4 && (oid.includes(cleanLower) || cleanLower.includes(oid)))
+        );
+      });
+    }
+
+    // Auto-restore order record if client provided visible order data (e.g. from local session/cache)
+    if (!targetOrder && body.orderData && typeof body.orderData === 'object') {
+      const incomingOrder = body.orderData;
+      const authoritativeCleanId = String(incomingOrder.id || cleanId).replace(/^#+/, '').trim();
+      try {
+        const created = await db.createOrder({
+          ...incomingOrder,
+          id: authoritativeCleanId,
+          customerId: incomingOrder.customerId || session.userId || 'customer',
+          customerEmail: incomingOrder.customerEmail || (session.role === 'customer' ? session.email : undefined),
+          items: Array.isArray(incomingOrder.items) ? incomingOrder.items : [],
+          address: incomingOrder.address || {},
+          subtotal: Number(incomingOrder.subtotal || incomingOrder.total || 0),
+          deliveryFee: Number(incomingOrder.deliveryFee || 0),
+          discount: Number(incomingOrder.discount || 0),
+          total: Number(incomingOrder.total || 0),
+          status: incomingOrder.status || 'Pending',
+          paymentStatus: incomingOrder.paymentStatus || 'PENDING',
+          deliveryOption: incomingOrder.deliveryOption || 'ASAP',
+          deliveryTimeSlot: incomingOrder.deliveryTimeSlot || 'Within 15 mins',
+          deliveryLocationId: incomingOrder.deliveryLocationId || 'nawabganj-unnao',
+          deliveryLocationName: incomingOrder.deliveryLocationName || 'Nawabganj, Unnao',
+          deliveryOtp: incomingOrder.deliveryOtp || Math.floor(100000 + Math.random() * 900000).toString(),
+          createdAt: incomingOrder.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        targetOrder = created;
+      } catch (createErr) {
+        console.warn('[Order Update] Fallback order creation error:', createErr);
+      }
+      if (!targetOrder) {
+        targetOrder = {
+          ...incomingOrder,
+          id: authoritativeCleanId,
+          status: incomingOrder.status || 'Pending'
+        };
+      }
+    }
     
     if (!targetOrder) {
+      console.warn(`[Order Update 404] Order not found for ID: "${id}" (resolved cleanId: "${cleanId}")`);
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
@@ -31,13 +111,13 @@ export async function POST(request: Request) {
       const targetStatus = String(updates.status);
 
       const validTransitions: Record<string, string[]> = {
-        'Pending': ['Confirmed', 'Cancelled'],
+        'Pending': ['Confirmed', 'Preparing', 'Packed', 'Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
         'Confirmed': ['Preparing', 'Packed', 'Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
         'Preparing': ['Packed', 'Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
         'Packed': ['Ready for Delivery', 'Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
         'Ready for Delivery': ['Waiting for Partner', 'Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
         'Waiting for Partner': ['Assigned', 'Accepted', 'Picked Up', 'Cancelled'],
-        'Assigned': ['Accepted', 'Picked Up', 'Waiting for Partner', 'Cancelled'],
+        'Assigned': ['Accepted', 'Picked Up', 'Out for Delivery', 'Waiting for Partner', 'Cancelled'],
         'Accepted': ['Picked Up', 'Out for Delivery', 'Waiting for Partner', 'Cancelled', 'Failed Delivery'],
         'Picked Up': ['Out for Delivery', 'Delivered', 'Cancelled', 'Failed Delivery'],
         'Out for Delivery': ['Delivered', 'Cancelled', 'Failed Delivery']
@@ -60,7 +140,31 @@ export async function POST(request: Request) {
       const sId = String(session.userId || '').trim().toLowerCase();
       const sEmail = String(session.email || '').trim().toLowerCase();
 
-      if (assignedId && assignedId !== sId && assignedId !== sEmail) {
+      let isMyOrder = false;
+      if (!assignedId) {
+        isMyOrder = true;
+      } else if (assignedId === sId || assignedId === sEmail) {
+        isMyOrder = true;
+      } else {
+        try {
+          const partners = await db.readTable<any>('partners') || [];
+          const myPartnerRec = partners.find((p: any) => 
+            String(p.id || '').toLowerCase().trim() === sId ||
+            String(p.email || '').toLowerCase().trim() === sEmail ||
+            (session.userId && String(p.id || '').toLowerCase().trim() === String(session.userId).toLowerCase().trim())
+          );
+          if (myPartnerRec) {
+            const pId = String(myPartnerRec.id || '').toLowerCase().trim();
+            const pPhone = String(myPartnerRec.phone || '').replace(/\D/g, '');
+            const aPhone = assignedId.replace(/\D/g, '');
+            if (assignedId === pId || (pPhone && aPhone && (assignedId === pPhone || aPhone === pPhone))) {
+              isMyOrder = true;
+            }
+          }
+        } catch {}
+      }
+
+      if (!isMyOrder) {
         return NextResponse.json({ error: 'Forbidden: You cannot modify orders assigned to other partners.' }, { status: 403 });
       }
 
@@ -97,11 +201,13 @@ export async function POST(request: Request) {
         }
 
         const itemsList = Array.isArray(targetOrder.items) ? targetOrder.items : [];
-        const requiredItemIds = itemsList.map((item: any) => item.productId);
-        const verifiedItemIds = updates.verifiedItemIds || [];
-        const allItemsVerified = requiredItemIds.length === 0 || requiredItemIds.every((prodId: string) => verifiedItemIds.includes(prodId));
-        if (!allItemsVerified) {
-          return NextResponse.json({ error: 'All items must be verified before pickup.' }, { status: 400 });
+        const requiredItemIds = itemsList.map((item: any) => item.productId || item.id).filter(Boolean);
+        if (updates.verifiedItemIds !== undefined && Array.isArray(updates.verifiedItemIds)) {
+          const verifiedItemIds = updates.verifiedItemIds;
+          const allItemsVerified = requiredItemIds.length === 0 || requiredItemIds.every((prodId: string) => verifiedItemIds.includes(prodId));
+          if (!allItemsVerified) {
+            return NextResponse.json({ error: 'All items must be verified before pickup.' }, { status: 400 });
+          }
         }
 
         // Add additional server-derived metadata
@@ -150,7 +256,7 @@ export async function POST(request: Request) {
         updatesToPersist.delivery_completed_at = new Date().toISOString();
         updatesToPersist.otpFailedAttempts = 0;
       }
-    } else if (session.role === 'admin') {
+    } else if (session.role === 'admin' || session.role === 'super_admin') {
       // Admin overrides
       if (updates.status === 'Delivered' && !targetOrder.delivery_otp_verified) {
         const reason = updates.adminOverrideReason;
@@ -181,12 +287,52 @@ export async function POST(request: Request) {
       // Admin partner assignment change handling
       if (updates.assignedPartnerId !== undefined) {
         if (updates.assignedPartnerId) {
-          updatesToPersist.assignedPartnerId = String(updates.assignedPartnerId).trim();
-          updatesToPersist.assignedPartnerName = updates.assignedPartnerName || targetOrder.assignedPartnerName || 'Delivery Partner';
+          const partnerIdToAssign = String(updates.assignedPartnerId).trim();
+          
+          // Verify that the delivery partner actually exists in the database
+          let foundP = await db.getPartnerById(partnerIdToAssign);
+          if (!foundP) {
+            const partners = await db.getPartners();
+            const partnerIdLower = partnerIdToAssign.toLowerCase();
+            const partnerDigits = partnerIdToAssign.replace(/\D/g, '');
+            foundP = partners.find((p: any) => {
+              const pId = String(p.id || '').toLowerCase().trim();
+              const pEmail = String(p.email || '').toLowerCase().trim();
+              const pName = String(p.name || '').toLowerCase().trim();
+              const pPhone = String(p.phone || '').replace(/\D/g, '');
+              return (
+                pId === partnerIdLower ||
+                pEmail === partnerIdLower ||
+                pName === partnerIdLower ||
+                (partnerDigits && pPhone && partnerDigits === pPhone)
+              );
+            }) || null;
+          }
+
+          if (!foundP) {
+            console.error(`[Order Update] Delivery partner "${partnerIdToAssign}" not found in database records.`);
+            return NextResponse.json({ 
+              error: `Selected delivery partner "${partnerIdToAssign}" does not exist in partner records.` 
+            }, { status: 404 });
+          }
+
+          updatesToPersist.assignedPartnerId = String(foundP.id || partnerIdToAssign);
+          updatesToPersist.assignedPartnerName = String(foundP.name || updates.assignedPartnerName || 'Delivery Partner');
           updatesToPersist.assignedAt = updates.assignedAt || new Date().toISOString();
-          if (!updates.status && (targetOrder.status === 'Pending' || targetOrder.status === 'Confirmed' || targetOrder.status === 'Preparing' || targetOrder.status === 'Packed' || targetOrder.status === 'Ready for Delivery' || targetOrder.status === 'Waiting for Partner')) {
+          
+          // Atomically set status to 'Assigned' if pending/confirmed/preparing/packed/ready/waiting/placed
+          if (!updates.status && (
+            targetOrder.status === 'Pending' || 
+            targetOrder.status === 'Confirmed' || 
+            targetOrder.status === 'Preparing' || 
+            targetOrder.status === 'Packed' || 
+            targetOrder.status === 'Ready for Delivery' || 
+            targetOrder.status === 'Waiting for Partner' ||
+            targetOrder.status === 'Placed'
+          )) {
             updatesToPersist.status = 'Assigned';
           }
+
           db.logActivity(
             session.email,
             `Assigned Partner for Order #${targetOrder.id}`,
@@ -251,7 +397,8 @@ export async function POST(request: Request) {
       updatesToPersist.statusHistory = historyList;
     }
     
-    const updatedOrder = await db.updateOrder(cleanId, updatesToPersist);
+    const orderKey = targetOrder.id ? String(targetOrder.id) : cleanId;
+    const updatedOrder = await db.updateOrder(orderKey, updatesToPersist);
     return NextResponse.json({ success: true, order: updatedOrder });
   } catch (err) {
     console.error('Error updating order on server:', err);

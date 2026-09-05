@@ -970,7 +970,7 @@ export default function DeliveryPartnerPage() {
                         {uploadedPhotoUrl ? (
                           <div className="space-y-2">
                             <div className="relative aspect-video rounded-lg overflow-hidden border">
-                              <img src={uploadedPhotoUrl} alt="Uploaded delivery proof" className="w-full h-full object-cover" />
+                              <SafeImage src={uploadedPhotoUrl} alt="Uploaded delivery proof" className="w-full h-full object-cover" />
                             </div>
                             <span className="text-[8px] bg-green-50 text-green-700 border border-green-150 font-bold px-2 py-0.5 rounded uppercase tracking-wider inline-block">✓ Proof Uploaded</span>
                           </div>
@@ -1298,7 +1298,7 @@ export default function DeliveryPartnerPage() {
                       <span className="text-[8px] font-bold uppercase tracking-wider text-brand-burgundy">New Real Photo</span>
                       <div className="aspect-square rounded-2xl overflow-hidden border-2 border-dashed border-brand-burgundy/40 bg-[#FFF0EE]/30 flex flex-col items-center justify-center relative p-1">
                         {photoPreview ? (
-                          <img src={photoPreview} alt="Preview" className="h-full w-full object-cover rounded-xl" />
+                          <SafeImage src={photoPreview} alt="Preview" className="h-full w-full object-cover rounded-xl" />
                         ) : (
                           <div className="text-center p-2 space-y-1">
                             <Camera className="h-6 w-6 text-brand-burgundy/50 mx-auto" />

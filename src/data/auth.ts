@@ -77,55 +77,102 @@ export async function createSession(userId: string, email: string, role: string)
 export async function getSession(request?: Request): Promise<Session | null> {
   let token = '';
 
-  // Attempt header extraction
+  // 1. Attempt Authorization / custom headers extraction
   if (request) {
-    const authHeader = request.headers.get('Authorization') || '';
+    const authHeader = request.headers.get('Authorization') || request.headers.get('authorization') || '';
     if (authHeader.startsWith('Bearer ')) {
       token = authHeader.replace('Bearer ', '').trim();
     }
+    if (!token) {
+      token = request.headers.get('x-session-token') || '';
+    }
   }
 
-  // Attempt cookie extraction if no header token
+  // 2. Attempt raw Cookie header parsing from incoming Request
+  if (!token && request) {
+    const cookieHeader = request.headers.get('cookie') || request.headers.get('Cookie') || '';
+    if (cookieHeader) {
+      const match = cookieHeader.match(/(?:^|;\s*)(?:fatafat_session_token|session_token|admin_token|token)=([^;]+)/);
+      if (match && match[1]) {
+        try {
+          token = decodeURIComponent(match[1].trim());
+        } catch {
+          token = match[1].trim();
+        }
+      }
+    }
+  }
+
+  // 3. Attempt Next.js cookies store extraction
   if (!token) {
     try {
       const cookieStore = await cookies();
-      token = cookieStore.get('fatafat_session_token')?.value || '';
+      token = cookieStore.get('fatafat_session_token')?.value || 
+              cookieStore.get('session_token')?.value || 
+              cookieStore.get('admin_token')?.value || 
+              cookieStore.get('token')?.value || '';
     } catch {
       // Cookies might throw if called outside Next request context
     }
   }
 
-  if (!token) return null;
+  const cleanToken = String(token || '').trim();
+  if (!cleanToken) return null;
 
+  // 4. Query PostgreSQL database
   try {
-    const res = await db.query('SELECT * FROM sessions WHERE "sessionId" = $1 LIMIT 1', [token]);
+    const res = await db.query(
+      'SELECT * FROM sessions WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1)) LIMIT 1', 
+      [cleanToken]
+    );
     if (res.rows && res.rows.length > 0) {
       const raw = res.rows[0];
       const session: Session = {
-        sessionId: String(raw.sessionId || raw.sessionid || token),
+        sessionId: String(raw.sessionId || raw.sessionid || cleanToken),
         userId: String(raw.userId || raw.userid || ''),
         email: String(raw.email || ''),
-        role: String(raw.role || ''),
+        role: String(raw.role || '').toLowerCase().trim(),
         expiresAt: String(raw.expiresAt || raw.expiresat || '')
       };
 
-      if (session.expiresAt && new Date(session.expiresAt) > new Date()) {
+      if (!session.expiresAt || new Date(session.expiresAt) > new Date()) {
         return session;
       }
       return null;
     }
   } catch (err) {
-    console.warn('Error querying session from database:', err);
+    console.warn('Error querying session from database, attempting fallback:', err);
   }
+
+  // 5. Fallback check in memory data
+  try {
+    const memSessions = await db.readTable<any>('sessions') || [];
+    const foundMem = memSessions.find((s: any) => 
+      String(s.sessionId || s.sessionid || '').toLowerCase().trim() === cleanToken.toLowerCase()
+    );
+    if (foundMem) {
+      const session: Session = {
+        sessionId: String(foundMem.sessionId || foundMem.sessionid || cleanToken),
+        userId: String(foundMem.userId || foundMem.userid || ''),
+        email: String(foundMem.email || ''),
+        role: String(foundMem.role || '').toLowerCase().trim(),
+        expiresAt: String(foundMem.expiresAt || foundMem.expiresat || '')
+      };
+      if (!session.expiresAt || new Date(session.expiresAt) > new Date()) {
+        return session;
+      }
+    }
+  } catch {}
 
   return null;
 }
 
 // 4. Delete session (Logout)
 export async function deleteSession(sessionId: string): Promise<void> {
-  if (!sessionId) return;
+  const cleanId = String(sessionId || '').trim();
+  if (!cleanId) return;
   try {
-    await db.query('DELETE FROM sessions WHERE "sessionId" = $1', [sessionId]);
+    await db.query('DELETE FROM sessions WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1))', [cleanId]);
   } catch (e) {
     console.warn('Delete session error:', e);
   }
@@ -136,8 +183,17 @@ export async function validateRole(request: Request, allowedRoles: string[]): Pr
   const session = await getSession(request);
   if (!session) return null;
 
-  if (allowedRoles.includes(session.role)) {
+  const userRole = String(session.role || '').toLowerCase().trim();
+  const normalizedAllowed = allowedRoles.map(r => String(r).toLowerCase().trim());
+
+  // If 'admin' is in allowed roles, allow 'super_admin' as well
+  if (normalizedAllowed.includes('admin') && (userRole === 'admin' || userRole === 'super_admin')) {
     return session;
   }
+
+  if (normalizedAllowed.includes(userRole)) {
+    return session;
+  }
+
   return null;
 }

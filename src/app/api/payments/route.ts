@@ -19,23 +19,33 @@ export async function GET(request: Request) {
 
     const userMap = new Map<string, any>();
     for (const user of users) {
-      if (user.userId) userMap.set(String(user.userId).toLowerCase(), user);
-      if (user.email) userMap.set(String(user.email).toLowerCase(), user);
+      if (user.userId) userMap.set(String(user.userId).toLowerCase().trim(), user);
+      if (user.email) userMap.set(String(user.email).toLowerCase().trim(), user);
     }
 
     const orderMap = new Map<string, any>();
     for (const order of orders) {
-      if (order.id) orderMap.set(String(order.id).toLowerCase(), order);
+      if (order.id) {
+        const cleanOid = String(order.id).replace(/^#+/, '').trim().toLowerCase();
+        orderMap.set(cleanOid, order);
+      }
     }
 
     const paymentMap = new Map<string, any>();
     for (const payment of rawPayments) {
-      if (payment.orderId) paymentMap.set(String(payment.orderId).toLowerCase(), payment);
+      if (payment.orderId) {
+        const cleanPoid = String(payment.orderId).replace(/^#+/, '').trim().toLowerCase();
+        paymentMap.set(cleanPoid, payment);
+      }
     }
 
     const allOrderKeys = new Set<string>();
-    for (const o of orders) if (o.id) allOrderKeys.add(String(o.id).toLowerCase());
-    for (const p of rawPayments) if (p.orderId) allOrderKeys.add(String(p.orderId).toLowerCase());
+    for (const o of orders) {
+      if (o.id) allOrderKeys.add(String(o.id).replace(/^#+/, '').trim().toLowerCase());
+    }
+    for (const p of rawPayments) {
+      if (p.orderId) allOrderKeys.add(String(p.orderId).replace(/^#+/, '').trim().toLowerCase());
+    }
 
     const rows: any[] = [];
 
@@ -57,21 +67,17 @@ export async function GET(request: Request) {
         order?.status === 'Confirmed' || 
         order?.status === 'Preparing' || 
         order?.status === 'Packed' || 
+        order?.status === 'Ready for Delivery' ||
+        order?.status === 'Waiting for Partner' ||
+        order?.status === 'Assigned' ||
+        order?.status === 'Accepted' ||
+        order?.status === 'Picked Up' ||
         order?.status === 'Out for Delivery' || 
         order?.status === 'Delivered'
       ) {
         canonicalStatus = 'PAID';
-      } else if (orderPayStatus === 'REJECTED' || txStatus === 'REJECTED') {
-        canonicalStatus = 'REJECTED';
-      } else if (
-        orderPayStatus === 'PAYMENT_VERIFICATION_PENDING' || 
-        txStatus === 'PAYMENT_VERIFICATION_PENDING' || 
-        order?.utr || 
-        payment?.utr || 
-        order?.proofImageUrl || 
-        payment?.proofImageUrl
-      ) {
-        canonicalStatus = 'PAYMENT_VERIFICATION_PENDING';
+      } else if (orderPayStatus === 'FAILED' || txStatus === 'FAILED' || orderPayStatus === 'REJECTED' || txStatus === 'REJECTED') {
+        canonicalStatus = 'FAILED';
       } else if (orderPayStatus) {
         canonicalStatus = orderPayStatus;
       }
@@ -103,6 +109,12 @@ export async function GET(request: Request) {
         discount: Number(order?.discount || 0),
         status: canonicalStatus,
         orderStatus: order?.status || (canonicalStatus === 'PAID' ? 'Confirmed' : 'Pending'),
+        method: payment?.method || order?.paymentMethod || 'Razorpay',
+        provider: payment?.provider || 'RAZORPAY',
+        razorpayOrderId: payment?.razorpayOrderId || order?.razorpayOrderId || '',
+        razorpayPaymentId: payment?.razorpayPaymentId || order?.razorpayPaymentId || payment?.transactionReference || '',
+        razorpaySignature: payment?.razorpaySignature || order?.razorpaySignature || '',
+        transactionReference: payment?.transactionReference || payment?.razorpayPaymentId || order?.razorpayPaymentId || '',
         utr: utr,
         proofImageUrl: proofImageUrl,
         submittedAt: submittedAt,

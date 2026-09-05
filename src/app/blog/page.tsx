@@ -6,6 +6,7 @@ import { Calendar, User, ArrowRight } from 'lucide-react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
+import SafeImage from '../../components/SafeImage';
 
 const BLOG_POSTS = [
   {
@@ -38,15 +39,23 @@ export default function BlogPage() {
   return (
     <>
       <Header />
-      <main className="flex-grow bg-[#FAF9F6] py-12">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-8">
-          
-          <Breadcrumbs />
+      <main className="flex-grow bg-[#FAF9F6] text-[#1C1A17] font-sans">
+        
+        {/* Breadcrumb banner strip */}
+        <div className="border-b border-zinc-200/20 py-4 bg-white">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Breadcrumbs />
+          </div>
+        </div>
 
-          {/* Hero */}
-          <div className="text-center py-6 space-y-2 max-w-xl mx-auto">
-            <h1 className="text-3xl font-serif font-extrabold text-zinc-800">
-              The FATAFAT Gazette
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 space-y-12 text-left">
+          
+          <div className="text-center max-w-2xl mx-auto space-y-3">
+            <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
+              FATAFAT JOURNAL
+            </span>
+            <h1 className="text-3xl sm:text-4xl font-serif font-black text-zinc-900">
+              Celebration Stories & Guides
             </h1>
             <p className="text-xs text-zinc-500">
               Gourmet dessert recipes, floral maintenance guidelines, and thoughtful celebration inspirations.
@@ -59,9 +68,10 @@ export default function BlogPage() {
               <div key={post.slug} className="bg-white border rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between hover:border-brand-burgundy/10 transition-colors">
                 <div>
                   <div className="relative h-44 w-full overflow-hidden">
-                    <img
+                    <SafeImage
                       src={post.image}
                       alt={post.title}
+                      category="celebrations"
                       className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
                     />
                   </div>

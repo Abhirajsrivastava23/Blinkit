@@ -199,12 +199,18 @@ export default function AdminOrderDetailPage() {
             </div>
             <div>
               <span className="text-[9px] text-zinc-450 uppercase font-extrabold tracking-widest block">Payment Status</span>
-              <span className="px-2 py-0.5 rounded bg-green-50 text-emerald-700 font-bold tracking-wider text-[9px]">PAID</span>
+              <span className={`px-2 py-0.5 rounded font-bold tracking-wider text-[9px] ${
+                order.paymentStatus === 'PAID' ? 'bg-green-50 text-emerald-700' :
+                order.paymentStatus === 'REJECTED' ? 'bg-red-50 text-red-700' :
+                'bg-amber-50 text-amber-700'
+              }`}>
+                {order.paymentStatus || 'PENDING'}
+              </span>
             </div>
             <div>
               <span className="text-[9px] text-zinc-450 uppercase font-extrabold tracking-widest block">Fulfillment</span>
               <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-50 text-amber-700">
-                {order.status.toUpperCase()}
+                {String(order.status || 'Pending').toUpperCase()}
               </span>
             </div>
           </div>
@@ -213,31 +219,68 @@ export default function AdminOrderDetailPage() {
           <div className="bg-white border border-zinc-200/20 rounded-3xl p-6 shadow-sm space-y-4">
             <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2">Ordered Items</h4>
             <div className="divide-y">
-              {order.items.map((it: any, idx: number) => (
-                <div key={idx} className="py-3 flex justify-between items-center text-xs">
-                  <div className="space-y-1">
-                    <p className="font-bold text-zinc-800">{it.name}</p>
-                    <p className="text-[10px] text-zinc-450">
-                      Quantity: {it.quantity} {it.selectedSize && `• Size: ${it.selectedSize}`} {it.selectedType && `• ${it.selectedType}`}
-                    </p>
+              {Array.isArray(order.items) && order.items.length > 0 ? (
+                order.items.map((it: any, idx: number) => (
+                  <div key={idx} className="py-3 flex justify-between items-center text-xs">
+                    <div className="space-y-1">
+                      <p className="font-bold text-zinc-800">{it.name || 'Product'}</p>
+                      <p className="text-[10px] text-zinc-450">
+                        Quantity: {it.quantity || 1} {it.selectedSize && `• Size: ${it.selectedSize}`} {it.selectedType && `• ${it.selectedType}`}
+                      </p>
+                    </div>
+                    <span className="font-bold text-zinc-850">₹{Number(it.price || 0) * Number(it.quantity || 1)}</span>
                   </div>
-                  <span className="font-bold text-zinc-850">₹{it.price * it.quantity}</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="py-3 text-xs text-zinc-400 italic">No item details recorded</div>
+              )}
             </div>
 
             <div className="pt-3 border-t space-y-2 text-right text-xs">
               <div className="flex justify-between text-zinc-500 font-medium">
                 <span>Subtotal:</span>
-                <span>₹{order.total}</span>
+                <span>₹{order.subtotal || order.total || 0}</span>
               </div>
               <div className="flex justify-between text-zinc-500 font-medium">
                 <span>Quick Courier Dispatch:</span>
-                <span className="text-emerald-700">FREE</span>
+                <span className="text-emerald-700">{order.deliveryFee ? `₹${order.deliveryFee}` : 'FREE'}</span>
               </div>
               <div className="flex justify-between text-zinc-800 font-bold border-t pt-2 text-sm">
                 <span>Grand Total:</span>
-                <span>₹{order.total}</span>
+                <span>₹{order.total || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Razorpay Gateway Audit */}
+          <div className="bg-white border border-zinc-200/20 rounded-3xl p-6 shadow-sm space-y-3">
+            <h4 className="font-serif font-extrabold text-sm text-brand-burgundy border-b pb-2 flex items-center gap-1.5">
+              <CreditCard className="h-4.5 w-4.5 text-zinc-400 font-bold" /> Razorpay Payment Details
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-zinc-700">
+              <div className="p-3 bg-zinc-50 rounded-xl space-y-0.5 border border-zinc-150">
+                <span className="text-[9px] uppercase font-extrabold text-zinc-400 tracking-wider block">Razorpay Payment ID</span>
+                <span className="font-mono font-bold text-zinc-900 text-xs select-all">
+                  {order.razorpayPaymentId || 'N/A (Awaiting or Not Recorded)'}
+                </span>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl space-y-0.5 border border-zinc-150">
+                <span className="text-[9px] uppercase font-extrabold text-zinc-400 tracking-wider block">Razorpay Order ID</span>
+                <span className="font-mono font-bold text-zinc-900 text-xs select-all">
+                  {order.razorpayOrderId || 'N/A'}
+                </span>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl space-y-0.5 border border-zinc-150">
+                <span className="text-[9px] uppercase font-extrabold text-zinc-400 tracking-wider block">Method & Provider</span>
+                <span className="font-semibold text-zinc-800 text-xs">
+                  {order.paymentMethod || 'Razorpay'} • {order.paymentProvider || 'RAZORPAY'}
+                </span>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl space-y-0.5 border border-zinc-150">
+                <span className="text-[9px] uppercase font-extrabold text-zinc-400 tracking-wider block">Gateway Status</span>
+                <span className={`font-bold text-xs ${order.paymentStatus === 'PAID' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {order.paymentStatus === 'PAID' ? '✓ Verified & Captured' : (order.paymentStatus || 'PENDING')}
+                </span>
               </div>
             </div>
           </div>
@@ -248,12 +291,15 @@ export default function AdminOrderDetailPage() {
               <MapPin className="h-4.5 w-4.5 text-zinc-400 font-bold" /> Shipping Coordinates
             </h4>
             <div className="space-y-1.5 text-zinc-700">
-              <p className="font-bold text-zinc-850 text-xs">{order.address.name}</p>
+              <p className="font-bold text-zinc-850 text-xs">{order.address?.name || 'Customer'}</p>
               <p className="leading-relaxed font-medium">
-                {order.address.house}, {order.address.street}, {order.address.area}, {order.address.city} - {order.address.pincode}
+                {order.address?.house ? `${order.address.house}, ` : ''}
+                {order.address?.street ? `${order.address.street}, ` : ''}
+                {order.address?.area ? `${order.address.area}, ` : ''}
+                {order.address?.city || ''}{order.address?.pincode ? ` - ${order.address.pincode}` : ''}
               </p>
-              {order.address.landmark && <p className="text-zinc-500 font-medium">Landmark: {order.address.landmark}</p>}
-              <p className="text-[10px] text-zinc-450 font-bold pt-1">Mobile Contact: {order.address.mobile}</p>
+              {order.address?.landmark && <p className="text-zinc-500 font-medium">Landmark: {order.address.landmark}</p>}
+              <p className="text-[10px] text-zinc-450 font-bold pt-1">Mobile Contact: {order.address?.mobile || order.address?.phone || 'N/A'}</p>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { resolveImageUrl, CATEGORY_FALLBACK_IMAGES } from '../utils/imageUtils';
+import { resolveImageUrl, CATEGORY_FALLBACK_IMAGES, getCategoryFallbackSvg } from '../utils/imageUtils';
 
 interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackSrc?: string;
@@ -9,51 +9,51 @@ interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 }
 
 export default function SafeImage({ src, alt, className, fallbackSrc, category, ...props }: SafeImageProps) {
-  const [hasError, setHasError] = useState(false);
-  const [fallbackTried, setFallbackTried] = useState(false);
+  // Fallback stages: 0 = primary URL, 1 = category Unsplash fallback, 2 = inline SVG fallback
+  const [fallbackStage, setFallbackStage] = useState<number>(0);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const initialResolved = resolveImageUrl(typeof src === 'string' ? src : undefined, category);
-  const effectiveFallback = fallbackSrc || (category ? CATEGORY_FALLBACK_IMAGES[category.toLowerCase()] : undefined) || CATEGORY_FALLBACK_IMAGES['default'];
+  const categoryUnsplashFallback = fallbackSrc || (category ? CATEGORY_FALLBACK_IMAGES[category.toLowerCase()] : undefined) || CATEGORY_FALLBACK_IMAGES['default'];
+  const categorySvgFallback = getCategoryFallbackSvg(category);
 
-  // Reset error state if src changes
+  // Reset state on src change
   useEffect(() => {
-    setHasError(false);
-    setFallbackTried(false);
-  }, [src]);
+    setFallbackStage(0);
+    setIsLoaded(false);
+  }, [src, category]);
 
   const handleError = () => {
-    if (!fallbackTried && effectiveFallback && src !== effectiveFallback) {
-      setFallbackTried(true);
-    } else {
-      setHasError(true);
+    if (fallbackStage === 0) {
+      // If primary failed, try category Unsplash fallback (if different) or jump to SVG
+      if (categoryUnsplashFallback && initialResolved !== categoryUnsplashFallback) {
+        setFallbackStage(1);
+      } else {
+        setFallbackStage(2);
+      }
+    } else if (fallbackStage === 1) {
+      // If category Unsplash failed, transition to 100% reliable SVG Data-URI
+      setFallbackStage(2);
     }
   };
 
-  const currentSrc = fallbackTried ? effectiveFallback : initialResolved;
+  const getCurrentSrc = (): string => {
+    if (fallbackStage === 0) return initialResolved;
+    if (fallbackStage === 1) return categoryUnsplashFallback;
+    return categorySvgFallback;
+  };
 
-  if (hasError || !currentSrc) {
-    return (
-      <div 
-        className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#FFF0EE] to-[#FDFBF7] border border-brand-blush font-sans p-4 text-center select-none overflow-hidden relative ${className || ''}`}
-      >
-        <div className="absolute inset-0 bg-brand-gold/5 flex items-center justify-center">
-          <div className="h-8 w-8 rounded-full bg-brand-burgundy/10 flex items-center justify-center text-brand-burgundy font-serif font-black text-xs">
-            F
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const currentSrc = getCurrentSrc();
 
   return (
     <img 
-      key={currentSrc}
       src={currentSrc} 
       alt={alt || 'FATAFAT Item'} 
-      className={className} 
+      className={`${className || ''} ${isLoaded ? 'opacity-100' : 'opacity-95'} transition-opacity duration-300`} 
       onError={handleError}
+      onLoad={() => setIsLoaded(true)}
       loading="lazy"
-      referrerPolicy="no-referrer"
+      crossOrigin="anonymous"
       {...props}
     />
   );

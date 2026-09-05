@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { db } from '../../../data/db';
 import { Product } from '../../../data/mockData';
 import { getSession } from '../../../data/auth';
@@ -131,6 +132,17 @@ export async function POST(request: Request) {
     }
 
     const newProduct = await db.createProduct(body);
+
+    // Revalidate Storefront Routes
+    try {
+      revalidatePath('/');
+      revalidatePath('/products');
+      if (newProduct.category) {
+        revalidatePath(`/${newProduct.category}`);
+      }
+    } catch {
+      // ignore
+    }
 
     // Audit Log
     db.logActivity(

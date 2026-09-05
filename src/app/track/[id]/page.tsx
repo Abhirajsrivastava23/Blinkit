@@ -244,31 +244,27 @@ export default function OrderTrackingPage() {
           {/* Payment Status Alert Banner if not PAID */}
           {order.paymentStatus !== 'PAID' && order.status !== 'Confirmed' && (
             <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs ${
-              order.paymentStatus === 'REJECTED'
+              order.paymentStatus === 'REJECTED' || order.paymentStatus === 'FAILED'
                 ? 'bg-red-50 border-red-200 text-red-700'
                 : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
               <div className="space-y-0.5 text-center sm:text-left">
                 <p className="font-bold">
-                  {order.paymentStatus === 'REJECTED'
-                    ? '⚠️ Payment Verification Rejected'
-                    : order.utr
-                    ? '⏳ Payment Under Admin Review'
-                    : '💳 UPI Payment Required'}
+                  {order.paymentStatus === 'REJECTED' || order.paymentStatus === 'FAILED'
+                    ? '⚠️ Razorpay Payment Incomplete'
+                    : '💳 Razorpay Payment Pending'}
                 </p>
                 <p className="text-[11px] opacity-90">
-                  {order.paymentStatus === 'REJECTED'
-                    ? order.rejectionReason || 'Please resubmit your payment transfer proof.'
-                    : order.utr
-                    ? 'Your UTR & screenshot are being verified by our team. Order fulfillment begins upon approval.'
-                    : 'Please complete your UPI transfer and submit the UTR reference to confirm this order.'}
+                  {order.paymentStatus === 'REJECTED' || order.paymentStatus === 'FAILED'
+                    ? 'The payment attempt could not be verified. Please complete checkout to start order fulfillment.'
+                    : 'Please complete your Razorpay payment to confirm your order and begin dispatch.'}
                 </p>
               </div>
               <Link
-                href={`/order/${order.id}`}
+                href={`/order/${order.id}/payment`}
                 className="px-5 py-2.5 bg-brand-burgundy text-white font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-brand-burgundy-dark transition-all shrink-0 shadow"
               >
-                {order.paymentStatus === 'REJECTED' ? 'Resubmit Proof' : order.utr ? 'View Payment Details' : 'Pay via UPI'}
+                Pay with Razorpay
               </Link>
             </div>
           )}

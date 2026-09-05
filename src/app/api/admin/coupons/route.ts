@@ -80,8 +80,10 @@ export async function POST(request: Request) {
       code: rawCode,
       discountType,
       discountValue,
-      minSpend: body.minSpend ? Number(body.minSpend) : 0,
-      maxDiscount: body.maxDiscount ? Number(body.maxDiscount) : null,
+      minSpend: Number(body.minSpend ?? body.minOrderAmount ?? 0),
+      maxDiscount: (body.maxDiscount !== undefined && body.maxDiscount !== null)
+        ? Number(body.maxDiscount)
+        : ((body.maxDiscountAmount !== undefined && body.maxDiscountAmount !== null) ? Number(body.maxDiscountAmount) : null),
       startDate: body.startDate || null,
       expiryDate: body.expiryDate || null,
       isActive: body.isActive !== undefined ? Boolean(body.isActive) : true,

@@ -48,25 +48,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email address is already in use by another account.' }, { status: 400 });
     }
 
-    // Update customer email
+    // Update customer email atomically
     customer.email = newEmail.toLowerCase().trim();
-    await db.writeTable('users', users);
+    await db.upsertUser(customer);
 
-    // Cascade to orders.json to ensure data consistency
-    const orders = await db.readTable<any>('orders') || [];
-    let ordersUpdated = false;
-    for (const order of orders) {
-      if (order.customerId && order.customerId.toLowerCase() === oldEmail.toLowerCase()) {
-        order.customerId = newEmail.toLowerCase().trim();
-        ordersUpdated = true;
-      }
-      if (order.customerEmail && order.customerEmail.toLowerCase() === oldEmail.toLowerCase()) {
-        order.customerEmail = newEmail.toLowerCase().trim();
-        ordersUpdated = true;
-      }
-    }
-    if (ordersUpdated) {
-      await db.writeTable('orders', orders);
+    // Cascade to orders to ensure cross-view consistency
+    try {
+      await db.query(
+        'UPDATE orders SET "customerId" = $1 WHERE LOWER(TRIM("customerId")) = LOWER(TRIM($2))',
+        [newEmail.toLowerCase().trim(), oldEmail.toLowerCase().trim()]
+      );
+      await db.query(
+        'UPDATE orders SET "customerEmail" = $1 WHERE LOWER(TRIM("customerEmail")) = LOWER(TRIM($2))',
+        [newEmail.toLowerCase().trim(), oldEmail.toLowerCase().trim()]
+      );
+    } catch (cascadeErr) {
+      console.warn('Cascade email update warning on orders:', cascadeErr);
     }
 
     return NextResponse.json({

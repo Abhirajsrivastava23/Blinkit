@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight, X } from 'lucide-react';
 import { useOrders } from '../../../context/OrderContext';
 import { useAuth } from '../../../context/AuthContext';
+import SafeImage from '../../../components/SafeImage';
 
 export default function AccountOrdersPage() {
   const router = useRouter();
@@ -130,18 +130,18 @@ export default function AccountOrdersPage() {
   const getPaymentStatusLabel = (paymentStatus?: string) => {
     switch (paymentStatus) {
       case 'PENDING':
-        return 'Payment Required';
+        return 'Payment Pending';
       case 'PAYMENT_VERIFICATION_PENDING':
-        return 'Payment Under Review';
+      case 'PROCESSING':
+        return 'Payment Processing';
       case 'PAID':
       case 'COMPLETED':
         return 'Payment Successful';
       case 'REJECTED':
-        return 'Payment Rejected';
       case 'FAILED':
         return 'Payment Failed';
       default:
-        return 'Payment Required';
+        return 'Payment Pending';
     }
   };
 
@@ -288,7 +288,7 @@ export default function AccountOrdersPage() {
                   {order.items.map((item, idx) => (
                     <div key={idx} className="flex gap-3 items-start">
                       <div className="flex-shrink-0 w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden border border-zinc-200">
-                        <Image
+                        <SafeImage
                           src={item.image}
                           alt={item.name}
                           width={48}
