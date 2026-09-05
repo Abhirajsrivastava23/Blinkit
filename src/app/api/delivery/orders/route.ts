@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       ? (request.headers.get('x-partner-id') || searchParams.get('partnerId') || '')
       : session.userId;
 
-    const orders = await db.readTable<any>('orders') || [];
+    const orders = await db.getOrders();
 
     let filtered: any[] = [];
     if (session.role === 'admin' || session.role === 'super_admin') {

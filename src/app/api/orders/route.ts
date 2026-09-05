@@ -12,8 +12,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized session' }, { status: 403 });
     }
 
-    const list = await db.readTable<any>('orders') || [];
-    const payments = await db.readTable<any>('payment_transactions') || [];
+    const list = await db.getOrders();
+    const payments = await db.readTable<any>('payment_transactions').catch(() => []) || [];
     const paymentMap = new Map<string, any>();
     for (const p of payments) {
       if (p.orderId) {

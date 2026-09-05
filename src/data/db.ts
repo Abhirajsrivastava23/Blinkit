@@ -1032,8 +1032,33 @@ export const db = {
   },
 
   /**
-   * Dedicated Single Order Retrieval & Mutation Methods
+   * Dedicated Order Retrieval & Mutation Methods
    */
+  async getOrders(): Promise<Record<string, unknown>[]> {
+    const activePool = getPool();
+    if (!activePool) {
+      return (inMemoryData['orders'] || []).map(normalizeOrderRecord);
+    }
+    try {
+      let res = await activePool.query('SELECT * FROM "orders" ORDER BY "createdAt" DESC').catch(() => null);
+      if (!res || !res.rows) {
+        res = await activePool.query('SELECT * FROM orders ORDER BY createdat DESC').catch(() => null);
+      }
+      if (!res || !res.rows) {
+        res = await activePool.query('SELECT * FROM "orders"').catch(() => null);
+      }
+      if (!res || !res.rows) {
+        res = await activePool.query('SELECT * FROM orders').catch(() => null);
+      }
+      if (res && res.rows) {
+        return res.rows.map(normalizeOrderRecord);
+      }
+    } catch (err) {
+      console.error('Error in getOrders:', err);
+    }
+    return (inMemoryData['orders'] || []).map(normalizeOrderRecord);
+  },
+
   async getOrderById(orderId: string): Promise<Record<string, unknown> | null> {
     let rawId = String(orderId || '').trim();
     if (!rawId || rawId === 'undefined' || rawId === 'null') return null;
