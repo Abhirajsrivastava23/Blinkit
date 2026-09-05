@@ -44,19 +44,19 @@ export const CATEGORY_SVG_FALLBACKS: Record<string, string> = {
 
 // Verified Tier-1 external image URLs with robust formatting
 export const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
-  'birthday cakes': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
-  'chocolate cakes': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
-  'pastries': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-  'beer theme cakes': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
-  'desserts': 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-  cakes: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80',
-  bakery: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-  flowers: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?auto=format&fit=crop&w=600&q=80',
-  gifts: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80',
-  chocolates: 'https://images.unsplash.com/photo-1511381939415-e44015466834?auto=format&fit=crop&w=600&q=80',
-  celebrations: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=600&q=80',
+  'birthday cakes': '/categories/category-cakes.jpg',
+  'chocolate cakes': '/categories/category-cakes.jpg',
+  'pastries': '/categories/category-pastries.png',
+  'beer theme cakes': '/categories/category-cakes.jpg',
+  'desserts': '/categories/category-desserts.jpg',
+  cakes: '/categories/category-cakes.jpg',
+  bakery: '/categories/category-pastries.png',
+  flowers: '/categories/category-flowers.jpg',
+  gifts: '/categories/category-chocolates.png',
+  chocolates: '/categories/category-chocolates.png',
+  celebrations: '/categories/category-cakes.jpg',
   wellness: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
-  default: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=600&q=80'
+  default: '/categories/category-cakes.jpg'
 };
 
 export function getCategoryFallbackSvg(category?: string): string {
