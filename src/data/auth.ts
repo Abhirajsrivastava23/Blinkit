@@ -122,7 +122,7 @@ export async function getSession(request?: Request): Promise<Session | null> {
   // 4. Query PostgreSQL database
   try {
     const res = await db.query(
-      'SELECT * FROM sessions WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1)) LIMIT 1', 
+      'SELECT * FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1)) LIMIT 1', 
       [cleanToken]
     );
     if (res.rows && res.rows.length > 0) {
@@ -172,7 +172,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
   const cleanId = String(sessionId || '').trim();
   if (!cleanId) return;
   try {
-    await db.query('DELETE FROM sessions WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1))', [cleanId]);
+    await db.query('DELETE FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1))', [cleanId]);
   } catch (e) {
     console.warn('Delete session error:', e);
   }
