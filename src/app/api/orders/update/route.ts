@@ -10,9 +10,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { id, updates } = body;
+    const id = body.id || body.orderId;
+    const updates = (body.updates && typeof body.updates === 'object') 
+      ? body.updates 
+      : { ...body };
+    delete updates.id;
+    delete updates.orderId;
+    delete updates.orderData;
     
-    if (!id || !updates || typeof updates !== 'object') {
+    if (!id || typeof updates !== 'object' || Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Order id and updates are required' }, { status: 400 });
     }
 
