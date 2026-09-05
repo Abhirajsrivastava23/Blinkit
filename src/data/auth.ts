@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
-import { db } from './db';
+import { db, getPool } from './db';
 
 export interface Session {
   sessionId: string;
@@ -64,24 +64,20 @@ export async function createSession(userId: string, email: string, role: string)
   const activePool = getPool();
   if (activePool) {
     try {
-      await activePool.query(`
-        CREATE TABLE IF NOT EXISTS "sessions" (
-          "sessionId" TEXT PRIMARY KEY,
-          "userId" TEXT,
-          "email" TEXT,
-          "role" TEXT,
-          "expiresAt" TEXT
-        )
-      `).catch(() => {});
-
       await activePool.query(
-        'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("sessionId") DO UPDATE SET "userId" = $2, "email" = $3, "role" = $4, "expiresAt" = $5',
+        `INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt", sessionid, userid, expiresat) 
+         VALUES ($1, $2, $3, $4, $5, $1, $2, $5)`,
         [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
       ).catch(async () => {
         await activePool.query(
-          'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
+          'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5)',
           [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
-        ).catch(() => {});
+        ).catch(async () => {
+          await activePool.query(
+            'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
+            [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
+          ).catch(() => {});
+        });
       });
     } catch (e) {
       console.warn('Session db.query warning:', e);
@@ -142,11 +138,18 @@ export async function getSession(request?: Request): Promise<Session | null> {
   if (activePool) {
     try {
       const res = await activePool.query(
-        'SELECT * FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1)) LIMIT 1', 
+        `SELECT * FROM "sessions" 
+         WHERE "sessionId" = $1 
+            OR sessionid = $1 
+            OR LOWER(TRIM(COALESCE("sessionId", sessionid, ''))) = LOWER(TRIM($1)) 
+         LIMIT 1`, 
         [cleanToken]
       ).catch(async () => {
         return await activePool.query(
-          'SELECT * FROM sessions WHERE LOWER(TRIM(sessionid)) = LOWER(TRIM($1)) LIMIT 1',
+          `SELECT * FROM sessions 
+           WHERE sessionid = $1 
+              OR LOWER(TRIM(sessionid)) = LOWER(TRIM($1)) 
+           LIMIT 1`,
           [cleanToken]
         );
       });

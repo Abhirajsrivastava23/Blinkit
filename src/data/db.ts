@@ -175,15 +175,23 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_payment_rzp_pay ON "payment_transactions" ("razorpayPaymentId");
     `).catch(() => {});
 
-    // 3. Ensure sessions table exists with indexes
+    // 3. Ensure sessions table exists with indexes and schema resilience
     await p.query(`
       CREATE TABLE IF NOT EXISTS "sessions" (
-        "sessionId" TEXT PRIMARY KEY,
+        "sessionId" TEXT,
         "userId" TEXT,
         "email" TEXT,
         "role" TEXT,
         "expiresAt" TEXT
       );
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "sessionId" TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "userId" TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "email" TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "role" TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "expiresAt" TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS sessionid TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS userid TEXT;
+      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS expiresat TEXT;
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON "sessions" ("userId");
     `).catch(() => {});
 
