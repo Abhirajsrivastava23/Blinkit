@@ -70,7 +70,7 @@ export const CATEGORIES = [
   { id: 'flowers', name: 'Flowers', desc: 'Fresh flower bouquets & floral arrangements', image: '/categories/category-flowers.jpg' },
   { id: 'chocolates', name: 'Chocolates', desc: 'Handcrafted luxury chocolate truffles & bars', image: '/categories/category-chocolates.png' },
   { id: 'gifts', name: 'Gift Hampers', desc: 'Curated celebration gift hampers & boxes', image: '/categories/category-gifts.jpg' },
-  { id: 'wellness', name: 'Wellness (18+)', desc: 'Discreet and lawful adult-wellness essentials', image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop&q=80' }
+  { id: 'wellness', name: 'Wellness (18+)', desc: 'Discreet and lawful adult-wellness essentials', image: '/categories/category-wellness.jpg' }
 ];
 
 export const OCCASIONS = [

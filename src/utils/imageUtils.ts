@@ -55,7 +55,7 @@ export const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
   gifts: '/categories/category-gifts.jpg',
   chocolates: '/categories/category-chocolates.png',
   celebrations: '/categories/category-cakes.jpg',
-  wellness: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+  wellness: '/categories/category-wellness.jpg',
   default: '/categories/category-cakes.jpg'
 };
 
