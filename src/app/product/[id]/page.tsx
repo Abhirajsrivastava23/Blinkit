@@ -36,7 +36,13 @@ export default function ProductDetailPage() {
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
   const productId = params.id as string;
-  const product = useMemo(() => PRODUCTS.find((p) => p.id === productId) ?? null, [PRODUCTS, productId]);
+  const product = useMemo(() => {
+    return (
+      PRODUCTS.find((p) => p.id === productId || p.id.toLowerCase() === productId?.toLowerCase()) ||
+      fallbackProducts.find((p) => p.id === productId || p.id.toLowerCase() === productId?.toLowerCase()) ||
+      null
+    );
+  }, [PRODUCTS, productId]);
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients' | 'storage'>('desc');
   const [activeImage, setActiveImage] = useState<string>('');
 

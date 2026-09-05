@@ -15,7 +15,16 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { products } = useProducts();
-  const PRODUCTS = products.length > 0 ? products : fallbackProducts;
+  const PRODUCTS: Product[] = useMemo(() => {
+    const list: Product[] = products.length > 0 ? [...products] : [...fallbackProducts];
+    const existingIds = new Set(list.map((p) => p.id.toLowerCase()));
+    for (const fb of fallbackProducts) {
+      if (!existingIds.has(fb.id.toLowerCase())) {
+        list.push(fb);
+      }
+    }
+    return list;
+  }, [products]);
   
   const query = searchParams.get('q') || '';
   const [inputValue, setInputValue] = useState(() => query);

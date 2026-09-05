@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SlidersHorizontal, ArrowUpDown, Info, Search, Sparkles } from 'lucide-react';
 import Header from './Header';
@@ -23,7 +23,16 @@ export default function ProductListingPage({ categoryKey, title, description }: 
   const initialOccasion = searchParams.get('occasion') || '';
 
   const { products } = useProducts();
-  const PRODUCTS = products.length > 0 ? products : fallbackProducts;
+  const PRODUCTS: Product[] = useMemo(() => {
+    const list: Product[] = products.length > 0 ? [...products] : [...fallbackProducts];
+    const existingIds = new Set(list.map((p) => p.id.toLowerCase()));
+    for (const fb of fallbackProducts) {
+      if (!existingIds.has(fb.id.toLowerCase())) {
+        list.push(fb);
+      }
+    }
+    return list;
+  }, [products]);
 
   // Filter States
   const [searchVal, setSearchVal] = useState(initialSearch);

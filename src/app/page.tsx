@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -11,7 +11,7 @@ import {
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ProductCard';
-import { PRODUCTS as fallbackProducts, COMBOS, CATEGORIES, OCCASIONS } from '../data/mockData';
+import { PRODUCTS as fallbackProducts, COMBOS, CATEGORIES, OCCASIONS, Product } from '../data/mockData';
 import { useToast } from '../components/Toast';
 import { useProducts } from '../context/ProductContext';
 import { useCart } from '../context/CartContext';
@@ -24,7 +24,16 @@ export default function HomePage() {
   const { products, loading: productsLoading } = useProducts();
   const { cartItems, subtotal } = useCart();
   const { wellnessPublished, user } = useAuth();
-  const PRODUCTS = products.length > 0 ? products : fallbackProducts;
+  const PRODUCTS: Product[] = useMemo(() => {
+    const list: Product[] = products.length > 0 ? [...products] : [...fallbackProducts];
+    const existingIds = new Set(list.map((p) => p.id.toLowerCase()));
+    for (const fb of fallbackProducts) {
+      if (!existingIds.has(fb.id.toLowerCase())) {
+        list.push(fb);
+      }
+    }
+    return list;
+  }, [products]);
 
   // 1. Carousel Hero Banner State
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);

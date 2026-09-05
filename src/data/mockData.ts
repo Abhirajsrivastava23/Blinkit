@@ -127,11 +127,11 @@ export const PRODUCTS: Product[] = [
     egglessAvailable: false,
     isEgglessDefault: false,
     inStock: true,
-    description: 'TEMPORARY TEST PRODUCT: Used for verifying live Razorpay Standard Checkout in production. Exact charge: ₹2.00.',
+    description: 'TEMPORARY TEST PRODUCT: Used for verifying live Razorpay Standard Checkout in production. Exact charge: ₹2.00. Keywords: razorpay, test, 2, rs 2, payment gateway.',
     ingredients: ['Test Materials'],
     allergens: ['None'],
     storageInstructions: 'Test item only.',
-    occasions: ['Testing']
+    occasions: ['Testing', 'Birthday', 'Anniversary', 'Congratulations', 'Thank You', 'Just Because']
   },
   // ======================= CAKES (20) =======================
   {

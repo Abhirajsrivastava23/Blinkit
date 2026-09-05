@@ -771,7 +771,7 @@ export const db = {
       const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
       const res = await activePool.query(`SELECT * FROM "${tableName}"`);
       
-      return res.rows.map(row => {
+      const parsedList = res.rows.map(row => {
         let parsed: Record<string, unknown> = {};
         for (const col of Object.keys(row)) {
           const val = row[col];
@@ -807,7 +807,23 @@ export const db = {
         }
 
         return parsed;
-      }) as unknown as T[];
+      });
+
+      if (key === 'products') {
+        const existingIds = new Set(parsedList.map((p: any) => String(p.id || '').toLowerCase().trim()));
+        for (const defaultProd of productsJson) {
+          const defaultId = String(defaultProd.id || '').toLowerCase().trim();
+          if (defaultId && !existingIds.has(defaultId)) {
+            const normalized = normalizeProductRecord(defaultProd) as unknown as Record<string, unknown>;
+            parsedList.unshift(normalized);
+            try {
+              insertRow(activePool, 'products', defaultProd).catch(() => {});
+            } catch {}
+          }
+        }
+      }
+
+      return parsedList as unknown as T[];
     } catch (err) {
       console.error(`PostgreSQL error reading table ${key}:`, err);
       const memList = (inMemoryData[key] || []) as unknown as Record<string, unknown>[];
