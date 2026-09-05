@@ -61,13 +61,31 @@ export async function createSession(userId: string, email: string, role: string)
     expiresAt
   };
 
-  try {
-    await db.query(
-      'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("sessionId") DO UPDATE SET "userId" = $2, "email" = $3, "role" = $4, "expiresAt" = $5',
-      [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
-    );
-  } catch (e) {
-    console.warn('Session db.query warning:', e);
+  const activePool = getPool();
+  if (activePool) {
+    try {
+      await activePool.query(`
+        CREATE TABLE IF NOT EXISTS "sessions" (
+          "sessionId" TEXT PRIMARY KEY,
+          "userId" TEXT,
+          "email" TEXT,
+          "role" TEXT,
+          "expiresAt" TEXT
+        )
+      `).catch(() => {});
+
+      await activePool.query(
+        'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("sessionId") DO UPDATE SET "userId" = $2, "email" = $3, "role" = $4, "expiresAt" = $5',
+        [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
+      ).catch(async () => {
+        await activePool.query(
+          'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
+          [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
+        ).catch(() => {});
+      });
+    } catch (e) {
+      console.warn('Session db.query warning:', e);
+    }
   }
 
   return newSession;
@@ -120,28 +138,37 @@ export async function getSession(request?: Request): Promise<Session | null> {
   if (!cleanToken) return null;
 
   // 4. Query PostgreSQL database
-  try {
-    const res = await db.query(
-      'SELECT * FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1)) LIMIT 1', 
-      [cleanToken]
-    );
-    if (res.rows && res.rows.length > 0) {
-      const raw = res.rows[0];
-      const session: Session = {
-        sessionId: String(raw.sessionId || raw.sessionid || cleanToken),
-        userId: String(raw.userId || raw.userid || ''),
-        email: String(raw.email || ''),
-        role: String(raw.role || '').toLowerCase().trim(),
-        expiresAt: String(raw.expiresAt || raw.expiresat || '')
-      };
+  const activePool = getPool();
+  if (activePool) {
+    try {
+      const res = await activePool.query(
+        'SELECT * FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1)) LIMIT 1', 
+        [cleanToken]
+      ).catch(async () => {
+        return await activePool.query(
+          'SELECT * FROM sessions WHERE LOWER(TRIM(sessionid)) = LOWER(TRIM($1)) LIMIT 1',
+          [cleanToken]
+        );
+      });
 
-      if (!session.expiresAt || new Date(session.expiresAt) > new Date()) {
-        return session;
+      if (res && res.rows && res.rows.length > 0) {
+        const raw = res.rows[0];
+        const session: Session = {
+          sessionId: String(raw.sessionId || raw.sessionid || cleanToken),
+          userId: String(raw.userId || raw.userid || ''),
+          email: String(raw.email || ''),
+          role: String(raw.role || '').toLowerCase().trim(),
+          expiresAt: String(raw.expiresAt || raw.expiresat || '')
+        };
+
+        if (!session.expiresAt || new Date(session.expiresAt) > new Date()) {
+          return session;
+        }
+        return null;
       }
-      return null;
+    } catch (err) {
+      console.warn('Error querying session from database, attempting fallback:', err);
     }
-  } catch (err) {
-    console.warn('Error querying session from database, attempting fallback:', err);
   }
 
   // 5. Fallback check in memory data
@@ -171,10 +198,16 @@ export async function getSession(request?: Request): Promise<Session | null> {
 export async function deleteSession(sessionId: string): Promise<void> {
   const cleanId = String(sessionId || '').trim();
   if (!cleanId) return;
-  try {
-    await db.query('DELETE FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1))', [cleanId]);
-  } catch (e) {
-    console.warn('Delete session error:', e);
+  const activePool = getPool();
+  if (activePool) {
+    try {
+      await activePool.query('DELETE FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1))', [cleanId])
+        .catch(async () => {
+          await activePool.query('DELETE FROM sessions WHERE LOWER(TRIM(sessionid)) = LOWER(TRIM($1))', [cleanId]).catch(() => {});
+        });
+    } catch (e) {
+      console.warn('Delete session error:', e);
+    }
   }
 }
 
