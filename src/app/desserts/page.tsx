@@ -4,20 +4,20 @@ import React, { Suspense } from 'react';
 import ProductListingPage from '../../components/ProductListingPage';
 import { ProductGridSkeleton } from '../../components/LoadingSkeleton';
 
-function PastriesPageContent() {
+function DessertsPageContent() {
   return (
     <ProductListingPage
-      categoryKey="Pastries"
-      title="SMALL BITES. BIG JOY."
-      description="Artisanal single-serve dessert pastries and celebration party packs. Freshly handcrafted and delivered in minutes."
+      categoryKey="Desserts"
+      title="GOURMET DESSERTS, JAR CAKES & CHEESECAKES."
+      description="Chilled cheesecakes, portable jar cakes, chocolate mousse verrine cups, Dubai kunafa tubs, and giant American scoop cookies."
     />
   );
 }
 
-export default function PastriesPage() {
+export default function DessertsPage() {
   return (
     <Suspense fallback={<ProductGridSkeleton count={8} />}>
-      <PastriesPageContent />
+      <DessertsPageContent />
     </Suspense>
   );
 }

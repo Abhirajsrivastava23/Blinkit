@@ -12,7 +12,7 @@ import { ProductGridSkeleton } from './LoadingSkeleton';
 import { useProducts } from '../context/ProductContext';
 
 interface ProductListingPageProps {
-  categoryKey: 'cakes' | 'bakery' | 'chocolates' | 'flowers' | 'gifts' | 'celebrations';
+  categoryKey: string;
   title: string;
   description: string;
 }
@@ -37,17 +37,46 @@ export default function ProductListingPage({ categoryKey, title, description }: 
   // Filter States
   const [searchVal, setSearchVal] = useState(initialSearch);
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('All');
-  const [maxPrice, setMaxPrice] = useState<number>(2000);
+  const [maxPrice, setMaxPrice] = useState<number>(2500);
   const [minRating, setMinRating] = useState<number>(0);
   const [sortBy, setSortBy] = useState<string>('popularity');
   const [egglessOnly, setEgglessOnly] = useState<boolean>(false);
   
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false);
 
-  // Get unique subcategories
-  const categoryProducts = PRODUCTS.filter((p) => p.category === categoryKey);
+  // Get unique subcategories based on matching category products
+  const categoryProducts = useMemo(() => {
+    const key = categoryKey.toLowerCase().trim();
+    return PRODUCTS.filter((p) => {
+      const pCat = (p.category || '').toLowerCase().trim();
+      if (key === 'cakes' || key === 'all cakes') {
+        return pCat === 'birthday cakes' || pCat === 'chocolate cakes' || pCat === 'beer theme cakes' || pCat === 'cakes';
+      }
+      if (key === 'birthday-cakes' || key === 'birthday cakes') {
+        return pCat === 'birthday cakes';
+      }
+      if (key === 'chocolate-cakes' || key === 'chocolate cakes') {
+        return pCat === 'chocolate cakes';
+      }
+      if (key === 'pastries') {
+        return pCat === 'pastries';
+      }
+      if (key === 'beer-theme-cakes' || key === 'beer theme cakes') {
+        return pCat === 'beer theme cakes';
+      }
+      if (key === 'desserts') {
+        return pCat === 'desserts';
+      }
+      if (key === 'bakery') {
+        return pCat === 'pastries' || pCat === 'desserts' || pCat === 'bakery';
+      }
+      if (key === 'chocolates') {
+        return pCat === 'chocolate cakes' || pCat === 'desserts' || pCat === 'chocolates';
+      }
+      return pCat === key;
+    });
+  }, [PRODUCTS, categoryKey]);
+
   const subCategories = ['All', ...Array.from(new Set(categoryProducts.map((p) => p.subCategory).filter(Boolean))) as string[]];
 
   // Sync with search URL parameter changes
@@ -60,63 +89,60 @@ export default function ProductListingPage({ categoryKey, title, description }: 
     return () => window.clearTimeout(timer);
   }, [searchParams]);
 
-  // Handle Filtering
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      let result = [...categoryProducts];
+  // Synchronous filtered products list
+  const filteredProducts = useMemo(() => {
+    let result = [...categoryProducts];
 
-      // 1. Text Search Filter
-      if (searchVal.trim()) {
-        const query = searchVal.toLowerCase();
-        result = result.filter(
-          (p) =>
-            p.name.toLowerCase().includes(query) ||
-            p.description.toLowerCase().includes(query) ||
-            (p.subCategory && p.subCategory.toLowerCase().includes(query))
-        );
-      }
+    // 1. Text Search Filter
+    if (searchVal.trim()) {
+      const query = searchVal.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query) ||
+          p.description.toLowerCase().includes(query) ||
+          (p.shortDescription && p.shortDescription.toLowerCase().includes(query)) ||
+          (p.subCategory && p.subCategory.toLowerCase().includes(query))
+      );
+    }
 
-      // 2. Occasion Filter (from Home click)
-      if (initialOccasion) {
-        result = result.filter((p) => p.occasions.includes(initialOccasion));
-      }
+    // 2. Occasion Filter (from Home click)
+    if (initialOccasion) {
+      result = result.filter((p) => p.occasions && p.occasions.includes(initialOccasion));
+    }
 
-      // 3. SubCategory Filter
-      if (selectedSubCategory !== 'All') {
-        result = result.filter((p) => p.subCategory === selectedSubCategory);
-      }
+    // 3. SubCategory Filter
+    if (selectedSubCategory !== 'All') {
+      result = result.filter((p) => p.subCategory === selectedSubCategory);
+    }
 
-      // 4. Price Filter
-      result = result.filter((p) => p.price <= maxPrice);
+    // 4. Price Filter
+    result = result.filter((p) => p.price <= maxPrice);
 
-      // 5. Rating Filter
-      if (minRating > 0) {
-        result = result.filter((p) => p.rating >= minRating);
-      }
+    // 5. Rating Filter
+    if (minRating > 0) {
+      result = result.filter((p) => p.rating >= minRating);
+    }
 
-      // 6. Eggless Filter (for Cakes/Bakery)
-      if (egglessOnly) {
-        result = result.filter((p) => p.egglessAvailable);
-      }
+    // 6. Eggless Filter (for Cakes/Bakery)
+    if (egglessOnly) {
+      result = result.filter((p) => p.egglessAvailable);
+    }
 
-      // 7. Sort Order
-      if (sortBy === 'price-low') {
-        result.sort((a, b) => a.price - b.price);
-      } else if (sortBy === 'price-high') {
-        result.sort((a, b) => b.price - a.price);
-      } else if (sortBy === 'rating') {
-        result.sort((a, b) => b.rating - a.rating);
-      } else {
-        result.sort((a, b) => b.reviewCount - a.reviewCount);
-      }
+    // 7. Sort Order
+    if (sortBy === 'price-low') {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price-high') {
+      result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'rating') {
+      result.sort((a, b) => b.rating - a.rating);
+    } else {
+      result.sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0));
+    }
 
-      setFilteredProducts(result);
-      setLoading(false);
-    }, 350);
+    return result;
+  }, [categoryProducts, searchVal, initialOccasion, selectedSubCategory, maxPrice, minRating, egglessOnly, sortBy]);
 
-    return () => window.clearTimeout(timer);
-  }, [categoryKey, categoryProducts, searchVal, selectedSubCategory, maxPrice, minRating, sortBy, egglessOnly, initialOccasion]);
+  const loading = false;
 
   const hasEgglessOption = categoryKey === 'cakes' || categoryKey === 'bakery';
 

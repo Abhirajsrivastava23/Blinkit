@@ -61,13 +61,15 @@ export interface Combo {
   deliveryTime: string;
 }
 
+import productsJson from './db/products.json';
+
 export const CATEGORIES = [
-  { id: 'cakes', name: 'Cakes', desc: 'Freshly baked artisanal premium cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
-  { id: 'bakery', name: 'Bakery & Pastries', desc: 'Delectable brownies, cookies, donuts & pastries', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80' },
-  { id: 'flowers', name: 'Flowers', desc: 'Fresh & handpicked luxury bouquets', image: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=600&auto=format&fit=crop&q=80' },
-  { id: 'gifts', name: 'Gifts & Hampers', desc: 'Thoughtful curated gifts for your loved ones', image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80' },
-  { id: 'chocolates', name: 'Chocolates', desc: 'Artisanal truffles and Belgian collections', image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=600&auto=format&fit=crop&q=80' },
-  { id: 'celebrations', name: 'Celebration Kits', desc: 'Banners, balloons, candles & party sets', image: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80' },
+  { id: 'birthday-cakes', name: 'Birthday Cakes', desc: 'Handcrafted celebratory birthday cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
+  { id: 'chocolate-cakes', name: 'Chocolate Cakes', desc: 'Rich truffle, ganache & Belgian chocolate cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
+  { id: 'pastries', name: 'Pastries', desc: 'Fresh individual pastry slices & party boxes', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80' },
+  { id: 'beer-theme-cakes', name: 'Beer Theme Cakes', desc: 'Creative bachelor, beer mug & celebratory cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
+  { id: 'desserts', name: 'Desserts', desc: 'Cheesecakes, jar cakes, verrine cups & cookies', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80' },
+  { id: 'cakes', name: 'All Cakes', desc: 'Freshly baked artisanal premium cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
   { id: 'wellness', name: 'Wellness (18+)', desc: 'Discreet and lawful adult-wellness essentials', image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop&q=80' }
 ];
 
@@ -81,7 +83,7 @@ export const OCCASIONS = [
 
 export const COMBOS: Combo[] = [];
 
-export const PRODUCTS: Product[] = [];
+export const PRODUCTS: Product[] = (productsJson || []) as unknown as Product[];
 
 export const MOCK_REVIEWS: Review[] = [
   { id: 'rev-1', user: 'Aman Sharma', rating: 5, text: 'The Chocolate Truffle cake was incredibly fresh! It was delivered in exactly 35 minutes and was very rich and delicious. Highly recommend FATAFAT.', date: '2026-08-15' },

@@ -77,15 +77,15 @@ export default function HomePage() {
   };
 
   // 2. Filter Database Products
-  const trendingProducts = PRODUCTS.filter(p => p.category !== 'wellness' && p.rating >= 4.7).slice(0, 8);
-  const cakes = PRODUCTS.filter(p => p.category === 'cakes' && p.inStock);
-  const flowers = PRODUCTS.filter(p => p.category === 'flowers' && p.inStock);
-  const gifts = PRODUCTS.filter(p => p.category === 'gifts' && p.inStock);
-  const chocolates = PRODUCTS.filter(p => p.category === 'chocolates' && p.inStock);
-  const bakery = PRODUCTS.filter(p => p.category === 'bakery' && p.inStock);
-  const deals = PRODUCTS.filter(p => p.category !== 'wellness' && p.discount >= 15 && p.inStock).slice(0, 8);
-  const bestsellers = PRODUCTS.filter(p => p.category !== 'wellness' && p.rating >= 4.8 && p.inStock).slice(0, 8);
-  const newArrivals = PRODUCTS.filter(p => p.category !== 'wellness' && p.inStock).slice(4, 12); // simulated
+  const trendingProducts = PRODUCTS.filter(p => p.category !== 'wellness').slice(0, 8);
+  const birthdayCakes = PRODUCTS.filter(p => p.category === 'Birthday Cakes' && p.inStock);
+  const chocolateCakes = PRODUCTS.filter(p => p.category === 'Chocolate Cakes' && p.inStock);
+  const beerThemeCakes = PRODUCTS.filter(p => p.category === 'Beer Theme Cakes' && p.inStock);
+  const desserts = PRODUCTS.filter(p => p.category === 'Desserts' && p.inStock);
+  const pastries = PRODUCTS.filter(p => p.category === 'Pastries' && p.inStock);
+  const deals = PRODUCTS.filter(p => p.category !== 'wellness' && p.discount > 0 && p.inStock).slice(0, 8);
+  const bestsellers = PRODUCTS.filter(p => p.category !== 'wellness' && p.inStock).slice(0, 8);
+  const newArrivals = PRODUCTS.filter(p => p.category !== 'wellness' && p.inStock).slice(8, 16);
 
   // Cart properties
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -266,94 +266,109 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 6. CAKES SECTION */}
-        {cakes.length > 0 && (
+        {/* 6. BIRTHDAY CAKES SECTION */}
+        {birthdayCakes.length > 0 && (
           <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex justify-between items-baseline mb-4 text-left">
-              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Cakes For Every Celebration</h2>
-              <Link href="/cakes" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                View All Cakes →
+              <div>
+                <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Birthday Cakes For Every Celebration 🎂</h2>
+                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Handcrafted with joy & delivered fast</p>
+              </div>
+              <Link href="/birthday-cakes" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All ({birthdayCakes.length}) →
               </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-              {cakes.slice(0, 8).map((product) => (
+              {birthdayCakes.slice(0, 8).map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
           </section>
         )}
 
-        {/* 7. FLOWERS SECTION */}
-        {flowers.length > 0 && (
+        {/* 7. CHOCOLATE CAKES SECTION */}
+        {chocolateCakes.length > 0 && (
           <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex justify-between items-baseline mb-4 text-left">
-              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Send Some Flowers 🌸</h2>
-              <Link href="/flowers" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                View All Flowers →
+              <div>
+                <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Decadent Chocolate Cakes 🍫</h2>
+                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Rich truffles, ganache & Belgian chocolate</p>
+              </div>
+              <Link href="/chocolate-cakes" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All ({chocolateCakes.length}) →
               </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-              {flowers.slice(0, 8).map((product) => (
+              {chocolateCakes.slice(0, 8).map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
           </section>
         )}
 
-        {/* 8. GIFTS SECTION */}
-        {gifts.length > 0 && (
-          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex justify-between items-baseline mb-4 text-left">
-              <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Gifts They&apos;ll Love</h2>
-              <Link href="/gifts" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                View All Gifts →
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-              {gifts.slice(0, 8).map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* 9. CHOCOLATES & BAKERY SPLIT SECTION */}
-        {(chocolates.length > 0 || bakery.length > 0) && (
+        {/* 8. DESSERTS & PASTRIES SPLIT SECTION */}
+        {(desserts.length > 0 || pastries.length > 0) && (
           <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Chocolates Column */}
-              {chocolates.length > 0 && (
+              {/* Desserts Column */}
+              {desserts.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-baseline text-left">
-                    <h3 className="text-base font-serif font-black text-brand-charcoal">Gourmet Chocolates 🍫</h3>
-                    <Link href="/chocolates" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                      More chocolates →
+                    <div>
+                      <h3 className="text-base font-serif font-black text-brand-charcoal">Gourmet Desserts & Jar Cakes 🍮</h3>
+                      <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">Cheesecakes, mousse & kunafa tubs</p>
+                    </div>
+                    <Link href="/desserts" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                      More desserts ({desserts.length}) →
                     </Link>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    {chocolates.slice(0, 4).map((p) => (
+                    {desserts.slice(0, 4).map((p) => (
                       <ProductCard key={p.id} product={p} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Bakery Column */}
-              {bakery.length > 0 && (
+              {/* Pastries Column */}
+              {pastries.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-baseline text-left">
-                    <h3 className="text-base font-serif font-black text-brand-charcoal">Bakery & Cookies 🥐</h3>
-                    <Link href="/bakery" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
-                      More bakery →
+                    <div>
+                      <h3 className="text-base font-serif font-black text-brand-charcoal">Artisanal Pastries & Boxes 🧁</h3>
+                      <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider">Individual slices & celebration packs</p>
+                    </div>
+                    <Link href="/pastries" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                      More pastries ({pastries.length}) →
                     </Link>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    {bakery.slice(0, 4).map((p) => (
+                    {pastries.slice(0, 4).map((p) => (
                       <ProductCard key={p.id} product={p} />
                     ))}
                   </div>
                 </div>
               )}
+            </div>
+          </section>
+        )}
+
+        {/* 9. BEER THEME CAKES SECTION */}
+        {beerThemeCakes.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <div>
+                <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Beer & Party Theme Cakes 🍺</h2>
+                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Bachelor parties, mugs & milestone celebrations</p>
+              </div>
+              <Link href="/beer-theme-cakes" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All ({beerThemeCakes.length}) →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {beerThemeCakes.slice(0, 8).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
             </div>
           </section>
         )}
