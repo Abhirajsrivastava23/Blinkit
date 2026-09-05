@@ -175,6 +175,18 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_payment_rzp_pay ON "payment_transactions" ("razorpayPaymentId");
     `).catch(() => {});
 
+    // 3. Ensure sessions table exists with indexes
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS "sessions" (
+        "sessionId" TEXT PRIMARY KEY,
+        "userId" TEXT,
+        "email" TEXT,
+        "role" TEXT,
+        "expiresAt" TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON "sessions" ("userId");
+    `).catch(() => {});
+
     schemaEnsured = true;
   } catch (err) {
     console.warn('[DB SCHEMA WARNING] Could not verify schema extensions:', err);

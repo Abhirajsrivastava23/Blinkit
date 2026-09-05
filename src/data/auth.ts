@@ -63,7 +63,7 @@ export async function createSession(userId: string, email: string, role: string)
 
   try {
     await db.query(
-      'INSERT INTO sessions ("sessionId", "userId", email, role, "expiresAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("sessionId") DO UPDATE SET "userId" = $2, email = $3, role = $4, "expiresAt" = $5',
+      'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("sessionId") DO UPDATE SET "userId" = $2, "email" = $3, "role" = $4, "expiresAt" = $5',
       [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
     );
   } catch (e) {
