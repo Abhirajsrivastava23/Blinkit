@@ -74,11 +74,11 @@ export const CATEGORIES = [
 ];
 
 export const OCCASIONS = [
-  { id: 'birthday', name: 'Birthday', image: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&auto=format&fit=crop&q=80' },
-  { id: 'valentines', name: "Valentine's Day", image: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&auto=format&fit=crop&q=80' },
-  { id: 'congratulations', name: 'Congratulations', image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop&q=80' },
-  { id: 'thankyou', name: 'Thank You', image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80' },
-  { id: 'justbecause', name: 'Just Because', image: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=600&auto=format&fit=crop&q=80' }
+  { id: 'birthday', name: 'Birthday', image: '/occasions/occasion-birthday.png' },
+  { id: 'valentines', name: "Valentine's Day", image: '/occasions/occasion-valentines.png' },
+  { id: 'congratulations', name: 'Congratulations', image: '/occasions/occasion-congratulations.jpg' },
+  { id: 'thankyou', name: 'Thank You', image: '/occasions/occasion-thankyou.png' },
+  { id: 'justbecause', name: 'Just Because', image: '/occasions/occasion-justbecause.png' }
 ];
 
 export const COMBOS: Combo[] = [];
