@@ -182,8 +182,8 @@ export default function HomePage() {
         {/* 2. HORIZONTALLY SCROLLABLE CATEGORY ICON STRIP */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2">
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x select-none">
-            {CATEGORIES.filter(cat => cat.id !== 'wellness' || wellnessPublished).map((cat) => {
-              const label = cat.id === 'wellness' ? 'Wellness 18+' : cat.name.split(' & ')[0];
+            {CATEGORIES.map((cat) => {
+              const label = cat.id === 'wellness' ? 'Wellness 18+' : cat.name;
               const targetLink = cat.id === 'wellness' ? '/wellness' : `/${cat.id}`;
               return (
                 <Link 
@@ -199,7 +199,7 @@ export default function HomePage() {
                       className="h-full w-full object-cover rounded-full"
                     />
                   </div>
-                  <span className="text-[10px] font-black text-zinc-700 uppercase tracking-wider group-hover:text-brand-burgundy transition-colors">
+                  <span className="text-[10px] font-black text-zinc-700 uppercase tracking-wider group-hover:text-brand-burgundy transition-colors whitespace-nowrap">
                     {label}
                   </span>
                 </Link>
@@ -291,9 +291,9 @@ export default function HomePage() {
             </span>
             <h2 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">Shop What You Love</h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {CATEGORIES.filter(cat => cat.id !== 'wellness' || wellnessPublished).map((cat) => {
-              const label = cat.name;
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+            {CATEGORIES.map((cat) => {
+              const label = cat.id === 'wellness' ? 'Wellness 18+' : cat.name;
               const targetLink = cat.id === 'wellness' ? '/wellness' : `/${cat.id}`;
               return (
                 <Link

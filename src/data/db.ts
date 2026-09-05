@@ -3278,7 +3278,7 @@ export const db = {
 
   async getWellnessSettings(): Promise<{ published: boolean }> {
     const config = await this.getConfig<{ published: boolean }>('wellness_settings');
-    return config && typeof config.published === 'boolean' ? config : { published: false };
+    return config && typeof config.published === 'boolean' ? config : { published: true };
   },
 
   async setWellnessSettings(published: boolean): Promise<boolean> {

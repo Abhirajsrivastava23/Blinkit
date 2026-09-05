@@ -446,18 +446,16 @@ export default function Header() {
               <span className="h-3 w-px bg-zinc-300/30"></span>
 
               {/* Wellness 18+ Outlined Link */}
-              {wellnessPublished && (
-                <Link
-                  href="/wellness"
-                  className={`px-3 py-1 rounded-full border text-[8px] font-black tracking-widest uppercase transition-all select-none ${
-                    isWellness 
-                      ? 'border-wellness-bronze text-wellness-bronze bg-wellness-bronze/10' 
-                      : 'border-zinc-300 text-zinc-500 hover:border-brand-burgundy hover:text-brand-burgundy hover:bg-brand-burgundy/[0.02]'
-                  }`}
-                >
-                  Wellness 18+
-                </Link>
-              )}
+              <Link
+                href="/wellness"
+                className={`px-3 py-1 rounded-full border text-[8px] font-black tracking-widest uppercase transition-all select-none ${
+                  isWellness 
+                    ? 'border-wellness-bronze text-wellness-bronze bg-wellness-bronze/10' 
+                    : 'border-zinc-300 text-zinc-500 hover:border-brand-burgundy hover:text-brand-burgundy hover:bg-brand-burgundy/[0.02]'
+                }`}
+              >
+                Wellness 18+
+              </Link>
             </nav>
           </div>
         </div>
@@ -502,19 +500,17 @@ export default function Header() {
                 </Link>
               ))}
               
-              {wellnessPublished && (
-                <Link 
-                  href="/wellness" 
-                  onClick={() => setIsMobileMenuOpen(false)} 
-                  className={`py-2 px-3 rounded-full border text-center transition-colors font-extrabold tracking-wider ${
-                    isWellness
-                      ? 'bg-wellness-bronze text-zinc-950 border-transparent'
-                      : 'bg-white border-brand-burgundy text-brand-burgundy hover:bg-brand-burgundy/5'
-                  }`}
-                >
-                  FATAFAT Wellness (18+)
-                </Link>
-              )}
+              <Link 
+                href="/wellness" 
+                onClick={() => setIsMobileMenuOpen(false)} 
+                className={`py-2 px-3 rounded-full border text-center transition-colors font-extrabold tracking-wider ${
+                  isWellness
+                    ? 'bg-wellness-bronze text-zinc-950 border-transparent'
+                    : 'bg-white border-brand-burgundy text-brand-burgundy hover:bg-brand-burgundy/5'
+                }`}
+              >
+                FATAFAT Wellness (18+)
+              </Link>
 
               {/* Location Select for mobile */}
               <div className="pt-3 border-t border-zinc-200/5 flex flex-col gap-1.5">
