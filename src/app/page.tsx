@@ -38,28 +38,27 @@ export default function HomePage() {
   // 1. Carousel Hero Banner State
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
   
-  // Hero Slide Data
+  // Hero Slide Data (4 uploaded banners with 3:1 aspect ratio)
   const HERO_SLIDES = [
     {
-      title: "MAKE THEIR DAY SPECIAL 🎂",
-      subtitle: "Cakes, flowers & gifts delivered Fatafat.",
-      cta: "SHOP BIRTHDAYS",
-      link: "/cakes",
-      image: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=1200&auto=format&fit=crop&q=80"
-    },
-    {
-      title: "FRESH FLOWERS, FAST DELIVERY 🌹",
-      subtitle: "Designer hand-tied bouquets arranged by florist masters.",
-      cta: "SHOP FLOWERS",
+      title: "Blooming Love, Wrapped in Flowers",
       link: "/flowers",
-      image: "https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=1200&auto=format&fit=crop&q=80"
+      image: "/banners/hero-flowers-blooming-love.png"
     },
     {
-      title: "SOMETHING SWEET? 🥐",
-      subtitle: "Fresh croissants, cheesecakes, and pastries from the oven.",
-      cta: "SHOP SWEETS",
-      link: "/bakery",
-      image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=1200&auto=format&fit=crop&q=80"
+      title: "Birthday Joy, Gift-wrapped",
+      link: "/birthday-cakes",
+      image: "/banners/hero-birthday-gift-wrapped.png"
+    },
+    {
+      title: "Gourmet Cakes for Your Celebration",
+      link: "/cakes",
+      image: "/banners/hero-gourmet-cakes-celebration.png"
+    },
+    {
+      title: "Picture-Perfect Balloon Decor",
+      link: "/celebrations",
+      image: "/banners/hero-balloon-decor.png"
     }
   ];
 
@@ -67,7 +66,7 @@ export default function HomePage() {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-    }, 6000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [HERO_SLIDES.length]);
 
@@ -115,56 +114,64 @@ export default function HomePage() {
 
       <main className="flex-grow pb-16">
         
-        {/* 1. COMPACT HERO CAROUSEL BANNER (300-420px height) */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="relative h-[280px] sm:h-[350px] md:h-[400px] w-full rounded-[24px] sm:rounded-[32px] overflow-hidden bg-brand-blush shadow-sm border border-zinc-200/10">
+        {/* 1. COMPACT HERO CAROUSEL BANNER (3:1 Native Aspect Ratio) */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 sm:py-5">
+          <div className="relative aspect-[3/1] w-full rounded-[16px] sm:rounded-[24px] md:rounded-[32px] overflow-hidden bg-brand-blush shadow-sm border border-zinc-200/20 group">
             {HERO_SLIDES.map((slide, index) => (
-              <div
+              <Link
                 key={index}
-                className={`absolute inset-0 transition-opacity duration-1000 flex items-center justify-start ${
-                  currentHeroSlide === index ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                href={slide.link}
+                className={`absolute inset-0 block transition-opacity duration-700 ${
+                  currentHeroSlide === index ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
                 }`}
+                aria-label={slide.title}
               >
-                <SafeImage
+                <img
                   src={slide.image}
                   alt={slide.title}
-                  className="absolute inset-0 h-full w-full object-cover select-none pointer-events-none filter brightness-90"
+                  className="h-full w-full object-cover select-none"
+                  loading={index === 0 ? 'eager' : 'lazy'}
                 />
-                
-                {/* Visual dark overlay for readability */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/35 to-transparent" />
-
-                <div className="relative z-10 p-6 sm:p-12 md:p-16 max-w-lg text-white space-y-4 text-left">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-burgundy text-brand-gold text-[8px] font-black uppercase tracking-widest shadow">
-                    ⚡ FAST DELIVERY
-                  </div>
-                  <h1 className="text-2xl sm:text-4xl font-serif font-black leading-tight tracking-tight">
-                    {slide.title}
-                  </h1>
-                  <p className="text-xs sm:text-sm text-zinc-200 font-medium">
-                    {slide.subtitle}
-                  </p>
-                  <div className="pt-2">
-                    <Link
-                      href={slide.link}
-                      className="inline-flex items-center gap-2 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-serif font-bold text-[10px] uppercase tracking-wider px-6 py-3 rounded-full shadow-md transition-all hover:scale-103"
-                    >
-                      <span>{slide.cta}</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              </Link>
             ))}
 
+            {/* Desktop Previous / Next Navigation Arrows */}
+            <button
+              aria-label="Previous Slide"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentHeroSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+              }}
+              className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/80 hover:bg-white text-zinc-800 shadow-md backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center cursor-pointer"
+            >
+              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+            </button>
+            <button
+              aria-label="Next Slide"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+              }}
+              className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/80 hover:bg-white text-zinc-800 shadow-md backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center cursor-pointer"
+            >
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+            </button>
+
             {/* Slide dots */}
-            <div className="absolute bottom-4 right-6 z-20 flex gap-2">
+            <div className="absolute bottom-2.5 right-3.5 sm:bottom-4 sm:right-6 z-20 flex gap-1.5 sm:gap-2">
               {HERO_SLIDES.map((_, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setCurrentHeroSlide(idx)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    currentHeroSlide === idx ? 'w-6 bg-brand-burgundy' : 'w-2 bg-white/50'
+                  aria-label={`Slide ${idx + 1}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCurrentHeroSlide(idx);
+                  }}
+                  className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
+                    currentHeroSlide === idx ? 'w-5 sm:w-6 bg-brand-burgundy' : 'w-1.5 sm:w-2 bg-black/25 hover:bg-black/50'
                   }`}
                 />
               ))}
