@@ -64,23 +64,27 @@ export async function createSession(userId: string, email: string, role: string)
   const activePool = getPool();
   if (activePool) {
     try {
+      await activePool.query(`
+        CREATE TABLE IF NOT EXISTS "sessions" (
+          "sessionId" TEXT,
+          "userId" TEXT,
+          "email" TEXT,
+          "role" TEXT,
+          "expiresAt" TEXT
+        );
+      `).catch(() => {});
+
       await activePool.query(
-        `INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt", sessionid, userid, expiresat) 
-         VALUES ($1, $2, $3, $4, $5, $1, $2, $5)`,
+        'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5)',
         [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
       ).catch(async () => {
         await activePool.query(
-          'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5)',
+          'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
           [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
-        ).catch(async () => {
-          await activePool.query(
-            'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
-            [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
-          ).catch(() => {});
-        });
+        ).catch(() => {});
       });
     } catch (e) {
-      console.warn('Session db.query warning:', e);
+      console.warn('Session DB persistence warning:', e);
     }
   }
 
@@ -137,22 +141,17 @@ export async function getSession(request?: Request): Promise<Session | null> {
   const activePool = getPool();
   if (activePool) {
     try {
-      const res = await activePool.query(
-        `SELECT * FROM "sessions" 
-         WHERE "sessionId" = $1 
-            OR sessionid = $1 
-            OR LOWER(TRIM(COALESCE("sessionId", sessionid, ''))) = LOWER(TRIM($1)) 
-         LIMIT 1`, 
+      let res = await activePool.query(
+        'SELECT * FROM "sessions" WHERE "sessionId" = $1 OR sessionid = $1 LIMIT 1', 
         [cleanToken]
-      ).catch(async () => {
-        return await activePool.query(
-          `SELECT * FROM sessions 
-           WHERE sessionid = $1 
-              OR LOWER(TRIM(sessionid)) = LOWER(TRIM($1)) 
-           LIMIT 1`,
+      ).catch(() => null);
+
+      if (!res || !res.rows || res.rows.length === 0) {
+        res = await activePool.query(
+          'SELECT * FROM sessions WHERE sessionid = $1 OR "sessionId" = $1 LIMIT 1', 
           [cleanToken]
-        );
-      });
+        ).catch(() => null);
+      }
 
       if (res && res.rows && res.rows.length > 0) {
         const raw = res.rows[0];
@@ -204,9 +203,9 @@ export async function deleteSession(sessionId: string): Promise<void> {
   const activePool = getPool();
   if (activePool) {
     try {
-      await activePool.query('DELETE FROM "sessions" WHERE LOWER(TRIM("sessionId")) = LOWER(TRIM($1))', [cleanId])
+      await activePool.query('DELETE FROM "sessions" WHERE "sessionId" = $1 OR sessionid = $1', [cleanId])
         .catch(async () => {
-          await activePool.query('DELETE FROM sessions WHERE LOWER(TRIM(sessionid)) = LOWER(TRIM($1))', [cleanId]).catch(() => {});
+          await activePool.query('DELETE FROM sessions WHERE sessionid = $1 OR "sessionId" = $1', [cleanId]).catch(() => {});
         });
     } catch (e) {
       console.warn('Delete session error:', e);
