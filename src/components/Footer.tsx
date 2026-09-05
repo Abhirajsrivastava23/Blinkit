@@ -52,12 +52,11 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2 text-xs">
               <li><Link href="/cakes" className="hover:text-white transition-colors">Cakes</Link></li>
-              <li><Link href="/bakery" className="hover:text-white transition-colors">Bakery</Link></li>
               <li><Link href="/pastries" className="hover:text-white transition-colors">Pastries</Link></li>
+              <li><Link href="/desserts" className="hover:text-white transition-colors">Desserts</Link></li>
               <li><Link href="/flowers" className="hover:text-white transition-colors">Flowers</Link></li>
-              <li><Link href="/gifts" className="hover:text-white transition-colors">Gifts & Hampers</Link></li>
               <li><Link href="/chocolates" className="hover:text-white transition-colors">Chocolates</Link></li>
-              <li><Link href="/celebrations" className="hover:text-white transition-colors">Celebrations</Link></li>
+              <li><Link href="/gifts" className="hover:text-white transition-colors">Gift Hampers</Link></li>
             </ul>
           </div>
 

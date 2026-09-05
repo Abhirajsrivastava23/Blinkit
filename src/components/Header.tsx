@@ -147,12 +147,12 @@ export default function Header() {
 
   const navLinks = [
     { href: '/', label: 'Home' },
-    { href: '/birthday-cakes', label: 'Birthday Cakes' },
-    { href: '/chocolate-cakes', label: 'Chocolate Cakes' },
+    { href: '/cakes', label: 'Cakes' },
     { href: '/pastries', label: 'Pastries' },
-    { href: '/beer-theme-cakes', label: 'Beer Theme Cakes' },
     { href: '/desserts', label: 'Desserts' },
-    { href: '/cakes', label: 'All Cakes' }
+    { href: '/flowers', label: 'Flowers' },
+    { href: '/chocolates', label: 'Chocolates' },
+    { href: '/gifts', label: 'Gift Hampers' }
   ];
 
   return (

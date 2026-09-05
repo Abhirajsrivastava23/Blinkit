@@ -283,7 +283,7 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 5. SHOP BY CATEGORY (SHOP WHAT YOU LOVE 4x2 grid) */}
+        {/* 5. SHOP BY CATEGORY (SHOP WHAT YOU LOVE 6-section grid) */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 border-y border-zinc-200/20 bg-brand-blush/40 my-6 rounded-[24px]">
           <div className="text-center space-y-1.5 mb-8">
             <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
@@ -291,15 +291,15 @@ export default function HomePage() {
             </span>
             <h2 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">Shop What You Love</h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {CATEGORIES.filter(cat => cat.id !== 'wellness' || wellnessPublished).slice(0, 8).map((cat) => {
-              const label = cat.name.split(' & ')[0];
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {CATEGORIES.filter(cat => cat.id !== 'wellness' || wellnessPublished).map((cat) => {
+              const label = cat.name;
               const targetLink = cat.id === 'wellness' ? '/wellness' : `/${cat.id}`;
               return (
                 <Link
                   key={cat.id}
                   href={targetLink}
-                  className="relative h-32 rounded-2xl overflow-hidden shadow-sm border border-zinc-200/10 group bg-white"
+                  className="relative h-36 rounded-2xl overflow-hidden shadow-sm border border-zinc-200/10 group bg-white"
                 >
                   <SafeImage
                     src={cat.image}
@@ -311,7 +311,7 @@ export default function HomePage() {
                   <div className="absolute bottom-4 left-4 text-white text-left z-10">
                     <h4 className="font-serif font-extrabold text-sm sm:text-base">{label}</h4>
                     <span className="text-[8px] font-black uppercase tracking-wider text-brand-gold flex items-center gap-1.5 mt-1">
-                      Shop category <ArrowRight className="h-2 w-2" />
+                      Shop now <ArrowRight className="h-2 w-2" />
                     </span>
                   </div>
                 </Link>

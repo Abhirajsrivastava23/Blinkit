@@ -198,13 +198,13 @@ export default function ProductListingPage({ categoryKey, title, description }: 
             )}
           </div>
 
-          {/* DEDICATED BEST CAKES SECTION FOR VIKI / CAKES */}
+          {/* DEDICATED BEST CAKES SECTION FOR CAKES */}
           {isCakesPage && bestCakes.length > 0 && !searchVal && !initialOccasion && selectedSubCategory === 'All' && (
             <section className="mb-10 bg-gradient-to-br from-brand-blush/60 via-white to-amber-50/40 border border-brand-burgundy/15 rounded-3xl p-5 sm:p-6 shadow-sm">
               <div className="flex justify-between items-baseline mb-4 text-left">
                 <div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-burgundy text-brand-gold text-[8px] font-black uppercase tracking-widest shadow-sm mb-1">
-                    <Sparkles className="h-3 w-3" /> VIKI Top Rated
+                    <Sparkles className="h-3 w-3" /> Top Rated Cakes
                   </div>
                   <h2 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">
                     Best Cakes 🎂
@@ -219,7 +219,7 @@ export default function ProductListingPage({ categoryKey, title, description }: 
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 {bestCakes.map((product) => (
-                  <ProductCard key={`viki-best-${product.id}`} product={product} />
+                  <ProductCard key={`best-cakes-${product.id}`} product={product} />
                 ))}
               </div>
             </section>

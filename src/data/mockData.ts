@@ -64,12 +64,12 @@ export interface Combo {
 import productsJson from './db/products.json';
 
 export const CATEGORIES = [
-  { id: 'birthday-cakes', name: 'Birthday Cakes', desc: 'Handcrafted celebratory birthday cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
-  { id: 'chocolate-cakes', name: 'Chocolate Cakes', desc: 'Rich truffle, ganache & Belgian chocolate cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
+  { id: 'cakes', name: 'Cakes', desc: 'Freshly baked celebratory & designer cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
   { id: 'pastries', name: 'Pastries', desc: 'Fresh individual pastry slices & party boxes', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80' },
-  { id: 'beer-theme-cakes', name: 'Beer Theme Cakes', desc: 'Creative bachelor, beer mug & celebratory cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
   { id: 'desserts', name: 'Desserts', desc: 'Cheesecakes, jar cakes, verrine cups & cookies', image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop&q=80' },
-  { id: 'cakes', name: 'All Cakes', desc: 'Freshly baked artisanal premium cakes', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80' },
+  { id: 'flowers', name: 'Flowers', desc: 'Fresh flower bouquets & floral arrangements', image: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=600&auto=format&fit=crop&q=80' },
+  { id: 'chocolates', name: 'Chocolates', desc: 'Handcrafted luxury chocolate truffles & bars', image: 'https://images.unsplash.com/photo-1511381939415-e44015466834?w=600&auto=format&fit=crop&q=80' },
+  { id: 'gifts', name: 'Gift Hampers', desc: 'Curated celebration gift hampers & boxes', image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80' },
   { id: 'wellness', name: 'Wellness (18+)', desc: 'Discreet and lawful adult-wellness essentials', image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop&q=80' }
 ];
 
