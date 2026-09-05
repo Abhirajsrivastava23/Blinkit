@@ -377,31 +377,25 @@ export default function OrderTrackingPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {['Out for Delivery'].includes(order.status) ? (
+                    {order.deliveryOtp ? (
                       <div className="text-center space-y-3">
-                        <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-1">
-                          <span className="text-[9px] text-zinc-400 font-black uppercase tracking-widest block">YOUR DELIVERY OTP</span>
-                          <span className="text-2xl font-mono font-black text-brand-burgundy tracking-widest block">
-                            {order.deliveryOtp || '******'}
+                        <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-1">
+                          <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block">Delivery OTP</span>
+                          <span className="text-2xl sm:text-3xl font-mono font-black text-emerald-950 tracking-widest block">
+                            {order.deliveryOtp}
                           </span>
                         </div>
-                        <p className="text-[9px] text-amber-700 leading-normal font-bold">
-                          ⚠️ Share this OTP with the delivery partner only after receiving your order.
+                        <p className="text-[11px] text-emerald-700 leading-normal font-medium">
+                          Give this OTP to the delivery partner when your order arrives.
                         </p>
-                        <button
-                          onClick={handleRegenerateOtp}
-                          className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-[9px] font-bold uppercase rounded-lg text-zinc-650 transition-all font-sans"
-                        >
-                          Regenerate OTP
-                        </button>
                       </div>
                     ) : (
                       <div className="text-center p-4 bg-zinc-50 border rounded-2xl">
                         <span className="text-2xl font-mono font-black text-zinc-300 tracking-widest block">
                           ******
                         </span>
-                        <p className="text-[9px] text-zinc-450 leading-normal mt-2 font-medium">
-                          OTP will become available when the runner is Out for Delivery.
+                        <p className="text-[9px] text-zinc-400 leading-normal mt-2 font-medium">
+                          Delivery OTP will appear here once order is assigned.
                         </p>
                       </div>
                     )}

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, ArrowLeft, ShoppingBag, X, AlertTriangle, CreditCard } from 'lucide-react';
+import { Truck, MapPin, Clock, ArrowLeft, ShoppingBag, X, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
 import { useOrders, Order, STATUS_RANK } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
@@ -264,6 +264,26 @@ export default function AccountOrderDetailPage() {
 
         {/* Info detail card */}
         <div className="space-y-6">
+
+          {/* Delivery OTP */}
+          {order.deliveryOtp && order.status !== 'Cancelled' && (
+            <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-sm">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">Delivery OTP</p>
+                  <p className="text-[11px] text-emerald-700 font-medium">Give this OTP to the delivery partner when your order arrives.</p>
+                </div>
+              </div>
+              <div className="text-right pl-3">
+                <span className="font-mono text-xl md:text-2xl font-black text-emerald-900 tracking-widest bg-white px-3 py-1.5 rounded-lg border border-emerald-200 shadow-inner inline-block">
+                  {order.deliveryOtp}
+                </span>
+              </div>
+            </div>
+          )}
           
           {/* Destination */}
           <div className="p-5 border rounded-2xl space-y-2">

@@ -163,9 +163,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const serverPaid = serverOrder.paymentStatus === 'PAID' || serverRank >= 20;
 
               if (existingPaid && !serverPaid && serverOrder.paymentStatus !== 'REJECTED') {
-                return { ...serverOrder, paymentStatus: 'PAID' as const };
+                return { 
+                  ...serverOrder, 
+                  paymentStatus: 'PAID' as const,
+                  deliveryOtp: (serverOrder.deliveryOtp && serverOrder.deliveryOtp !== '******') ? serverOrder.deliveryOtp : (existing.deliveryOtp || serverOrder.deliveryOtp)
+                };
               }
-              return serverOrder;
+
+              const finalOtp = (serverOrder.deliveryOtp && serverOrder.deliveryOtp !== '******')
+                ? serverOrder.deliveryOtp
+                : (existing.deliveryOtp || serverOrder.deliveryOtp);
+
+              return {
+                ...serverOrder,
+                deliveryOtp: finalOtp
+              };
             });
 
             // Preserve freshly created local orders placed in last 15 seconds while in-flight

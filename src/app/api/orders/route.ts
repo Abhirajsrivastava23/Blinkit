@@ -135,14 +135,11 @@ export async function GET(request: Request) {
         return Boolean(isDirectMatch || isPhoneMatch);
       });
 
-      const sanitized = filtered.map((o: any) => {
-        const otpActive = o.deliveryOtp && o.otpExpiresAt && new Date(o.otpExpiresAt) > new Date();
-        if (o.status !== 'Out for Delivery' && o.status !== 'Delivered' && !otpActive) {
-          return { ...o, deliveryOtp: '******' };
-        }
-        return o;
-      });
-      return NextResponse.json(sanitized);
+      const customerOrders = filtered.map((o: any) => ({
+        ...o,
+        deliveryOtp: o.deliveryOtp || o.deliveryotp || null
+      }));
+      return NextResponse.json(customerOrders);
     }
 
     return NextResponse.json({ error: 'Unauthorized role' }, { status: 403 });

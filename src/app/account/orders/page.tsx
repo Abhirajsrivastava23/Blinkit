@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight, X } from 'lucide-react';
+import { ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight, X, ShieldCheck } from 'lucide-react';
 import { useOrders } from '../../../context/OrderContext';
 import { useAuth } from '../../../context/AuthContext';
 import SafeImage from '../../../components/SafeImage';
@@ -309,6 +309,32 @@ export default function AccountOrdersPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Delivery OTP Card */}
+                {order.deliveryOtp && order.deliveryOtp !== '******' && order.status !== 'Cancelled' && (
+                  <div className="my-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/70 border border-amber-200/90 rounded-xl flex items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 bg-amber-500/10 text-amber-800 rounded-lg flex-shrink-0">
+                        <ShieldCheck className="h-5 w-5 text-brand-burgundy" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-900">
+                          Delivery OTP
+                        </p>
+                        <p className="text-[11px] text-zinc-600 font-medium leading-tight mt-0.5">
+                          Give this OTP to the delivery partner when your order arrives.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="px-3.5 py-1.5 bg-white border border-amber-300/80 rounded-lg shadow-sm">
+                        <span className="font-mono text-lg md:text-xl font-black text-brand-burgundy tracking-widest block">
+                          {order.deliveryOtp}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Footer: Payment, Delivery & Actions */}
                 <div className="pt-4 space-y-3 border-t border-zinc-100">

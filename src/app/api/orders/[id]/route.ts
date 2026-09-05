@@ -108,18 +108,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       );
 
       if (!isOwner && session.role !== 'admin') {
-        // Return sanitized order for payment flow to avoid breaking customer payment
+        // Return sanitized order without sensitive OTP for non-owners
         const { deliveryOtp, ...sanitized } = order;
         return NextResponse.json(sanitized);
       }
 
-      const otpActive = order.deliveryOtp && order.otpExpiresAt && new Date(String(order.otpExpiresAt)) > new Date();
-      if (order.status !== 'Out for Delivery' && order.status !== 'Delivered' && !otpActive) {
-        const masked = { ...order, deliveryOtp: '******' };
-        return NextResponse.json(masked);
-      }
-
-      return NextResponse.json(order);
+      return NextResponse.json({
+        ...order,
+        deliveryOtp: order.deliveryOtp || (order as any).deliveryotp || null
+      });
     }
   } catch (err) {
     console.error('Error fetching order details:', err);
