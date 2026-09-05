@@ -52,21 +52,24 @@ export async function POST(request: Request) {
     }
 
     // 2. Check Delivery Partner Accounts (DB + Seed)
-    const partners = await db.readTable<any>('partners') || [];
-    const cleanDigits = cleanInput.replace(/\D/g, '');
-
-    let partnerObj = partners.find(p => {
-      const pId = String(p.id || p.ID || '').trim().toLowerCase();
-      const pEmail = String(p.email || '').trim().toLowerCase();
-      const pPhone = String(p.phone || '').replace(/\D/g, '');
-      return (
-        (pId && pId === cleanInput) ||
-        (pEmail && pEmail === cleanInput) ||
-        (pPhone && cleanDigits && pPhone === cleanDigits)
-      );
-    });
+    let partnerObj: any = await db.getPartnerById(cleanInput);
+    if (!partnerObj) {
+      const partners = await db.getPartners();
+      const cleanDigits = cleanInput.replace(/\D/g, '');
+      partnerObj = partners.find(p => {
+        const pId = String(p.id || p.ID || '').trim().toLowerCase();
+        const pEmail = String(p.email || '').trim().toLowerCase();
+        const pPhone = String(p.phone || '').replace(/\D/g, '');
+        return (
+          (pId && pId === cleanInput) ||
+          (pEmail && pEmail === cleanInput) ||
+          (pPhone && cleanDigits && pPhone === cleanDigits)
+        );
+      });
+    }
 
     if (!partnerObj) {
+      const cleanDigits = cleanInput.replace(/\D/g, '');
       partnerObj = (partnersJson as any[]).find((p: any) => {
         const pId = String(p.id || '').trim().toLowerCase();
         const pEmail = String(p.email || '').trim().toLowerCase();

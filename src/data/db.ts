@@ -906,7 +906,13 @@ export const db = {
     
     try {
       const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
-      const res = await activePool.query(`SELECT * FROM "${tableName}"`);
+      
+      let res: { rows: any[] };
+      try {
+        res = await activePool.query(`SELECT * FROM ${tableName}`);
+      } catch {
+        res = await activePool.query(`SELECT * FROM "${tableName}"`);
+      }
       
       const parsedList = res.rows.map(row => {
         let parsed: Record<string, unknown> = {};
