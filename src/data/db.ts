@@ -177,22 +177,47 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
 
     // 3. Ensure sessions table exists with indexes and schema resilience
     await p.query(`
-      CREATE TABLE IF NOT EXISTS "sessions" (
-        "sessionId" TEXT,
-        "userId" TEXT,
-        "email" TEXT,
-        "role" TEXT,
-        "expiresAt" TEXT
+      CREATE TABLE IF NOT EXISTS sessions (
+        sessionid TEXT,
+        userid TEXT,
+        email TEXT,
+        role TEXT,
+        expiresat TEXT
       );
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "sessionId" TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "userId" TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "email" TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "role" TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "expiresAt" TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS sessionid TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS userid TEXT;
-      ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS expiresat TEXT;
-      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON "sessions" ("userId");
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sessionid TEXT;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS userid TEXT;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS role TEXT;
+      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expiresat TEXT;
+      CREATE INDEX IF NOT EXISTS idx_sessions_userid ON sessions (userid);
+      CREATE INDEX IF NOT EXISTS idx_sessions_sessionid ON sessions (sessionid);
+    `).catch(() => {});
+
+    // 4. Ensure partners table exists with standard columns
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS partners (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        phone TEXT,
+        email TEXT,
+        passwordhash TEXT,
+        role TEXT DEFAULT 'delivery_partner',
+        locationid TEXT,
+        locationname TEXT,
+        status TEXT DEFAULT 'Active',
+        isonline BOOLEAN DEFAULT false
+      );
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS id TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS name TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS phone TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS passwordhash TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS role TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationid TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationname TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS status TEXT;
+      ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN;
+      CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
     `).catch(() => {});
 
     schemaEnsured = true;
@@ -839,6 +864,31 @@ export const db = {
         return parsed;
       }) as T[]
     };
+  },
+
+  async saveSession(session: Record<string, unknown>): Promise<void> {
+    const list = inMemoryData['sessions'] || [];
+    const cleanId = String(session.sessionId || session.sessionid || '').toLowerCase().trim();
+    const idx = list.findIndex((s: any) => String(s.sessionId || s.sessionid || '').toLowerCase().trim() === cleanId);
+    if (idx >= 0) {
+      list[idx] = session;
+    } else {
+      list.push(session);
+    }
+    inMemoryData['sessions'] = list;
+  },
+
+  async getSessionById(sessionId: string): Promise<Record<string, unknown> | null> {
+    const cleanId = String(sessionId || '').toLowerCase().trim();
+    const list = inMemoryData['sessions'] || [];
+    const found = list.find((s: any) => String(s.sessionId || s.sessionid || '').toLowerCase().trim() === cleanId);
+    return found ? normalizeSessionRecord(found) : null;
+  },
+
+  async deleteSessionById(sessionId: string): Promise<void> {
+    const cleanId = String(sessionId || '').toLowerCase().trim();
+    const list = inMemoryData['sessions'] || [];
+    inMemoryData['sessions'] = list.filter((s: any) => String(s.sessionId || s.sessionid || '').toLowerCase().trim() !== cleanId);
   },
 
   async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions'): Promise<T[]> {
@@ -1958,7 +2008,7 @@ export const db = {
     } else {
       try {
         const query = locationId
-          ? 'SELECT * FROM partners WHERE LOWER(TRIM("locationId")) = LOWER(TRIM($1)) ORDER BY id ASC'
+          ? 'SELECT * FROM partners WHERE LOWER(TRIM(locationid)) = LOWER(TRIM($1)) ORDER BY id ASC'
           : 'SELECT * FROM partners ORDER BY id ASC';
         const params = locationId ? [locationId] : [];
         const res = await activePool.query(query, params);
@@ -2056,17 +2106,17 @@ export const db = {
     if (activePool) {
       try {
         const query = `
-          INSERT INTO partners (id, name, phone, email, "passwordHash", role, "locationId", "locationName", status, "isOnline")
+          INSERT INTO partners (id, name, phone, email, passwordhash, role, locationid, locationname, status, isonline)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             phone = COALESCE(EXCLUDED.phone, partners.phone),
             email = COALESCE(EXCLUDED.email, partners.email),
-            "passwordHash" = CASE WHEN EXCLUDED."passwordHash" != '' THEN EXCLUDED."passwordHash" ELSE partners."passwordHash" END,
-            "locationId" = COALESCE(EXCLUDED."locationId", partners."locationId"),
-            "locationName" = COALESCE(EXCLUDED."locationName", partners."locationName"),
+            passwordhash = CASE WHEN EXCLUDED.passwordhash != '' THEN EXCLUDED.passwordhash ELSE partners.passwordhash END,
+            locationid = COALESCE(EXCLUDED.locationid, partners.locationid),
+            locationname = COALESCE(EXCLUDED.locationname, partners.locationname),
             status = COALESCE(EXCLUDED.status, partners.status),
-            "isOnline" = COALESCE(EXCLUDED."isOnline", partners."isOnline")
+            isonline = COALESCE(EXCLUDED.isonline, partners.isonline)
           RETURNING *;
         `;
         const res = await activePool.query(query, [

@@ -5,8 +5,23 @@ const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 function extractCookie(res) {
   const setCookie = res.headers.get('set-cookie');
   if (!setCookie) return '';
-  // Extract key=value before first semicolon for each cookie
-  return setCookie.split(',').map(part => part.split(';')[0].trim()).filter(Boolean).join('; ');
+  const match = setCookie.match(/fatafat_session_token=([^;]+)/);
+  if (match) {
+    return `fatafat_session_token=${match[1]}`;
+  }
+  return setCookie.split(';')[0];
+}
+
+function getAuthHeaders(cookieStr) {
+  const tokenMatch = cookieStr ? cookieStr.match(/fatafat_session_token=([^;]+)/) : null;
+  const token = tokenMatch ? tokenMatch[1] : '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (cookieStr) headers['Cookie'] = cookieStr;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['x-session-token'] = token;
+  }
+  return headers;
 }
 
 async function runCompleteLifecycleTest() {
@@ -51,7 +66,7 @@ async function runCompleteLifecycleTest() {
 
     const createPartnerRes = await fetch(`${baseUrl}/api/admin/partners`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': adminCookie },
+      headers: getAuthHeaders(adminCookie),
       body: JSON.stringify({
         id: riderId,
         name: riderName,
@@ -91,7 +106,7 @@ async function runCompleteLifecycleTest() {
     const orderId = `FT${Math.floor(100000 + Math.random() * 900000)}`;
     const createOrderRes = await fetch(`${baseUrl}/api/orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': custCookie },
+      headers: getAuthHeaders(custCookie),
       body: JSON.stringify({
         id: orderId,
         items: [
@@ -125,7 +140,7 @@ async function runCompleteLifecycleTest() {
     // Create Razorpay Gateway Order
     const createRzpOrderRes = await fetch(`${baseUrl}/api/payments/razorpay/create-order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': custCookie },
+      headers: getAuthHeaders(custCookie),
       body: JSON.stringify({ orderId })
     });
     const createRzpOrderJson = await createRzpOrderRes.json();
@@ -142,7 +157,7 @@ async function runCompleteLifecycleTest() {
     // Server-Side Verification
     const verifyRes = await fetch(`${baseUrl}/api/payments/razorpay/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': custCookie },
+      headers: getAuthHeaders(custCookie),
       body: JSON.stringify({
         orderId: `#${orderId}`,
         razorpay_order_id: rzpOrderId,
@@ -158,7 +173,7 @@ async function runCompleteLifecycleTest() {
     // ---------------------------------------------------------
     console.log('\n--- 3. Customer Order Visibility & Persistence ---');
     const custFetchOrderRes = await fetch(`${baseUrl}/api/orders/${orderId}`, {
-      headers: { 'Cookie': custCookie }
+      headers: getAuthHeaders(custCookie)
     });
     const custFetchOrderJson = await custFetchOrderRes.json();
     const custOrder = custFetchOrderJson.order || custFetchOrderJson;
@@ -170,7 +185,7 @@ async function runCompleteLifecycleTest() {
 
     // Customer My Orders list check
     const custMyOrdersRes = await fetch(`${baseUrl}/api/orders`, {
-      headers: { 'Cookie': custCookie }
+      headers: getAuthHeaders(custCookie)
     });
     const custMyOrdersJson = await custMyOrdersRes.json();
     const myOrdersList = custMyOrdersJson.orders || custMyOrdersJson;
@@ -182,7 +197,7 @@ async function runCompleteLifecycleTest() {
     // ---------------------------------------------------------
     console.log('\n--- 4. Admin Visibility & Delivery Partner Assignment ---');
     const adminOrdersRes = await fetch(`${baseUrl}/api/orders`, {
-      headers: { 'Cookie': adminCookie }
+      headers: getAuthHeaders(adminCookie)
     });
     const adminOrdersJson = await adminOrdersRes.json();
     const allAdminOrders = adminOrdersJson.orders || adminOrdersJson;
@@ -194,7 +209,7 @@ async function runCompleteLifecycleTest() {
     // Admin assigns order to delivery partner
     const assignRes = await fetch(`${baseUrl}/api/orders/update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': adminCookie },
+      headers: getAuthHeaders(adminCookie),
       body: JSON.stringify({
         id: orderId,
         status: 'Assigned',
@@ -206,7 +221,7 @@ async function runCompleteLifecycleTest() {
 
     // Verify persistence after simulated refresh
     const adminRefreshRes = await fetch(`${baseUrl}/api/orders/${orderId}`, {
-      headers: { 'Cookie': adminCookie }
+      headers: getAuthHeaders(adminCookie)
     });
     const adminRefreshRaw = await adminRefreshRes.json();
     const adminRefreshedOrder = adminRefreshRaw.order || adminRefreshRaw;
@@ -218,7 +233,7 @@ async function runCompleteLifecycleTest() {
     // ---------------------------------------------------------
     console.log('\n--- 5. Delivery Partner Visibility & Status Transitions ---');
     const partnerOrdersRes = await fetch(`${baseUrl}/api/delivery/orders`, {
-      headers: { 'Cookie': riderCookie }
+      headers: getAuthHeaders(riderCookie)
     });
     const partnerOrdersJson = await partnerOrdersRes.json();
     const partnerOrdersList = partnerOrdersJson.orders || partnerOrdersJson;
@@ -230,7 +245,7 @@ async function runCompleteLifecycleTest() {
     // Transition 1: Rider Accepts Order
     const acceptRes = await fetch(`${baseUrl}/api/orders/update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': riderCookie },
+      headers: getAuthHeaders(riderCookie),
       body: JSON.stringify({ id: orderId, status: 'Accepted' })
     });
     assert(acceptRes.status === 200, 'Rider successfully accepts order (Status: Accepted)');
@@ -238,7 +253,7 @@ async function runCompleteLifecycleTest() {
     // Transition 2: Rider Picks Up Order
     const pickupRes = await fetch(`${baseUrl}/api/orders/update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': riderCookie },
+      headers: getAuthHeaders(riderCookie),
       body: JSON.stringify({ id: orderId, status: 'Picked Up' })
     });
     assert(pickupRes.status === 200, 'Rider picks up order (Status: Picked Up)');
@@ -246,7 +261,7 @@ async function runCompleteLifecycleTest() {
     // Transition 3: Rider Marks Out for Delivery
     const outRes = await fetch(`${baseUrl}/api/orders/update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': riderCookie },
+      headers: getAuthHeaders(riderCookie),
       body: JSON.stringify({ id: orderId, status: 'Out for Delivery' })
     });
     assert(outRes.status === 200, 'Rider marks order Out for Delivery');
@@ -255,7 +270,7 @@ async function runCompleteLifecycleTest() {
     const orderOtp = adminRefreshedOrder?.deliveryOtp || initialDeliveryOtp;
     const verifyOtpRes = await fetch(`${baseUrl}/api/delivery/orders/${orderId}/verify-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': riderCookie },
+      headers: getAuthHeaders(riderCookie),
       body: JSON.stringify({ otp: orderOtp })
     });
     const verifyOtpJson = await verifyOtpRes.json();
@@ -268,7 +283,7 @@ async function runCompleteLifecycleTest() {
     
     // Check Admin View
     const finalAdminCheckRes = await fetch(`${baseUrl}/api/orders/${orderId}`, {
-      headers: { 'Cookie': adminCookie }
+      headers: getAuthHeaders(adminCookie)
     });
     const finalAdminRaw = await finalAdminCheckRes.json();
     const finalAdminOrder = finalAdminRaw.order || finalAdminRaw;
@@ -277,7 +292,7 @@ async function runCompleteLifecycleTest() {
 
     // Check Customer View
     const finalCustCheckRes = await fetch(`${baseUrl}/api/orders/${orderId}`, {
-      headers: { 'Cookie': custCookie }
+      headers: getAuthHeaders(custCookie)
     });
     const finalCustRaw = await finalCustCheckRes.json();
     const finalCustOrder = finalCustRaw.order || finalCustRaw;
@@ -295,7 +310,7 @@ async function runCompleteLifecycleTest() {
     // Customer attempts to call Admin partner management
     const custTamperPartners = await fetch(`${baseUrl}/api/admin/partners`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': custCookie },
+      headers: getAuthHeaders(custCookie),
       body: JSON.stringify({ id: 'hacker-partner', name: 'Hacker' })
     });
     assert(custTamperPartners.status === 401 || custTamperPartners.status === 403, 'Customer blocked from Admin partner management (401/403)');
@@ -303,7 +318,7 @@ async function runCompleteLifecycleTest() {
     // Customer attempts to mutate order status directly to Delivered
     const custTamperStatus = await fetch(`${baseUrl}/api/orders/update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': custCookie },
+      headers: getAuthHeaders(custCookie),
       body: JSON.stringify({ id: orderId, status: 'Preparing' })
     });
     assert(custTamperStatus.status === 400 || custTamperStatus.status === 403, 'Customer blocked from unauthorized status progression');
@@ -311,7 +326,7 @@ async function runCompleteLifecycleTest() {
     // Rider attempts to access Admin cleanup or partner management
     const riderTamperAdmin = await fetch(`${baseUrl}/api/admin/partners`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Cookie': riderCookie },
+      headers: getAuthHeaders(riderCookie),
       body: JSON.stringify({ id: 'unauthorized-partner', name: 'Rider Trying Admin' })
     });
     assert(riderTamperAdmin.status === 401 || riderTamperAdmin.status === 403, 'Rider blocked from Admin partner APIs (401/403)');

@@ -61,25 +61,32 @@ export async function createSession(userId: string, email: string, role: string)
     expiresAt
   };
 
+  // Always keep in-memory cache synchronized
+  try {
+    await db.saveSession(newSession as unknown as Record<string, unknown>);
+  } catch {}
+
   const activePool = getPool();
   if (activePool) {
     try {
       await activePool.query(`
-        CREATE TABLE IF NOT EXISTS "sessions" (
-          "sessionId" TEXT,
-          "userId" TEXT,
-          "email" TEXT,
-          "role" TEXT,
-          "expiresAt" TEXT
+        CREATE TABLE IF NOT EXISTS sessions (
+          sessionid TEXT,
+          userid TEXT,
+          email TEXT,
+          role TEXT,
+          expiresat TEXT
         );
       `).catch(() => {});
 
+      // 1. Try standard unquoted lowercase columns (standard Postgres)
       await activePool.query(
-        'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5)',
+        'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
         [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
       ).catch(async () => {
+        // 2. Fallback to quoted column names if created with exact casing
         await activePool.query(
-          'INSERT INTO sessions (sessionid, userid, email, role, expiresat) VALUES ($1, $2, $3, $4, $5)',
+          'INSERT INTO "sessions" ("sessionId", "userId", "email", "role", "expiresAt") VALUES ($1, $2, $3, $4, $5)',
           [sessionId, newSession.userId, newSession.email, newSession.role, expiresAt]
         ).catch(() => {});
       });
@@ -141,14 +148,16 @@ export async function getSession(request?: Request): Promise<Session | null> {
   const activePool = getPool();
   if (activePool) {
     try {
+      // 1. Try lowercase standard column query first
       let res = await activePool.query(
-        'SELECT * FROM "sessions" WHERE "sessionId" = $1 OR sessionid = $1 LIMIT 1', 
+        'SELECT * FROM sessions WHERE sessionid = $1 LIMIT 1', 
         [cleanToken]
       ).catch(() => null);
 
+      // 2. If no result or error, try quoted table / column query
       if (!res || !res.rows || res.rows.length === 0) {
         res = await activePool.query(
-          'SELECT * FROM sessions WHERE sessionid = $1 OR "sessionId" = $1 LIMIT 1', 
+          'SELECT * FROM "sessions" WHERE "sessionId" = $1 LIMIT 1', 
           [cleanToken]
         ).catch(() => null);
       }
@@ -156,11 +165,11 @@ export async function getSession(request?: Request): Promise<Session | null> {
       if (res && res.rows && res.rows.length > 0) {
         const raw = res.rows[0];
         const session: Session = {
-          sessionId: String(raw.sessionId || raw.sessionid || cleanToken),
-          userId: String(raw.userId || raw.userid || ''),
-          email: String(raw.email || ''),
-          role: String(raw.role || '').toLowerCase().trim(),
-          expiresAt: String(raw.expiresAt || raw.expiresat || '')
+          sessionId: String(raw.sessionid || raw.sessionId || raw.SESSIONID || cleanToken),
+          userId: String(raw.userid || raw.userId || raw.USERID || ''),
+          email: String(raw.email || raw.EMAIL || ''),
+          role: String(raw.role || raw.ROLE || '').toLowerCase().trim(),
+          expiresAt: String(raw.expiresat || raw.expiresAt || raw.EXPIRESAT || '')
         };
 
         if (!session.expiresAt || new Date(session.expiresAt) > new Date()) {
@@ -175,10 +184,7 @@ export async function getSession(request?: Request): Promise<Session | null> {
 
   // 5. Fallback check in memory data
   try {
-    const memSessions = await db.readTable<any>('sessions') || [];
-    const foundMem = memSessions.find((s: any) => 
-      String(s.sessionId || s.sessionid || '').toLowerCase().trim() === cleanToken.toLowerCase()
-    );
+    const foundMem = await db.getSessionById(cleanToken);
     if (foundMem) {
       const session: Session = {
         sessionId: String(foundMem.sessionId || foundMem.sessionid || cleanToken),
@@ -200,12 +206,16 @@ export async function getSession(request?: Request): Promise<Session | null> {
 export async function deleteSession(sessionId: string): Promise<void> {
   const cleanId = String(sessionId || '').trim();
   if (!cleanId) return;
+  try {
+    await db.deleteSessionById(cleanId);
+  } catch {}
+
   const activePool = getPool();
   if (activePool) {
     try {
-      await activePool.query('DELETE FROM "sessions" WHERE "sessionId" = $1 OR sessionid = $1', [cleanId])
+      await activePool.query('DELETE FROM sessions WHERE sessionid = $1', [cleanId])
         .catch(async () => {
-          await activePool.query('DELETE FROM sessions WHERE sessionid = $1 OR "sessionId" = $1', [cleanId]).catch(() => {});
+          await activePool.query('DELETE FROM "sessions" WHERE "sessionId" = $1', [cleanId]).catch(() => {});
         });
     } catch (e) {
       console.warn('Delete session error:', e);
