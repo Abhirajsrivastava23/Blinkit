@@ -167,7 +167,9 @@ export default function AccountOrderDetailPage() {
     const pStatus = String(order.paymentStatus || '').toUpperCase();
     const isPaid = pStatus === 'PAID' || pStatus === 'COMPLETED';
     if (!isPaid) return false;
-    return order.status === 'Delivered' || order.status === 'Cancelled' || order.status === 'Confirmed';
+    const normStatus = String(order.status || '').toLowerCase().trim();
+    const eligiblePrePreparation = ['pending', 'confirmed', 'order placed', 'payment confirmed', 'payment received'];
+    return eligiblePrePreparation.includes(normStatus);
   };
 
   const handleSubmitRefund = async (e: React.FormEvent) => {

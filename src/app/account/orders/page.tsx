@@ -219,7 +219,7 @@ export default function AccountOrdersPage() {
     }
   };
 
-  // Check if order is eligible for refund request
+  // Check if order is eligible for refund request (Pre-Preparation only)
   const canRequestRefund = (order: { status: string; paymentStatus?: string; total: number; id: string }): boolean => {
     const cleanOid = String(order.id).replace(/^#+/, '').trim().toLowerCase();
     const existingReq = refundRequests[cleanOid] || refundRequests[String(order.id).toLowerCase()];
@@ -229,7 +229,9 @@ export default function AccountOrdersPage() {
     const isPaid = pStatus === 'PAID' || pStatus === 'COMPLETED';
     if (!isPaid) return false;
 
-    return order.status === 'Delivered' || order.status === 'Cancelled' || order.status === 'Confirmed';
+    const normStatus = String(order.status || '').toLowerCase().trim();
+    const eligiblePrePreparation = ['pending', 'confirmed', 'order placed', 'payment confirmed', 'payment received'];
+    return eligiblePrePreparation.includes(normStatus);
   };
 
   const getRefundBadge = (refundReq: any) => {

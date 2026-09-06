@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Eligibility Checks
+    // 3. Eligibility Checks (Server-Side Source of Truth)
     const paymentStatus = String(order.paymentStatus || '').toUpperCase();
     const isPaid = paymentStatus === 'PAID' || paymentStatus === 'COMPLETED';
     if (!isPaid) {
@@ -68,6 +68,37 @@ export async function POST(request: Request) {
     const totalAmount = Number(order.total || 0);
     if (totalAmount <= 0) {
       return NextResponse.json({ error: 'Order total amount is invalid for refund.' }, { status: 400 });
+    }
+
+    // Strict Status Validation: Self-service refund is ONLY permitted before kitchen preparation begins
+    const rawStatus = String(order.status || '').trim();
+    const normStatus = rawStatus.toLowerCase();
+
+    const nonEligibleStatuses = [
+      'preparing',
+      'packed',
+      'ready for delivery',
+      'waiting for partner',
+      'assigned',
+      'accepted',
+      'picked up',
+      'out for delivery',
+      'delivered',
+      'cancelled'
+    ];
+
+    if (nonEligibleStatuses.includes(normStatus)) {
+      if (normStatus === 'cancelled') {
+        return NextResponse.json({ error: 'This order is already cancelled.' }, { status: 400 });
+      }
+      if (normStatus === 'delivered') {
+        return NextResponse.json({
+          error: 'Order has already been delivered. For damaged, defective, or incorrect products, please contact Customer Support with photo proof within 2 hours of delivery.'
+        }, { status: 400 });
+      }
+      return NextResponse.json({
+        error: `Cancellation and refund cannot be requested once order preparation has begun (Current state: "${rawStatus}"). For urgent assistance, please contact Customer Support.`
+      }, { status: 400 });
     }
 
     // 4. Duplicate Prevention: Check if a request already exists for this order
