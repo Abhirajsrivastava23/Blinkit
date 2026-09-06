@@ -711,13 +711,14 @@ export function normalizeOrderRecord(row: Record<string, unknown>): Record<strin
     }
   }
 
-  // Guarantee structured array for items
+  // Guarantee structured array for items while preserving all customer customisations
   if (Array.isArray(parsed.items)) {
     parsed.items = parsed.items.map((item: any) => {
       if (!item || typeof item !== 'object') return item;
       const price = Number(item.price || 0);
       const qty = Number(item.quantity || 1);
       return {
+        ...item,
         productId: String(item.productId || item.id || '').trim(),
         id: String(item.id || item.productId || '').trim(),
         name: String(item.name || item.title || 'Product').trim(),
@@ -726,6 +727,14 @@ export function normalizeOrderRecord(row: Record<string, unknown>): Record<strin
         image: item.image || item.imageUrl || '',
         unit: item.unit || '',
         category: item.category || undefined,
+        selectedSize: item.selectedSize || item.size || item.weight || undefined,
+        selectedType: item.selectedType || item.type || item.eggless || undefined,
+        cakeMessage: item.cakeMessage || item.message || item.text || undefined,
+        customImage: item.customImage || item.photoUrl || item.uploadedImage || undefined,
+        addons: Array.isArray(item.addons) ? item.addons : (item.addons ? [item.addons] : undefined),
+        flavour: item.flavour || item.flavor || undefined,
+        specialInstructions: item.specialInstructions || item.instructions || item.notes || undefined,
+        customisation: item.customisation || item.customization || undefined,
         subtotal: Number(item.subtotal || (price * qty))
       };
     });

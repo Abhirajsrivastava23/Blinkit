@@ -246,6 +246,14 @@ export async function POST(request: Request) {
           image: item.image || item.imageUrl || '',
           unit: item.unit || '',
           category: item.category || undefined,
+          selectedSize: item.selectedSize || item.size || item.weight || undefined,
+          selectedType: item.selectedType || item.type || item.eggless || undefined,
+          cakeMessage: item.cakeMessage || item.message || item.text || undefined,
+          customImage: item.customImage || item.photoUrl || item.uploadedImage || undefined,
+          addons: Array.isArray(item.addons) ? item.addons : (item.addons ? [item.addons] : undefined),
+          flavour: item.flavour || item.flavor || undefined,
+          specialInstructions: item.specialInstructions || item.instructions || item.notes || undefined,
+          customisation: item.customisation || item.customization || undefined,
           subtotal: price * qty
         };
       });

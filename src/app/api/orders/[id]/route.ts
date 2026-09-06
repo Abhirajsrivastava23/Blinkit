@@ -77,6 +77,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     // Role-based authorization
     if (session.role === 'admin') {
+      try {
+        const refunds = await db.getRefundRequestsByOrderId(String(order.id));
+        if (refunds && refunds.length > 0) {
+          order = {
+            ...order,
+            refund: refunds[0],
+            refundStatus: refunds[0].status,
+            refundAmount: refunds[0].amount,
+            refundReason: refunds[0].reason,
+            razorpayRefundId: refunds[0].razorpayRefundId
+          };
+        }
+      } catch (refErr) {
+        console.warn('Refund lookup warning in admin order API:', refErr);
+      }
       return NextResponse.json(order);
     } else if (session.role === 'delivery_partner') {
       const assignedId = String(order.assignedPartnerId || '').toLowerCase().trim();

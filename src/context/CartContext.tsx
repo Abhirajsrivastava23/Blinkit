@@ -10,6 +10,10 @@ export interface CartItem {
   selectedSize?: string;
   selectedType?: string; // Egg vs Eggless
   cakeMessage?: string;
+  customImage?: string;
+  addons?: any[];
+  specialInstructions?: string;
+  flavour?: string;
 }
 
 interface CartContextType {

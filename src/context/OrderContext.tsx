@@ -4,12 +4,22 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface OrderItem {
   productId: string;
+  id?: string;
   name: string;
   price: number;
   quantity: number;
   image: string;
   selectedSize?: string;
   selectedType?: string;
+  cakeMessage?: string;
+  customImage?: string;
+  addons?: any[];
+  flavour?: string;
+  specialInstructions?: string;
+  customisation?: any;
+  unit?: string;
+  category?: string;
+  subtotal?: number;
 }
 
 export interface OrderAddress {
@@ -21,16 +31,20 @@ export interface OrderAddress {
   city: string;
   pincode: string;
   landmark?: string;
+  phone?: string;
 }
 
 export interface Order {
   id: string;
   customerId: string;
   customerEmail?: string;
+  customerPhone?: string;
+  customerName?: string;
   items: OrderItem[];
   subtotal: number;
   deliveryFee: number;
   discount: number;
+  couponCode?: string;
   total: number;
   address: OrderAddress;
   status: 'Pending' | 'Confirmed' | 'Preparing' | 'Packed' | 'Ready for Delivery' | 'Waiting for Partner' | 'Assigned' | 'Accepted' | 'Picked Up' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
@@ -59,13 +73,19 @@ export interface Order {
   otp_verified_at?: string;
   verified_by_partner_id?: string;
   deliveryOtp?: string | null;
-  deliveryLocationId: 'nawabganj-unnao' | 'chandigarh-university-up';
+  deliveryLocationId: 'nawabganj-unnao' | 'chandigarh-university-up' | string;
   deliveryLocationName: string;
   assignedPartnerId?: string;
   assignedPartnerName?: string;
+  deliveryPartner?: string;
   assignedAt?: string;
   cancellationReason?: string;
   cancelledAt?: string;
+  refundStatus?: string;
+  refundAmount?: number;
+  refundReason?: string;
+  razorpayRefundId?: string;
+  refund?: any;
 }
 
 interface OrderContextType {

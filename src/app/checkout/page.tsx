@@ -101,7 +101,7 @@ export default function CheckoutPage() {
     setPaymentStatus('PROCESSING');
 
     try {
-      const orderItems = cartItems.map((item) => ({
+      const orderItems = cartItems.map((item: any) => ({
         productId: item.product.id,
         name: item.product.name,
         price: item.product.price,
@@ -109,7 +109,12 @@ export default function CheckoutPage() {
         image: item.product.image,
         category: item.product.category,
         selectedSize: item.selectedSize,
-        selectedType: item.selectedType
+        selectedType: item.selectedType,
+        cakeMessage: item.cakeMessage,
+        customImage: item.customImage,
+        addons: item.addons,
+        specialInstructions: item.specialInstructions,
+        flavour: item.flavour
       }));
 
       let scheduledDeliveryAt = null;
