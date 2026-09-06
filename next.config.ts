@@ -23,11 +23,11 @@ const securityHeaders = [
   },
   {
     key: 'Permissions-Policy',
-    value: 'camera=(self), microphone=(), geolocation=(), interest-cohort=()'
+    value: 'camera=(self), microphone=(), geolocation=(), payment=(self "https://checkout.razorpay.com")'
   },
   {
     key: 'Content-Security-Policy',
-    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: https://images.unsplash.com https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://*.googleusercontent.com https://*.google.com https://*.razorpay.com https://cdn.razorpay.com https://cdn-icons-png.flaticon.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://oauth2.googleapis.com https://www.googleapis.com https://api.razorpay.com https://lumberjack.razorpay.com https://lumberjack-cx.razorpay.com https://*.razorpay.com; frame-src 'self' https://accounts.google.com https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com; child-src 'self' https://checkout.razorpay.com https://*.razorpay.com;"
+    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://checkout.razorpay.com https://api.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: https://images.unsplash.com https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://*.googleusercontent.com https://*.google.com https://*.razorpay.com https://cdn.razorpay.com https://cdn-icons-png.flaticon.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://oauth2.googleapis.com https://www.googleapis.com https://api.razorpay.com https://lumberjack.razorpay.com https://lumberjack-cx.razorpay.com https://*.razorpay.com; frame-src 'self' https://accounts.google.com https://api.razorpay.com https://checkout.razorpay.com https://*.razorpay.com; child-src 'self' https://checkout.razorpay.com https://*.razorpay.com; frame-ancestors 'none';"
   }
 ];
 

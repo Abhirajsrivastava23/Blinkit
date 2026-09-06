@@ -165,10 +165,6 @@ export function getPool(): Pool | null {
 
   try {
     const isLocal = rawConnectionString.includes('localhost') || rawConnectionString.includes('127.0.0.1');
-    if (!isLocal && typeof process !== 'undefined') {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    }
-
     const connectionString = getSanitizedConnectionString(rawConnectionString);
     globalWithPg._pgPool = new Pool({
       connectionString,

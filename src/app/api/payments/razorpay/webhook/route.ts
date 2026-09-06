@@ -1,14 +1,36 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/data/db';
+import { logSecurityEvent, safeErrorResponse } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// Replay Prevention: In-memory cache for processed webhook event IDs with 24h TTL
+const processedWebhookEvents = new Map<string, number>();
+
+function isReplayedEvent(eventId: string): boolean {
+  const now = Date.now();
+  // Clean expired event records (> 24 hours old)
+  for (const [key, timestamp] of processedWebhookEvents.entries()) {
+    if (now - timestamp > 24 * 60 * 60 * 1000) {
+      processedWebhookEvents.delete(key);
+    }
+  }
+
+  if (processedWebhookEvents.has(eventId)) {
+    return true;
+  }
+
+  processedWebhookEvents.set(eventId, now);
+  return false;
+}
 
 export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
     const signature = request.headers.get('x-razorpay-signature') || '';
+    const eventIdHeader = request.headers.get('x-razorpay-event-id') || '';
 
     const webhookSecret = (process.env.RAZORPAY_WEBHOOK_SECRET || '').trim();
     if (!webhookSecret) {
@@ -29,12 +51,17 @@ export async function POST(request: Request) {
       crypto.timingSafeEqual(expectedBuf, receivedBuf);
 
     if (!isSignatureValid) {
-      console.warn('[RAZORPAY WEBHOOK ERROR] Invalid webhook signature received.');
+      logSecurityEvent('WEBHOOK_INVALID_SIGNATURE', {
+        path: '/api/payments/razorpay/webhook',
+        method: 'POST',
+        reason: 'HMAC-SHA256 signature verification failed'
+      });
       return NextResponse.json({ error: 'Invalid webhook signature.' }, { status: 400 });
     }
 
     const event = JSON.parse(rawBody) as {
       event: string;
+      id?: string;
       payload: {
         payment?: {
           entity?: {
@@ -65,6 +92,15 @@ export async function POST(request: Request) {
     const razorpayOrderId = paymentEntity?.order_id || orderEntity?.id || '';
     const razorpayPaymentId = paymentEntity?.id || '';
     const noteOrderId = paymentEntity?.notes?.dbOrderId || orderEntity?.notes?.dbOrderId || '';
+
+    // Replay Attack Protection: Check unique event key
+    const uniqueEventKey = eventIdHeader || event.id || `${eventType}:${razorpayOrderId}:${razorpayPaymentId}`;
+    if (isReplayedEvent(uniqueEventKey)) {
+      return NextResponse.json({
+        success: true,
+        message: 'Webhook event already processed (replay ignored).'
+      });
+    }
 
     const now = new Date().toISOString();
 
@@ -170,7 +206,6 @@ export async function POST(request: Request) {
 
       if (targetOrder) {
         const orderId = String(targetOrder.id).replace(/^#+/, '').trim();
-        // Do not alter order if it was already confirmed
         if (targetOrder.paymentStatus !== 'PAID') {
           await db.upsertPaymentTransaction({
             id: `pay-${orderId}`,
@@ -192,7 +227,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, received: true });
   } catch (error) {
-    console.error('Razorpay webhook processing error:', error);
-    return NextResponse.json({ error: 'Failed to process webhook event.' }, { status: 500 });
+    return safeErrorResponse(error, 'Failed to process webhook event.', 500);
   }
 }
