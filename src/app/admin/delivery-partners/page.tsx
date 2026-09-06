@@ -277,9 +277,6 @@ export default function AdminDeliveryPartnersPage() {
   const handleToggleStatus = async (partner: Partner) => {
     const nextStatus = partner.status === 'Active' ? 'Inactive' : 'Active';
     
-    // Optimistic toggle
-    setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: nextStatus } : p));
-
     try {
       const res = await fetch('/api/admin/partners', {
         method: 'POST',
@@ -292,41 +289,44 @@ export default function AdminDeliveryPartnersPage() {
           isEdit: true
         })
       });
-      if (res.ok) {
-        showToast(`Partner status set to ${nextStatus}.`, 'info');
-        fetchDashboardData();
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && resData.success) {
+        setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: nextStatus } : p));
+        showToast(`Partner status updated to ${nextStatus}.`, 'info');
+        await fetchDashboardData();
       } else {
-        showToast('Failed to modify status.', 'error');
-        fetchDashboardData();
+        showToast(resData.error || 'Failed to update partner status.', 'error');
+        await fetchDashboardData();
       }
     } catch (e) {
-      showToast('Connection error.', 'error');
-      fetchDashboardData();
+      showToast('Connection error while updating status.', 'error');
+      await fetchDashboardData();
     }
   };
 
   const handleDeletePartner = async (partnerId: string) => {
-    if (!confirm('Are you sure you want to delete this delivery partner account?')) return;
-
-    // Optimistic deletion
-    setPartners(prev => prev.filter(p => p.id !== partnerId));
+    const cleanId = String(partnerId || '').trim();
+    if (!cleanId) return;
+    if (!confirm(`Are you sure you want to delete delivery partner account (${cleanId})? This will permanently deactivate and delete the record from PostgreSQL.`)) return;
 
     try {
-      const res = await fetch(`/api/admin/partners?id=${encodeURIComponent(partnerId)}`, {
+      const res = await fetch(`/api/admin/partners?id=${encodeURIComponent(cleanId)}`, {
         method: 'DELETE'
       });
 
-      if (res.ok) {
-        showToast('Delivery Partner deleted successfully.', 'success');
-        fetchDashboardData();
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        // Remove immediately from state upon DB success
+        setPartners(prev => prev.filter(p => p.id.toLowerCase() !== cleanId.toLowerCase()));
+        showToast(`Delivery partner ${cleanId} deleted successfully.`, 'success');
+        await fetchDashboardData();
       } else {
-        const data = await res.json().catch(() => ({}));
-        showToast(data.error || 'Failed to delete partner.', 'error');
-        fetchDashboardData();
+        showToast(data.error || 'Failed to delete partner from database.', 'error');
       }
     } catch (err) {
-      showToast('Server connection failed.', 'error');
-      fetchDashboardData();
+      console.error('Error deleting delivery partner:', err);
+      showToast('Server connection failed while deleting partner.', 'error');
     }
   };
 
@@ -401,8 +401,13 @@ export default function AdminDeliveryPartnersPage() {
             <p className="text-[10px] text-zinc-450 font-bold uppercase tracking-wider mt-0.5">Manage delivery partner accounts, authorization zones, and credentials</p>
           </div>
           <button
-            onClick={handleOpenAdd}
-            className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider shadow flex items-center gap-1.5 hover:scale-101 transition-all"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleOpenAdd();
+            }}
+            className="py-2.5 px-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider shadow flex items-center gap-1.5 hover:scale-101 transition-all cursor-pointer"
           >
             <UserPlus className="h-4 w-4" /> Add Delivery Partner
           </button>
@@ -444,8 +449,13 @@ export default function AdminDeliveryPartnersPage() {
                   </td>
                   <td className="p-3">
                     <button
-                      onClick={() => handleToggleStatus(p)}
-                      className={`inline-flex items-center gap-1 hover:underline text-[9px] font-bold uppercase tracking-wider ${
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleToggleStatus(p);
+                      }}
+                      className={`inline-flex items-center gap-1 hover:underline text-[9px] font-bold uppercase tracking-wider cursor-pointer ${
                         p.status === 'Active' ? 'text-green-700' : 'text-red-650'
                       }`}
                     >
@@ -454,25 +464,40 @@ export default function AdminDeliveryPartnersPage() {
                     </button>
                   </td>
                   <td className="p-3 text-right">
-                    <div className="inline-flex gap-1.5 justify-end">
+                    <div className="inline-flex gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => handleOpenEdit(p)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleOpenEdit(p);
+                        }}
                         title="Edit Details"
-                        className="p-1.5 border hover:bg-zinc-50 rounded-lg text-zinc-600 hover:text-zinc-900"
+                        className="p-1.5 border hover:bg-zinc-50 rounded-lg text-zinc-600 hover:text-zinc-900 cursor-pointer"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
                       <button
-                        onClick={() => handleOpenReset(p)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleOpenReset(p);
+                        }}
                         title="Reset Security Password"
-                        className="p-1.5 border hover:bg-zinc-50 rounded-lg text-zinc-650 hover:text-brand-burgundy"
+                        className="p-1.5 border hover:bg-zinc-50 rounded-lg text-zinc-650 hover:text-brand-burgundy cursor-pointer"
                       >
                         <Key className="h-3.5 w-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDeletePartner(p.id)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleDeletePartner(p.id);
+                        }}
                         title="Delete Profile"
-                        className="p-1.5 border hover:bg-red-50 rounded-lg text-red-500 hover:text-red-700"
+                        className="p-1.5 border hover:bg-red-50 rounded-lg text-red-500 hover:text-red-700 cursor-pointer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

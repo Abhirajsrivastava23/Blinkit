@@ -2731,6 +2731,7 @@ export const db = {
    */
   async getPartners(locationId?: string): Promise<Record<string, unknown>[]> {
     let rawList: Record<string, unknown>[] = [];
+    let pgQueried = false;
     const activePool = getPool();
     if (activePool) {
       try {
@@ -2740,12 +2741,13 @@ export const db = {
         const params = locationId ? [locationId] : [];
         const res = await activePool.query(query, params);
         rawList = res.rows;
+        pgQueried = true;
       } catch (err) {
         console.error('Error fetching partners from PostgreSQL:', err);
       }
     }
 
-    if (rawList.length === 0) {
+    if (!pgQueried) {
       rawList = inMemoryData['partners'] || [];
       if (locationId) {
         rawList = rawList.filter((p: any) => String(p.locationId || p.locationid || '').toLowerCase().trim() === locationId.toLowerCase().trim());
@@ -2905,6 +2907,7 @@ export const db = {
         await activePool.query('DELETE FROM sessions WHERE LOWER(TRIM("userId")) = LOWER(TRIM($1))', [cleanId]);
       } catch (err) {
         console.error('Error deleting partner from PostgreSQL:', err);
+        throw new Error(`Failed to delete delivery partner in PostgreSQL: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

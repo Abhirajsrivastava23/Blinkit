@@ -221,6 +221,8 @@ export async function DELETE(request: Request) {
     }, { headers: noStoreHeaders });
   } catch (err) {
     console.error('Error deleting delivery partner:', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500, headers: noStoreHeaders });
+    return NextResponse.json({ 
+      error: err instanceof Error ? err.message : 'Server error deleting delivery partner.' 
+    }, { status: 500, headers: noStoreHeaders });
   }
 }
