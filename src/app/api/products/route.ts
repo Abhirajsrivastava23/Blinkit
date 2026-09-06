@@ -67,11 +67,14 @@ export async function GET(request: Request) {
 
     // Filter by standard category key
     if (category && category !== 'All') {
-      // Normal category key or wellness brand/type
-      if (category === 'wellness') {
-        products = products.filter(p => p.category === 'wellness');
+      const catLower = category.toLowerCase().trim();
+      if (catLower === 'wellness') {
+        products = products.filter(p => (p.category || '').toLowerCase().trim() === 'wellness');
       } else {
-        products = products.filter(p => p.category === category || p.wellnessType === category);
+        products = products.filter(
+          p => (p.category || '').toLowerCase().trim() === catLower ||
+               (p.wellnessType || '').toLowerCase().trim() === catLower
+        );
       }
     }
 

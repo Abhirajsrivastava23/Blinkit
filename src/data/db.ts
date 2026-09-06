@@ -730,52 +730,95 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_support_tickets_created ON "support_tickets" ("createdAt");
         `).catch(() => {});
 
-        // 14. Seed and sync categorized products into PostgreSQL using single batched transaction
+        // 14. Seed and sync categorized products into PostgreSQL using safe chunks and fallback loop
         if (productsJson.length > 0) {
           try {
-            const valuePlaceholders: string[] = [];
-            const queryParams: unknown[] = [];
-            let paramIdx = 1;
+            const allItems = productsJson as any[];
+            const chunkSize = 10; // ~230 params per chunk for safe execution across all PG proxy providers
 
-            for (const pItem of productsJson as any[]) {
-              const cols: string[] = [];
-              for (let i = 0; i < 23; i++) {
-                cols.push(`$${paramIdx++}`);
+            for (let c = 0; c < allItems.length; c += chunkSize) {
+              const chunk = allItems.slice(c, c + chunkSize);
+              const valuePlaceholders: string[] = [];
+              const queryParams: unknown[] = [];
+              let paramIdx = 1;
+
+              for (const pItem of chunk) {
+                const cols: string[] = [];
+                for (let i = 0; i < 23; i++) {
+                  cols.push(`$${paramIdx++}`);
+                }
+                valuePlaceholders.push(`(${cols.join(', ')})`);
+                queryParams.push(
+                  pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
+                  pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
+                  pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
+                  JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
+                  JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
+                  pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
+                );
               }
-              valuePlaceholders.push(`(${cols.join(', ')})`);
-              queryParams.push(
-                pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
-                pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
-                pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
-                JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
-                JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
-                pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
-              );
-            }
 
-            const batchInsertQuery = `
-              INSERT INTO products (
-                id, name, description, shortdescription, price, originalprice, discount, image, gallery,
-                category, subcategory, rating, reviewcount, instock, deliverytime,
-                ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
-              ) VALUES ${valuePlaceholders.join(', ')}
-              ON CONFLICT (id) DO UPDATE SET
-                name = EXCLUDED.name,
-                description = EXCLUDED.description,
-                shortdescription = EXCLUDED.shortdescription,
-                price = EXCLUDED.price,
-                originalprice = EXCLUDED.originalprice,
-                discount = EXCLUDED.discount,
-                category = EXCLUDED.category,
-                subcategory = EXCLUDED.subcategory,
-                occasions = EXCLUDED.occasions,
-                variants = EXCLUDED.variants,
-                tags = EXCLUDED.tags,
-                updatedat = EXCLUDED.updatedat
-            `;
-            await p.query(batchInsertQuery, queryParams);
+              const chunkInsertQuery = `
+                INSERT INTO products (
+                  id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+                  category, subcategory, rating, reviewcount, instock, deliverytime,
+                  ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
+                ) VALUES ${valuePlaceholders.join(', ')}
+                ON CONFLICT (id) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  description = EXCLUDED.description,
+                  shortdescription = EXCLUDED.shortdescription,
+                  price = EXCLUDED.price,
+                  originalprice = EXCLUDED.originalprice,
+                  discount = EXCLUDED.discount,
+                  image = EXCLUDED.image,
+                  gallery = EXCLUDED.gallery,
+                  category = EXCLUDED.category,
+                  subcategory = EXCLUDED.subcategory,
+                  rating = EXCLUDED.rating,
+                  reviewcount = EXCLUDED.reviewcount,
+                  instock = EXCLUDED.instock,
+                  deliverytime = EXCLUDED.deliverytime,
+                  occasions = EXCLUDED.occasions,
+                  variants = EXCLUDED.variants,
+                  tags = EXCLUDED.tags,
+                  updatedat = EXCLUDED.updatedat
+              `;
+              await p.query(chunkInsertQuery, queryParams).catch(async () => {
+                // Individual fallback for this chunk
+                for (const item of chunk) {
+                  await p.query(`
+                    INSERT INTO products (
+                      id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+                      category, subcategory, rating, reviewcount, instock, deliverytime,
+                      ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+                    ON CONFLICT (id) DO UPDATE SET
+                      name = EXCLUDED.name,
+                      price = EXCLUDED.price,
+                      originalprice = EXCLUDED.originalprice,
+                      discount = EXCLUDED.discount,
+                      image = EXCLUDED.image,
+                      gallery = EXCLUDED.gallery,
+                      category = EXCLUDED.category,
+                      subcategory = EXCLUDED.subcategory,
+                      occasions = EXCLUDED.occasions,
+                      variants = EXCLUDED.variants,
+                      tags = EXCLUDED.tags,
+                      updatedat = EXCLUDED.updatedat
+                  `, [
+                    item.id, item.name, item.description || '', item.shortDescription || '', item.price, item.originalPrice || item.price, item.discount || 0,
+                    item.image || '', JSON.stringify(item.gallery || []), item.category || 'Birthday Cakes', item.subCategory || null,
+                    item.rating || 0, item.reviewCount || 0, item.inStock !== undefined ? item.inStock : true, item.deliveryTime || 'Within 12 hours',
+                    JSON.stringify(item.ingredients || []), JSON.stringify(item.allergens || []), item.storageInstructions || '',
+                    JSON.stringify(item.occasions || []), JSON.stringify(item.variants || []), JSON.stringify(item.tags || []),
+                    item.createdAt || new Date().toISOString(), item.updatedAt || new Date().toISOString()
+                  ]).catch(() => {});
+                }
+              });
+            }
           } catch (batchErr) {
-            console.warn('[DB SCHEMA WARNING] Batch insert failed, falling back to individual inserts:', batchErr);
+            console.warn('[DB SCHEMA WARNING] Chunked product insert encountered an issue:', batchErr);
           }
 
           // Purge non-canonical / demo / test products from PostgreSQL
@@ -1688,8 +1731,59 @@ export const db = {
 
       if (key === 'products') {
         parsedList = parsedList.filter((p: any) => String(p.id || '').toLowerCase().trim() !== 'rzp-test-product-2');
-        if (parsedList.length === 0) {
-          parsedList = (productsJson as any[]).map(normalizeProductRecord) as any[];
+        
+        // Auto-reconciliation: Guarantee all canonical products from productsJson exist in parsedList
+        const existingIds = new Set(parsedList.map((p: any) => String(p.id || '').toLowerCase().trim()));
+        const missingCanonical = (productsJson as any[]).filter(
+          cp => !existingIds.has(String(cp.id || '').toLowerCase().trim())
+        );
+
+        if (missingCanonical.length > 0) {
+          const normalizedMissing = missingCanonical.map(normalizeProductRecord) as any[];
+          parsedList = [...parsedList, ...normalizedMissing];
+
+          // Persist missing canonical products to DB in background
+          (async () => {
+            try {
+              for (const item of missingCanonical) {
+                await activePool.query(`
+                  INSERT INTO products (
+                    id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+                    category, subcategory, rating, reviewcount, instock, deliverytime,
+                    ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
+                  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+                  ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    shortdescription = EXCLUDED.shortdescription,
+                    price = EXCLUDED.price,
+                    originalprice = EXCLUDED.originalprice,
+                    discount = EXCLUDED.discount,
+                    image = EXCLUDED.image,
+                    gallery = EXCLUDED.gallery,
+                    category = EXCLUDED.category,
+                    subcategory = EXCLUDED.subcategory,
+                    rating = EXCLUDED.rating,
+                    reviewcount = EXCLUDED.reviewcount,
+                    instock = EXCLUDED.instock,
+                    deliverytime = EXCLUDED.deliverytime,
+                    occasions = EXCLUDED.occasions,
+                    variants = EXCLUDED.variants,
+                    tags = EXCLUDED.tags,
+                    updatedat = EXCLUDED.updatedat
+                `, [
+                  item.id, item.name, item.description || '', item.shortDescription || '', item.price, item.originalPrice || item.price, item.discount || 0,
+                  item.image || '', JSON.stringify(item.gallery || []), item.category || 'Birthday Cakes', item.subCategory || null,
+                  item.rating || 0, item.reviewCount || 0, item.inStock !== undefined ? item.inStock : true, item.deliveryTime || 'Within 12 hours',
+                  JSON.stringify(item.ingredients || []), JSON.stringify(item.allergens || []), item.storageInstructions || '',
+                  JSON.stringify(item.occasions || []), JSON.stringify(item.variants || []), JSON.stringify(item.tags || []),
+                  item.createdAt || new Date().toISOString(), item.updatedAt || new Date().toISOString()
+                ]).catch(() => {});
+              }
+            } catch (syncErr) {
+              console.warn('[DB AUTO-RECONCILIATION] Failed to sync missing products to DB:', syncErr);
+            }
+          })();
         }
       }
 
