@@ -20,8 +20,14 @@ export async function GET(request: Request) {
     }
 
     const partners = await db.getPartners();
-    // Secure passwords by omitting them from responses
-    const safePartners = partners.map(({ passwordHash, ...rest }) => rest);
+    // Secure passwords by omitting all hash fields from responses
+    const safePartners = partners.map(p => {
+      const clean = { ...p };
+      delete clean.passwordHash;
+      delete clean.passwordhash;
+      delete clean.password_hash;
+      return clean;
+    });
 
     return NextResponse.json(safePartners, { headers: noStoreHeaders });
   } catch (err) {
@@ -39,33 +45,65 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { id, name, phone, email, password, locationId, locationName, status, isOnline } = body;
+    const { id, name, phone, email, password, locationId, locationName, status, isOnline, isEdit } = body;
 
-    const cleanId = String(id || '').trim();
     const cleanName = String(name || '').trim();
     const cleanEmail = String(email || '').trim().toLowerCase();
     const cleanPhone = String(phone || '').trim();
     const cleanPassword = password ? String(password).trim() : '';
 
-    if (!cleanId || !cleanName || !cleanEmail) {
-      return NextResponse.json({ error: 'ID, Name, and Email are required fields.' }, { status: 400, headers: noStoreHeaders });
+    if (!cleanName || !cleanEmail) {
+      return NextResponse.json({ error: 'Full Name and Email Address are required fields.' }, { status: 400, headers: noStoreHeaders });
     }
 
-    const existingPartner = await db.getPartnerById(cleanId);
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400, headers: noStoreHeaders });
+    }
 
-    let savedPartner: any;
-    if (existingPartner) {
-      // Update existing partner
+    // Determine target ID
+    let cleanId = String(id || '').trim();
+    if (!cleanId) {
+      const allPartners = await db.getPartners();
+      let maxNum = 0;
+      for (const p of allPartners) {
+        const match = String(p.id || '').match(/DP-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      cleanId = `DP-${String(maxNum + 1).padStart(3, '0')}`;
+    }
+
+    const existingById = await db.getPartnerById(cleanId);
+    const existingByEmail = await db.getPartnerById(cleanEmail);
+
+    let savedPartner: Record<string, unknown>;
+
+    if (isEdit || (existingById && existingByEmail && String(existingByEmail.id).toLowerCase() === cleanId.toLowerCase())) {
+      // --- UPDATE EXISTING PARTNER ---
+      if (!existingById) {
+        return NextResponse.json({ error: `Partner with ID ${cleanId} not found to edit.` }, { status: 404, headers: noStoreHeaders });
+      }
+
+      if (existingByEmail && String(existingByEmail.id || '').toLowerCase() !== cleanId.toLowerCase()) {
+        return NextResponse.json({ error: 'Another delivery partner with this email address already exists.' }, { status: 400, headers: noStoreHeaders });
+      }
+
+      const defaultLocName = (locationId === 'chandigarh-university-up')
+        ? 'Chandigarh University, Uttar Pradesh'
+        : 'Nawabganj, Unnao';
+
       const updatedData: Record<string, unknown> = {
         id: cleanId,
         name: cleanName,
-        phone: cleanPhone !== undefined ? cleanPhone : existingPartner.phone,
+        phone: cleanPhone !== undefined ? cleanPhone : existingById.phone,
         email: cleanEmail,
-        locationId: locationId !== undefined ? locationId : existingPartner.locationId,
-        locationName: locationName !== undefined ? locationName : existingPartner.locationName,
-        status: status !== undefined ? status : existingPartner.status,
-        isOnline: isOnline !== undefined ? Boolean(isOnline) : existingPartner.isOnline,
-        passwordHash: cleanPassword ? hashPassword(cleanPassword) : (existingPartner.passwordHash || '')
+        locationId: locationId || existingById.locationId || 'nawabganj-unnao',
+        locationName: locationName || existingById.locationName || defaultLocName,
+        status: status !== undefined ? status : existingById.status,
+        isOnline: isOnline !== undefined ? Boolean(isOnline) : existingById.isOnline,
+        passwordHash: cleanPassword ? hashPassword(cleanPassword) : (existingById.passwordHash || existingById.passwordhash || '')
       };
 
       savedPartner = await db.upsertPartner(updatedData);
@@ -75,17 +113,29 @@ export async function POST(request: Request) {
         cleanName,
         `ID: ${cleanId}`,
         `Status: ${savedPartner.status}`
-      );
+      ).catch(() => {});
     } else {
-      // Create new partner
+      // --- CREATE NEW PARTNER ---
       if (!cleanPassword) {
-        return NextResponse.json({ error: 'Password is required to create a new partner.' }, { status: 400, headers: noStoreHeaders });
+        return NextResponse.json({ error: 'Password is required to create a new delivery partner.' }, { status: 400, headers: noStoreHeaders });
       }
 
-      // Check Email uniqueness across existing partners
-      const emailPartner = await db.getPartnerById(cleanEmail);
-      if (emailPartner && String(emailPartner.id || '').toLowerCase() !== cleanId.toLowerCase()) {
-        return NextResponse.json({ error: 'Partner Email already exists.' }, { status: 400, headers: noStoreHeaders });
+      if (existingByEmail) {
+        return NextResponse.json({ error: 'A delivery partner with this email address already exists.' }, { status: 400, headers: noStoreHeaders });
+      }
+
+      // If ID already taken by a different partner, auto-generate next unused ID
+      if (existingById) {
+        const allPartners = await db.getPartners();
+        let maxNum = 0;
+        for (const p of allPartners) {
+          const match = String(p.id || '').match(/DP-(\d+)/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+        cleanId = `DP-${String(maxNum + 1).padStart(3, '0')}`;
       }
 
       const defaultLocName = (locationId === 'chandigarh-university-up')
@@ -112,15 +162,23 @@ export async function POST(request: Request) {
         cleanName,
         `ID: ${cleanId}`,
         `Location: ${savedPartner.locationName}`
-      );
+      ).catch(() => {});
     }
 
     // Return the safe partner detail without password hash
-    const { passwordHash, ...safeResponse } = savedPartner;
-    return NextResponse.json({ success: true, partner: safeResponse }, { headers: noStoreHeaders });
+    const safeResponse = { ...savedPartner };
+    delete safeResponse.passwordHash;
+    delete safeResponse.passwordhash;
+    delete safeResponse.password_hash;
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Delivery partner saved successfully.', 
+      partner: safeResponse 
+    }, { headers: noStoreHeaders });
   } catch (err) {
     console.error('Error saving delivery partner:', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500, headers: noStoreHeaders });
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Server error saving delivery partner.' }, { status: 500, headers: noStoreHeaders });
   }
 }
 
@@ -155,7 +213,7 @@ export async function DELETE(request: Request) {
       removedName,
       `ID: ${targetId}`,
       'Removed from database'
-    );
+    ).catch(() => {});
 
     return NextResponse.json({ 
       success: true, 

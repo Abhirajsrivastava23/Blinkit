@@ -4,18 +4,20 @@ import { verifyPassword, createSession } from '../../../../data/auth';
 import partnersJson from '../../../../data/db/partners.json';
 import adminJson from '../../../../data/db/admin.json';
 
-// Trigger route reload
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(request: Request) {
   try {
-    const { emailOrId, password } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { emailOrId, password } = body;
 
     if (!emailOrId || !password) {
-      return NextResponse.json({ error: 'Email/ID and password are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Email/ID and password are required.' }, { status: 400 });
     }
 
     const cleanInput = String(emailOrId).trim().toLowerCase();
+    const cleanPassword = String(password).trim();
 
     // 1. Check Admin Account (admin table + admin.json fallback)
     const admins = await db.readTable<any>('admin') || [];
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
       adminObj = (adminJson as any[]).find((a: any) => a.email && a.email.toLowerCase().trim() === cleanInput);
     }
     if (adminObj) {
-      if (verifyPassword(password, adminObj.passwordHash)) {
+      if (verifyPassword(cleanPassword, adminObj.passwordHash || adminObj.passwordhash || '')) {
         const session = await createSession(adminObj.email, adminObj.email, 'admin');
         const response = NextResponse.json({
           success: true,
@@ -47,12 +49,13 @@ export async function POST(request: Request) {
 
         return response;
       } else {
-        return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+        return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 });
       }
     }
 
-    // 2. Check Delivery Partner Accounts (DB + Seed)
+    // 2. Check Delivery Partner Accounts (PostgreSQL DB + fallback)
     let partnerObj: any = await db.getPartnerById(cleanInput);
+
     if (!partnerObj) {
       const partners = await db.getPartners();
       const cleanDigits = cleanInput.replace(/\D/g, '');
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
         return (
           (pId && pId === cleanInput) ||
           (pEmail && pEmail === cleanInput) ||
-          (pPhone && cleanDigits && pPhone === cleanDigits)
+          (cleanDigits.length >= 10 && pPhone && pPhone === cleanDigits)
         );
       });
     }
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
         return (
           (pId && pId === cleanInput) ||
           (pEmail && pEmail === cleanInput) ||
-          (pPhone && cleanDigits && pPhone === cleanDigits)
+          (cleanDigits.length >= 10 && pPhone && pPhone === cleanDigits)
         );
       });
     }
@@ -85,7 +88,7 @@ export async function POST(request: Request) {
     if (partnerObj) {
       const partnerStatus = String(partnerObj.status || 'Active').trim().toLowerCase();
       if (partnerStatus === 'inactive') {
-        return NextResponse.json({ error: 'Your delivery partner account is currently inactive. Contact admin.' }, { status: 403 });
+        return NextResponse.json({ error: 'Your delivery partner account is currently inactive. Please contact administration.' }, { status: 403 });
       }
 
       const storedHash = String(
@@ -95,9 +98,9 @@ export async function POST(request: Request) {
         ''
       ).trim();
 
-      if (verifyPassword(password, storedHash)) {
-        const partnerId = partnerObj.id || partnerObj.ID || 'DP-001';
-        const partnerEmail = partnerObj.email || `${partnerId.toLowerCase()}@fatafat.com`;
+      if (verifyPassword(cleanPassword, storedHash)) {
+        const partnerId = String(partnerObj.id || partnerObj.ID || 'DP-001').trim();
+        const partnerEmail = String(partnerObj.email || `${partnerId.toLowerCase()}@fatafat.com`).trim().toLowerCase();
         const session = await createSession(partnerId, partnerEmail, 'delivery_partner');
 
         const response = NextResponse.json({
@@ -124,13 +127,13 @@ export async function POST(request: Request) {
 
         return response;
       } else {
-        return NextResponse.json({ error: 'Invalid ID/Email or password' }, { status: 401 });
+        return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 });
       }
     }
 
-    return NextResponse.json({ error: 'Invalid ID/Email or password' }, { status: 401 });
+    return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 });
   } catch (err) {
     console.error('Error in auth login endpoint:', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Server authentication error.' }, { status: 500 });
   }
 }

@@ -486,7 +486,9 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
             locationid TEXT,
             locationname TEXT,
             status TEXT DEFAULT 'Active',
-            isonline BOOLEAN DEFAULT false
+            isonline BOOLEAN DEFAULT false,
+            createdat TEXT,
+            updatedat TEXT
           );
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS id TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS name TEXT;
@@ -498,8 +500,47 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationname TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS status TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS createdat TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS updatedat TEXT;
           CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
+          CREATE INDEX IF NOT EXISTS idx_partners_id ON partners (id);
         `).catch(() => {});
+
+        // Seed initial delivery partners from partners.json if partners table is empty
+        if (partnersJson.length > 0) {
+          try {
+            for (const item of partnersJson as any[]) {
+              const pId = String(item.id || '').trim();
+              const pName = String(item.name || '').trim();
+              const pPhone = String(item.phone || '').trim();
+              const pEmail = String(item.email || '').trim().toLowerCase();
+              const pHash = String(item.passwordHash || item.passwordhash || '').trim();
+              const pRole = 'delivery_partner';
+              const pLocId = String(item.locationId || 'nawabganj-unnao').trim();
+              const pLocName = String(item.locationName || 'Nawabganj, Unnao').trim();
+              const pStatus = String(item.status || 'Active').trim();
+              const pOnline = Boolean(item.isOnline);
+              const now = new Date().toISOString();
+
+              await p.query(`
+                INSERT INTO partners (id, name, phone, email, passwordhash, role, locationid, locationname, status, isonline, createdat, updatedat)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (id) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  phone = EXCLUDED.phone,
+                  email = EXCLUDED.email,
+                  passwordhash = CASE WHEN EXCLUDED.passwordhash != '' THEN EXCLUDED.passwordhash ELSE partners.passwordhash END,
+                  locationid = EXCLUDED.locationid,
+                  locationname = EXCLUDED.locationname,
+                  status = EXCLUDED.status,
+                  isonline = EXCLUDED.isonline,
+                  updatedat = EXCLUDED.updatedat
+              `, [pId, pName, pPhone, pEmail, pHash, pRole, pLocId, pLocName, pStatus, pOnline, now, now]);
+            }
+          } catch (seedErr) {
+            console.warn('[DB SCHEMA WARNING] Could not seed partners table:', seedErr);
+          }
+        }
 
         // 12. Ensure refund_requests table exists with indexes
         await p.query(`
@@ -1000,10 +1041,26 @@ export function normalizePartnerRecord(row: Record<string, unknown>): Record<str
   if (!row || typeof row !== 'object') return row;
   const parsed: Record<string, unknown> = { ...row };
 
+  parsed.id = String(parsed.id || '').trim();
+  parsed.name = String(parsed.name || '').trim();
+  parsed.phone = String(parsed.phone || '').trim();
+  parsed.email = String(parsed.email || '').trim().toLowerCase();
+
   if (parsed.passwordhash && !parsed.passwordHash) parsed.passwordHash = parsed.passwordhash;
+  if (parsed.passwordHash && !parsed.passwordhash) parsed.passwordhash = parsed.passwordHash;
   if (parsed.locationid && !parsed.locationId) parsed.locationId = parsed.locationid;
   if (parsed.locationname && !parsed.locationName) parsed.locationName = parsed.locationname;
   if (parsed.isonline !== undefined && parsed.isOnline === undefined) parsed.isOnline = Boolean(parsed.isonline);
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+
+  parsed.role = 'delivery_partner';
+  parsed.locationId = String(parsed.locationId || 'nawabganj-unnao').trim();
+  parsed.locationName = String(parsed.locationName || (parsed.locationId === 'nawabganj-unnao' ? 'Nawabganj, Unnao' : 'Chandigarh University, Uttar Pradesh')).trim();
+  parsed.status = String(parsed.status || 'Active').trim() === 'Inactive' ? 'Inactive' : 'Active';
+  parsed.isOnline = Boolean(parsed.isOnline);
+  parsed.createdAt = parsed.createdAt || new Date().toISOString();
+  parsed.updatedAt = parsed.updatedAt || new Date().toISOString();
 
   return parsed;
 }
@@ -2675,9 +2732,7 @@ export const db = {
   async getPartners(locationId?: string): Promise<Record<string, unknown>[]> {
     let rawList: Record<string, unknown>[] = [];
     const activePool = getPool();
-    if (!activePool) {
-      rawList = inMemoryData['partners'] || [];
-    } else {
+    if (activePool) {
       try {
         const query = locationId
           ? 'SELECT * FROM partners WHERE LOWER(TRIM(locationid)) = LOWER(TRIM($1)) ORDER BY id ASC'
@@ -2687,9 +2742,16 @@ export const db = {
         rawList = res.rows;
       } catch (err) {
         console.error('Error fetching partners from PostgreSQL:', err);
-        rawList = inMemoryData['partners'] || [];
       }
     }
+
+    if (rawList.length === 0) {
+      rawList = inMemoryData['partners'] || [];
+      if (locationId) {
+        rawList = rawList.filter((p: any) => String(p.locationId || p.locationid || '').toLowerCase().trim() === locationId.toLowerCase().trim());
+      }
+    }
+
     const normalized = rawList.map(normalizePartnerRecord);
     return normalized;
   },
@@ -2707,10 +2769,10 @@ export const db = {
           SELECT * FROM partners 
           WHERE LOWER(TRIM(id)) = $1 
              OR LOWER(TRIM(email)) = $1 
-             OR (LENGTH($2) >= 4 AND REGEXP_REPLACE(phone, '\\D', '', 'g') = $2)
+             OR (LENGTH($2) >= 10 AND REGEXP_REPLACE(phone, '\\D', '', 'g') = $2)
           LIMIT 1
         `;
-        const res = await activePool.query(query, [cleanLower, cleanDigits || '']);
+        const res = await activePool.query(query, [cleanLower, cleanDigits.length >= 10 ? cleanDigits : '']);
         if (res.rows && res.rows.length > 0) {
           return normalizePartnerRecord(res.rows[0]);
         }
@@ -2727,7 +2789,7 @@ export const db = {
       return (
         pId === cleanLower ||
         pEmail === cleanLower ||
-        (cleanDigits.length >= 4 && pPhoneDigits === cleanDigits)
+        (cleanDigits.length >= 10 && pPhoneDigits === cleanDigits)
       );
     });
 
@@ -2740,12 +2802,15 @@ export const db = {
     const cleanName = String(normalized.name || '').trim();
     const cleanEmail = String(normalized.email || '').trim().toLowerCase();
     const cleanPhone = String(normalized.phone || '').trim();
-    const passwordHash = String(normalized.passwordHash || '').trim();
+    const passwordHash = String(normalized.passwordHash || normalized.passwordhash || '').trim();
     const role = 'delivery_partner';
     const locationId = String(normalized.locationId || 'nawabganj-unnao').trim();
-    const locationName = String(normalized.locationName || (locationId === 'nawabganj-unnao' ? 'Nawabganj, Unnao' : 'Chandigarh University, UP')).trim();
-    const status = String(normalized.status || 'Active').trim();
+    const locationName = String(normalized.locationName || (locationId === 'nawabganj-unnao' ? 'Nawabganj, Unnao' : 'Chandigarh University, Uttar Pradesh')).trim();
+    const status = String(normalized.status || 'Active').trim() === 'Inactive' ? 'Inactive' : 'Active';
     const isOnline = Boolean(normalized.isOnline);
+    const now = new Date().toISOString();
+    const createdAt = String(normalized.createdAt || now);
+    const updatedAt = now;
 
     const partnerRecord: Record<string, unknown> = {
       id: cleanId,
@@ -2753,15 +2818,18 @@ export const db = {
       phone: cleanPhone,
       email: cleanEmail,
       passwordHash,
+      passwordhash: passwordHash,
       role,
       locationId,
       locationName,
       status,
-      isOnline
+      isOnline,
+      createdAt,
+      updatedAt
     };
 
     // 1. Update in-memory
-    const list = inMemoryData['partners'] || [];
+    const list = (inMemoryData['partners'] || []) as Record<string, unknown>[];
     const idx = list.findIndex((p: any) => 
       String(p.id || '').toLowerCase().trim() === cleanId.toLowerCase() ||
       String(p.email || '').toLowerCase().trim() === cleanEmail
@@ -2778,8 +2846,8 @@ export const db = {
     if (activePool) {
       try {
         const query = `
-          INSERT INTO partners (id, name, phone, email, passwordhash, role, locationid, locationname, status, isonline)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          INSERT INTO partners (id, name, phone, email, passwordhash, role, locationid, locationname, status, isonline, createdat, updatedat)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             phone = COALESCE(EXCLUDED.phone, partners.phone),
@@ -2788,7 +2856,8 @@ export const db = {
             locationid = COALESCE(EXCLUDED.locationid, partners.locationid),
             locationname = COALESCE(EXCLUDED.locationname, partners.locationname),
             status = COALESCE(EXCLUDED.status, partners.status),
-            isonline = COALESCE(EXCLUDED.isonline, partners.isonline)
+            isonline = COALESCE(EXCLUDED.isonline, partners.isonline),
+            updatedat = EXCLUDED.updatedat
           RETURNING *;
         `;
         const res = await activePool.query(query, [
@@ -2801,13 +2870,16 @@ export const db = {
           locationId,
           locationName,
           status,
-          isOnline
+          isOnline,
+          createdAt,
+          updatedAt
         ]);
         if (res.rows.length > 0) {
           return normalizePartnerRecord(res.rows[0]);
         }
       } catch (err) {
         console.error('Error upserting partner in PostgreSQL:', err);
+        throw new Error(`Failed to save delivery partner in PostgreSQL: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

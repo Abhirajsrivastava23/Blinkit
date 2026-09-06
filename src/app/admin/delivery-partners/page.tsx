@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, UserPlus, ToggleLeft, ToggleRight, Key, Trash2, Edit2, 
-  MapPin, Phone, Mail, UserCheck, UserX, ShoppingBag, ClipboardList, AlertTriangle 
+  MapPin, Phone, Mail, UserCheck, UserX, ShoppingBag, ClipboardList, 
+  AlertTriangle, RefreshCw, Calendar
 } from 'lucide-react';
 import { useToast } from '../../../components/Toast';
 
@@ -16,6 +17,8 @@ interface Partner {
   locationName: string;
   status: 'Active' | 'Inactive';
   isOnline: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function AdminDeliveryPartnersPage() {
@@ -25,9 +28,9 @@ export default function AdminDeliveryPartnersPage() {
   const [issues, setIssues] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchSeqRef = React.useRef(0);
-  const isFetchingRef = React.useRef(false);
 
   // Form states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -91,12 +94,20 @@ export default function AdminDeliveryPartnersPage() {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 5000);
+    const interval = setInterval(fetchDashboardData, 4000);
     return () => clearInterval(interval);
   }, []);
 
   const handleOpenAdd = () => {
-    setFormId(`DP-00${partners.length + 1}`);
+    let maxNum = 0;
+    for (const p of partners) {
+      const match = String(p.id || '').match(/DP-(\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+    setFormId(`DP-${String(maxNum + 1).padStart(3, '0')}`);
     setFormName('');
     setFormPhone('');
     setFormEmail('');
@@ -110,10 +121,10 @@ export default function AdminDeliveryPartnersPage() {
     setSelectedPartner(partner);
     setFormId(partner.id);
     setFormName(partner.name);
-    setFormPhone(partner.phone);
+    setFormPhone(partner.phone || '');
     setFormEmail(partner.email);
-    setFormLocation(partner.locationId);
-    setFormStatus(partner.status);
+    setFormLocation(partner.locationId || 'nawabganj-unnao');
+    setFormStatus(partner.status || 'Active');
     setShowEditModal(true);
   };
 
@@ -125,10 +136,12 @@ export default function AdminDeliveryPartnersPage() {
 
   const handleCreatePartner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formId || !formName || !formEmail || !formPassword) {
-      showToast('ID, Name, Email, and Password are required fields.', 'error');
+    if (!formName.trim() || !formEmail.trim() || !formPassword.trim()) {
+      showToast('Name, Email, and Password are required fields.', 'error');
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       const locName = formLocation === 'nawabganj-unnao' 
@@ -144,21 +157,9 @@ export default function AdminDeliveryPartnersPage() {
         locationId: formLocation,
         locationName: locName,
         status: formStatus,
-        isOnline: false
+        isOnline: false,
+        isEdit: false
       };
-
-      // Optimistically add to list
-      const optimisticPartner: Partner = {
-        id: payload.id,
-        name: payload.name,
-        phone: payload.phone,
-        email: payload.email,
-        locationId: payload.locationId,
-        locationName: payload.locationName,
-        status: payload.status as 'Active' | 'Inactive',
-        isOnline: false
-      };
-      setPartners(prev => [...prev.filter(p => p.id.toLowerCase() !== optimisticPartner.id.toLowerCase()), optimisticPartner]);
 
       const res = await fetch('/api/admin/partners', {
         method: 'POST',
@@ -166,29 +167,34 @@ export default function AdminDeliveryPartnersPage() {
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        const resData = await res.json();
+      const resData = await res.json().catch(() => ({}));
+
+      if (res.ok && resData.success) {
         showToast('Delivery Partner account created successfully!', 'success');
         setShowAddModal(false);
         if (resData.partner) {
-          setPartners(prev => [...prev.filter(p => p.id.toLowerCase() !== resData.partner.id.toLowerCase()), resData.partner]);
+          setPartners(prev => [resData.partner, ...prev.filter(p => p.id.toLowerCase() !== resData.partner.id.toLowerCase())]);
         }
-        fetchDashboardData();
+        await fetchDashboardData();
       } else {
-        const data = await res.json();
-        showToast(data.error || 'Failed to create partner.', 'error');
-        // Revert on error
-        fetchDashboardData();
+        showToast(resData.error || 'Failed to create partner.', 'error');
       }
     } catch (err) {
       showToast('Server connection failed.', 'error');
-      fetchDashboardData();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPartner) return;
+    if (!formName.trim() || !formEmail.trim()) {
+      showToast('Name and Email are required.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const locName = formLocation === 'nawabganj-unnao' 
@@ -202,11 +208,9 @@ export default function AdminDeliveryPartnersPage() {
         email: formEmail.trim().toLowerCase(),
         locationId: formLocation,
         locationName: locName,
-        status: formStatus
+        status: formStatus,
+        isEdit: true
       };
-
-      // Optimistic update
-      setPartners(prev => prev.map(p => p.id === selectedPartner.id ? { ...p, ...payload } : p));
 
       const res = await fetch('/api/admin/partners', {
         method: 'POST',
@@ -214,24 +218,33 @@ export default function AdminDeliveryPartnersPage() {
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        showToast('Delivery Partner details updated.', 'success');
+      const resData = await res.json().catch(() => ({}));
+
+      if (res.ok && resData.success) {
+        showToast('Delivery Partner details updated successfully.', 'success');
         setShowEditModal(false);
-        fetchDashboardData();
+        if (resData.partner) {
+          setPartners(prev => prev.map(p => p.id === selectedPartner.id ? resData.partner : p));
+        }
+        await fetchDashboardData();
       } else {
-        const data = await res.json();
-        showToast(data.error || 'Failed to update partner details.', 'error');
-        fetchDashboardData();
+        showToast(resData.error || 'Failed to update partner details.', 'error');
       }
     } catch (err) {
       showToast('Server connection failed.', 'error');
-      fetchDashboardData();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPartner || !formPassword) return;
+    if (!selectedPartner || !formPassword.trim()) {
+      showToast('Password is required.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const res = await fetch('/api/admin/partners', {
@@ -241,24 +254,29 @@ export default function AdminDeliveryPartnersPage() {
           id: selectedPartner.id,
           name: selectedPartner.name,
           email: selectedPartner.email,
-          password: formPassword.trim()
+          password: formPassword.trim(),
+          isEdit: true
         })
       });
 
-      if (res.ok) {
+      const resData = await res.json().catch(() => ({}));
+
+      if (res.ok && resData.success) {
         showToast(`Password successfully updated for ${selectedPartner.name}.`, 'success');
         setShowResetModal(false);
       } else {
-        const data = await res.json();
-        showToast(data.error || 'Password update failed.', 'error');
+        showToast(resData.error || 'Password update failed.', 'error');
       }
     } catch (err) {
       showToast('Server connection failed.', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleToggleStatus = async (partner: Partner) => {
     const nextStatus = partner.status === 'Active' ? 'Inactive' : 'Active';
+    
     // Optimistic toggle
     setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, status: nextStatus } : p));
 
@@ -270,7 +288,8 @@ export default function AdminDeliveryPartnersPage() {
           id: partner.id,
           name: partner.name,
           email: partner.email,
-          status: nextStatus
+          status: nextStatus,
+          isEdit: true
         })
       });
       if (res.ok) {
@@ -399,7 +418,7 @@ export default function AdminDeliveryPartnersPage() {
                 <th className="p-3">Contact</th>
                 <th className="p-3">Location / Hub</th>
                 <th className="p-3">Shift Status</th>
-                <th className="p-3">Status</th>
+                <th className="p-3">Account Status</th>
                 <th className="p-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -538,10 +557,11 @@ export default function AdminDeliveryPartnersPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Full Name</label>
+                  <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Full Name <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g. Vikram Singh"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     className="w-full p-2.5 border rounded-xl font-medium focus:outline-none focus:border-brand-burgundy"
@@ -551,10 +571,11 @@ export default function AdminDeliveryPartnersPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Email Address</label>
+                  <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Email Address <span className="text-red-500">*</span></label>
                   <input
                     type="email"
                     required
+                    placeholder="e.g. vikram.rider@fatafat.com"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     className="w-full p-2.5 border rounded-xl font-medium focus:outline-none focus:border-brand-burgundy"
@@ -564,6 +585,7 @@ export default function AdminDeliveryPartnersPage() {
                   <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Mobile Phone</label>
                   <input
                     type="text"
+                    placeholder="e.g. 9876543210"
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
                     className="w-full p-2.5 border rounded-xl font-medium focus:outline-none focus:border-brand-burgundy"
@@ -572,11 +594,11 @@ export default function AdminDeliveryPartnersPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Secure Password</label>
+                <label className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Secure Password <span className="text-red-500">*</span></label>
                 <input
                   type="password"
                   required
-                  placeholder="e.g. rider123"
+                  placeholder="e.g. riderPass123"
                   value={formPassword}
                   onChange={(e) => setFormPassword(e.target.value)}
                   className="w-full p-2.5 border rounded-xl font-medium focus:outline-none focus:border-brand-burgundy"
@@ -611,6 +633,7 @@ export default function AdminDeliveryPartnersPage() {
               <div className="flex gap-2 justify-end pt-3">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setShowAddModal(false)}
                   className="py-2.5 px-4 border rounded-xl hover:bg-zinc-50 font-bold uppercase tracking-wider"
                 >
@@ -618,9 +641,17 @@ export default function AdminDeliveryPartnersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="py-2.5 px-5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider"
+                  disabled={isSubmitting}
+                  className="py-2.5 px-5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
                 >
-                  Save Partner
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Saving Partner...</span>
+                    </>
+                  ) : (
+                    <span>Save Partner</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -695,6 +726,7 @@ export default function AdminDeliveryPartnersPage() {
               <div className="flex gap-2 justify-end pt-3">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setShowEditModal(false)}
                   className="py-2.5 px-4 border rounded-xl hover:bg-zinc-50 font-bold uppercase tracking-wider"
                 >
@@ -702,9 +734,17 @@ export default function AdminDeliveryPartnersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="py-2.5 px-5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider"
+                  disabled={isSubmitting}
+                  className="py-2.5 px-5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
                 >
-                  Update Details
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <span>Update Details</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -735,6 +775,7 @@ export default function AdminDeliveryPartnersPage() {
               <div className="flex gap-2 justify-end pt-3">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setShowResetModal(false)}
                   className="py-2.5 px-4 border rounded-xl hover:bg-zinc-50 font-bold uppercase tracking-wider"
                 >
@@ -742,9 +783,17 @@ export default function AdminDeliveryPartnersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="py-2.5 px-5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider"
+                  disabled={isSubmitting}
+                  className="py-2.5 px-5 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white rounded-xl font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
                 >
-                  Update Password
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <span>Update Password</span>
+                  )}
                 </button>
               </div>
             </form>
