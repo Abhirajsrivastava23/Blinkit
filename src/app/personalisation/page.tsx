@@ -7,7 +7,7 @@ import {
   Sparkles, Camera, PenTool, Gift, Award, Clock, ShieldCheck, 
   ChevronRight, ArrowRight, Heart, CheckCircle2, MessageSquare, 
   HelpCircle, ChevronDown, Check, ArrowLeft, Star, ShoppingBag, 
-  Eye, Upload, X, AlertCircle, RefreshCw, Send, Calendar, DollarSign
+  Eye, Upload, X, AlertCircle, RefreshCw, Send, Calendar, DollarSign, Search
 } from 'lucide-react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
@@ -74,22 +74,41 @@ export default function PersonalisationPage() {
     }
   }, [user]);
 
-  // Filter products for the existing product picker
+  // Filter products for the existing product picker across canonical catalog
   const filteredProducts = useMemo(() => {
-    const list = PRODUCTS.filter(p => 
-      p.category === 'cakes' || 
-      p.category === 'gifts' || 
-      p.category === 'chocolates' || 
-      p.category === 'flowers' ||
-      p.category === 'desserts'
-    );
-    if (!productSearch.trim()) return list.slice(0, 12);
-    const q = productSearch.toLowerCase();
-    return list.filter(p => p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)).slice(0, 12);
+    const baseList = PRODUCTS.filter(p => {
+      const cat = (p.category || '').toLowerCase();
+      return !cat.includes('wellness');
+    });
+
+    const q = productSearch.trim().toLowerCase();
+    if (!q) {
+      return baseList.slice(0, 18);
+    }
+
+    const terms = q.split(/\s+/).filter(Boolean);
+
+    return baseList.filter(p => {
+      const name = (p.name || '').toLowerCase();
+      const cat = (p.category || '').toLowerCase();
+      const subCat = (p.subCategory || '').toLowerCase();
+      const desc = (p.description || '').toLowerCase();
+      const shortDesc = (p.shortDescription || '').toLowerCase();
+      const tags = Array.isArray(p.tags) ? p.tags.join(' ').toLowerCase() : '';
+      const occasions = Array.isArray(p.occasions) ? p.occasions.join(' ').toLowerCase() : '';
+      const id = (p.id || '').toLowerCase();
+
+      const searchableText = `${name} ${cat} ${subCat} ${desc} ${shortDesc} ${tags} ${occasions} ${id}`;
+      return terms.every(t => searchableText.includes(t));
+    });
   }, [PRODUCTS, productSearch]);
 
   const selectedProduct = useMemo(() => {
-    return PRODUCTS.find(p => p.id === selectedProductId) || filteredProducts[0] || null;
+    if (selectedProductId) {
+      const found = PRODUCTS.find(p => p.id === selectedProductId);
+      if (found) return found;
+    }
+    return filteredProducts[0] || PRODUCTS[0] || null;
   }, [PRODUCTS, selectedProductId, filteredProducts]);
 
   // Handle Photo Upload
@@ -371,39 +390,154 @@ export default function PersonalisationPage() {
                     <span className="text-[10px] text-zinc-400 font-bold">Step 1 of 3</span>
                   </div>
 
-                  {/* Search Bar for products */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search cakes, hampers, bouquets, chocolates..."
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
-                    />
-                  </div>
+                  {/* Selected Product Banner */}
+                  {selectedProduct && (
+                    <div className="p-3 bg-brand-burgundy/5 border border-brand-burgundy/20 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-12 w-12 rounded-xl overflow-hidden bg-zinc-100 shrink-0 border border-brand-burgundy/20">
+                          <SafeImage 
+                            src={selectedProduct.image} 
+                            alt={selectedProduct.name} 
+                            category={selectedProduct.category} 
+                            className="h-full w-full object-cover" 
+                          />
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[8px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 bg-brand-burgundy text-white rounded">
+                              {selectedProduct.category || 'Celebration Cake'}
+                            </span>
+                            <span className="text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">
+                              <Check className="h-3 w-3" /> Selected
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-xs text-zinc-900 truncate mt-0.5">{selectedProduct.name}</h4>
+                          <span className="font-black text-xs text-brand-burgundy">₹{selectedProduct.price}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Product Grid / List Picker */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                    {filteredProducts.map((p) => {
-                      const isSelected = selectedProduct?.id === p.id;
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => setSelectedProductId(p.id)}
-                          className={`p-2 rounded-2xl border text-left cursor-pointer transition-all flex flex-col gap-1.5 ${
-                            isSelected
-                              ? 'border-brand-burgundy bg-brand-burgundy/5 ring-1 ring-brand-burgundy shadow-xs'
-                              : 'border-zinc-200/80 bg-[#FAF9F6] hover:bg-white hover:border-zinc-300'
+                  {/* Search Bar for products */}
+                  <div className="space-y-2">
+                    <div className="relative flex items-center">
+                      <Search className="absolute left-3.5 h-4 w-4 text-zinc-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search chocolate, truffle, cake, pastry, pineapple, gifts..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setProductSearch('')}
+                          className="absolute right-2.5 p-1 text-zinc-400 hover:text-zinc-600 rounded-full hover:bg-zinc-200/50"
+                          title="Clear search"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Filter Tags / Suggestions */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[10px]">
+                      <span className="text-zinc-400 font-bold uppercase tracking-wider shrink-0 text-[8px]">Quick Filters:</span>
+                      {[
+                        { label: '🍫 Chocolate', q: 'Chocolate' },
+                        { label: '🎂 Truffle', q: 'Truffle' },
+                        { label: '🍰 Cakes', q: 'Cake' },
+                        { label: '🧁 Pastries', q: 'Pastry' },
+                        { label: '🍍 Pineapple', q: 'Pineapple' },
+                        { label: '❤️ Red Velvet', q: 'Red Velvet' },
+                        { label: '🎁 Hampers', q: 'Gifts' }
+                      ].map(item => (
+                        <button
+                          key={item.q}
+                          type="button"
+                          onClick={() => setProductSearch(item.q)}
+                          className={`px-2 py-0.5 rounded-lg border shrink-0 transition-colors font-semibold ${
+                            productSearch.toLowerCase() === item.q.toLowerCase()
+                              ? 'bg-brand-burgundy text-white border-brand-burgundy'
+                              : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-600 border-zinc-200'
                           }`}
                         >
-                          <div className="h-16 w-full rounded-xl overflow-hidden bg-zinc-100 shrink-0">
-                            <SafeImage src={p.image} alt={p.name} category={p.category} className="h-full w-full object-cover" />
-                          </div>
-                          <p className="font-bold text-[10px] text-zinc-850 line-clamp-1 leading-snug">{p.name}</p>
-                          <span className="font-black text-[10px] text-brand-burgundy">₹{p.price}</span>
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Search Results / Product Grid Picker */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-[10px] text-zinc-400 font-bold">
+                      <span>
+                        {productSearch ? `Found ${filteredProducts.length} matching products:` : `Available Celebration Catalog (${filteredProducts.length}):`}
+                      </span>
+                      {productSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setProductSearch('')}
+                          className="text-brand-burgundy hover:underline"
+                        >
+                          View All
+                        </button>
+                      )}
+                    </div>
+
+                    {filteredProducts.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-64 overflow-y-auto pr-1">
+                        {filteredProducts.map((p) => {
+                          const isSelected = selectedProduct?.id === p.id;
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => setSelectedProductId(p.id)}
+                              className={`p-2.5 rounded-2xl border text-left cursor-pointer transition-all flex flex-col gap-1.5 relative ${
+                                isSelected
+                                  ? 'border-brand-burgundy bg-brand-burgundy/5 ring-2 ring-brand-burgundy shadow-sm'
+                                  : 'border-zinc-200/80 bg-[#FAF9F6] hover:bg-white hover:border-zinc-300'
+                              }`}
+                            >
+                              {isSelected && (
+                                <div className="absolute top-1.5 right-1.5 h-5 w-5 bg-brand-burgundy text-white rounded-full flex items-center justify-center shadow-xs">
+                                  <Check className="h-3 w-3" />
+                                </div>
+                              )}
+                              <div className="h-20 w-full rounded-xl overflow-hidden bg-zinc-100 shrink-0 border border-zinc-100">
+                                <SafeImage src={p.image} alt={p.name} category={p.category} className="h-full w-full object-cover" />
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[8px] font-extrabold uppercase tracking-widest text-zinc-400 block line-clamp-1">
+                                  {p.category || 'Celebration Cake'}
+                                </span>
+                                <p className="font-bold text-[11px] text-zinc-900 line-clamp-1 leading-snug">{p.name}</p>
+                                <span className="font-black text-xs text-brand-burgundy">₹{p.price}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 space-y-2">
+                        <AlertCircle className="h-8 w-8 text-zinc-400 mx-auto" />
+                        <p className="font-bold text-xs text-zinc-700">No products found matching &ldquo;{productSearch}&rdquo;</p>
+                        <p className="text-[10px] text-zinc-400">Try searching for &ldquo;Chocolate&rdquo;, &ldquo;Truffle&rdquo;, &ldquo;Cake&rdquo;, or &ldquo;Pastry&rdquo; or click below:</p>
+                        <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+                          {['Chocolate', 'Truffle', 'Black Forest', 'Red Velvet', 'Pineapple', 'Pastry'].map(tag => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setProductSearch(tag)}
+                              className="px-2.5 py-1 bg-white border border-zinc-200 rounded-lg text-[10px] font-bold text-brand-burgundy hover:border-brand-burgundy"
+                            >
+                              {tag}
+                            </button>
+                          ))}
                         </div>
-                      );
-                    })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
