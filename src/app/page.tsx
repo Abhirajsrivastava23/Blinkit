@@ -92,6 +92,7 @@ export default function HomePage() {
   const beerThemeCakes = PRODUCTS.filter(p => p.category === 'Beer Theme Cakes' && p.inStock);
   const desserts = PRODUCTS.filter(p => p.category === 'Desserts' && p.inStock);
   const pastries = PRODUCTS.filter(p => p.category === 'Pastries' && p.inStock);
+  const flowers = PRODUCTS.filter(p => (p.category || '').toLowerCase() === 'flowers' && p.inStock);
   const deals = PRODUCTS.filter(p => p.category !== 'wellness' && p.discount > 0 && p.inStock).slice(0, 8);
   const bestsellers = PRODUCTS.filter(p => p.category !== 'wellness' && p.inStock).slice(0, 8);
   const newArrivals = PRODUCTS.filter(p => p.category !== 'wellness' && p.inStock).slice(8, 16);
@@ -400,7 +401,27 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 9. BEER THEME CAKES SECTION */}
+        {/* 9. FRESH FLOWERS & BOUQUETS SECTION */}
+        {flowers.length > 0 && (
+          <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex justify-between items-baseline mb-4 text-left">
+              <div>
+                <h2 className="text-lg sm:text-xl font-serif font-black text-brand-charcoal">Send Some Flowers 🌸</h2>
+                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Handpicked luxury roses, orchids & celebration bouquets</p>
+              </div>
+              <Link href="/flowers" className="text-[9px] font-black uppercase tracking-wider text-brand-burgundy hover:underline">
+                View All ({flowers.length}) →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+              {flowers.slice(0, 8).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 10. BEER THEME CAKES SECTION */}
         {beerThemeCakes.length > 0 && (
           <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex justify-between items-baseline mb-4 text-left">
