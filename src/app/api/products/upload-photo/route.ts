@@ -180,7 +180,7 @@ export async function POST(request: Request) {
         }
       }
     } else if (directImageUrl) {
-      if (!directImageUrl.startsWith('http://') && !directImageUrl.startsWith('https://') && !directImageUrl.startsWith('data:image/')) {
+      if (!directImageUrl.startsWith('http://') && !directImageUrl.startsWith('https://') && !directImageUrl.startsWith('data:image/') && !directImageUrl.startsWith('/')) {
         return NextResponse.json(
           { error: 'Invalid image URL provided.' },
           { status: 400 }
