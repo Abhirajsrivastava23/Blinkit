@@ -93,10 +93,19 @@ export async function PATCH(request: Request, context: any) {
 
     // Next.js Route Cache Invalidation
     try {
+      revalidatePath('/', 'layout');
       revalidatePath('/');
       revalidatePath('/products');
       revalidatePath('/api/products');
+      revalidatePath('/birthday-cakes');
+      revalidatePath('/chocolate-cakes');
+      revalidatePath('/pastries');
+      revalidatePath('/beer-theme-cakes');
+      revalidatePath('/desserts');
+      revalidatePath('/wellness');
+      revalidatePath('/search');
       revalidatePath(`/product/${encodeURIComponent(prevProduct.id)}`);
+      revalidatePath(`/product/${encodeURIComponent(cleanId)}`);
       if (updatedProduct.category) {
         revalidatePath(`/${updatedProduct.category}`);
       }
@@ -130,7 +139,7 @@ export async function PATCH(request: Request, context: any) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate'
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
         }
       }
     );

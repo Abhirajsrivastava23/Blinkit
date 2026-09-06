@@ -48,6 +48,8 @@ export interface Product {
     manufacturer: string;
   };
   gallery?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Combo {

@@ -36,13 +36,36 @@ export default function ProductDetailPage() {
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
   const productId = params.id as string;
+  const [fetchedProduct, setFetchedProduct] = useState<Product | null>(null);
+
+  React.useEffect(() => {
+    if (!productId) return;
+    let isMounted = true;
+    const loadDetail = async () => {
+      try {
+        const res = await fetch(`/api/products/${encodeURIComponent(productId)}?_t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data && data.id) {
+            setFetchedProduct(data);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    void loadDetail();
+    return () => { isMounted = false; };
+  }, [productId]);
+
   const product = useMemo(() => {
+    if (fetchedProduct) return fetchedProduct;
     return (
       PRODUCTS.find((p) => p.id === productId || p.id.toLowerCase() === productId?.toLowerCase()) ||
       fallbackProducts.find((p) => p.id === productId || p.id.toLowerCase() === productId?.toLowerCase()) ||
       null
     );
-  }, [PRODUCTS, productId]);
+  }, [PRODUCTS, productId, fetchedProduct]);
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients' | 'storage'>('desc');
   const [activeImage, setActiveImage] = useState<string>('');
 

@@ -3144,6 +3144,7 @@ export const db = {
     const discount = originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
     const category = (productData.category || 'cakes') as any;
     const primaryImage = productData.image || '';
+    const now = new Date().toISOString();
 
     const newProduct: Product = {
       id: targetId,
@@ -3181,7 +3182,9 @@ export const db = {
         storage: productData.storageInstructions || 'Store in a cool dry place.',
         manufacturer: 'FATAFAT Sourced Manufacturer'
       } : undefined,
-      gallery: productData.gallery && productData.gallery.length > 0 ? productData.gallery : [primaryImage]
+      gallery: productData.gallery && productData.gallery.length > 0 ? productData.gallery : [primaryImage],
+      createdAt: now,
+      updatedAt: now
     };
 
     const normalized = normalizeProductRecord(newProduct);
@@ -3200,30 +3203,66 @@ export const db = {
     const activePool = getPool();
     if (activePool) {
       try {
-        const allowed = ALLOWED_COLUMNS['products'] || [];
-        const allowedLowerMap = new Map<string, string>();
-        for (const col of allowed) allowedLowerMap.set(col.toLowerCase(), col);
-
-        const cols: string[] = [];
-        const vals: string[] = [];
-        const queryVals: unknown[] = [];
-
-        for (const [k, rawV] of Object.entries(normalized as unknown as Record<string, unknown>)) {
-          const canonicalCol = allowedLowerMap.get(k.toLowerCase());
-          if (!canonicalCol) continue;
-          if (cols.includes(`"${canonicalCol}"`)) continue;
-          cols.push(`"${canonicalCol}"`);
-          queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
-          vals.push(`$${queryVals.length}`);
-        }
-
-        if (cols.length > 0) {
-          const updateSets = cols.map(c => `${c} = EXCLUDED.${c}`).join(', ');
-          const queryText = `INSERT INTO "products" (${cols.join(', ')}) VALUES (${vals.join(', ')}) ON CONFLICT ("id") DO UPDATE SET ${updateSets} RETURNING *`;
-          const res = await activePool.query(queryText, queryVals);
-          if (res.rows.length > 0) {
-            return normalizeProductRecord(res.rows[0]);
-          }
+        await ensureDbSchema(activePool).catch(() => {});
+        const insertQuery = `
+          INSERT INTO products (
+            id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+            category, subcategory, rating, reviewcount, instock, deliverytime,
+            ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+          ) ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            shortdescription = EXCLUDED.shortdescription,
+            price = EXCLUDED.price,
+            originalprice = EXCLUDED.originalprice,
+            discount = EXCLUDED.discount,
+            image = EXCLUDED.image,
+            gallery = EXCLUDED.gallery,
+            category = EXCLUDED.category,
+            subcategory = EXCLUDED.subcategory,
+            rating = EXCLUDED.rating,
+            reviewcount = EXCLUDED.reviewcount,
+            instock = EXCLUDED.instock,
+            deliverytime = EXCLUDED.deliverytime,
+            ingredients = EXCLUDED.ingredients,
+            allergens = EXCLUDED.allergens,
+            storageinstructions = EXCLUDED.storageinstructions,
+            occasions = EXCLUDED.occasions,
+            variants = EXCLUDED.variants,
+            tags = EXCLUDED.tags,
+            updatedat = EXCLUDED.updatedat
+          RETURNING *
+        `;
+        const insertVals = [
+          normalized.id,
+          normalized.name,
+          normalized.description || '',
+          normalized.shortDescription || '',
+          normalized.price,
+          normalized.originalPrice || normalized.price,
+          normalized.discount || 0,
+          normalized.image,
+          JSON.stringify(normalized.gallery || [normalized.image]),
+          normalized.category,
+          normalized.subCategory || null,
+          normalized.rating || 4.5,
+          normalized.reviewCount || 0,
+          normalized.inStock !== undefined ? normalized.inStock : true,
+          normalized.deliveryTime || 'Within 12 hours',
+          JSON.stringify(normalized.ingredients || []),
+          JSON.stringify(normalized.allergens || []),
+          normalized.storageInstructions || 'Store fresh.',
+          JSON.stringify(normalized.occasions || []),
+          JSON.stringify(normalized.variants || []),
+          JSON.stringify(normalized.tags || []),
+          now,
+          now
+        ];
+        const res = await activePool.query(insertQuery, insertVals);
+        if (res.rows.length > 0) {
+          return normalizeProductRecord(res.rows[0]);
         }
       } catch (err) {
         console.error('Error creating product in DB:', err);
@@ -3243,6 +3282,7 @@ export const db = {
     const price = updates.price !== undefined ? Number(updates.price) : existing.price;
     const originalPrice = updates.originalPrice !== undefined ? Number(updates.originalPrice) : existing.originalPrice;
     const discount = originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : (updates.discount !== undefined ? Number(updates.discount) : existing.discount);
+    const now = new Date().toISOString();
 
     const merged: Product = {
       ...existing,
@@ -3251,6 +3291,7 @@ export const db = {
       price,
       originalPrice,
       discount,
+      updatedAt: now,
       wellnessDetails: (existing.category === 'wellness' || updates.category === 'wellness') ? {
         material: updates.wellnessMaterial || existing.wellnessMaterial || 'Latex',
         lubrication: updates.wellnessTexture === 'Smooth' ? 'Silicone Lubricated' : 'Textured Rib/Dot Oil',
@@ -3282,31 +3323,136 @@ export const db = {
     const activePool = getPool();
     if (activePool) {
       try {
-        const allowed = ALLOWED_COLUMNS['products'] || [];
-        const allowedLowerMap = new Map<string, string>();
-        for (const col of allowed) allowedLowerMap.set(col.toLowerCase(), col);
+        await ensureDbSchema(activePool).catch(() => {});
 
-        const setClauses: string[] = [];
-        const queryVals: unknown[] = [];
+        const queryText = `
+          UPDATE products SET
+            name = $1,
+            description = $2,
+            shortdescription = $3,
+            price = $4,
+            originalprice = $5,
+            discount = $6,
+            image = $7,
+            gallery = $8,
+            category = $9,
+            subcategory = $10,
+            rating = $11,
+            reviewcount = $12,
+            instock = $13,
+            deliverytime = $14,
+            ingredients = $15,
+            allergens = $16,
+            storageinstructions = $17,
+            occasions = $18,
+            variants = $19,
+            tags = $20,
+            updatedat = $21
+          WHERE LOWER(TRIM(id)) = LOWER(TRIM($22)) OR LOWER(TRIM(id)) = LOWER(TRIM($23)) OR LOWER(TRIM(name)) = LOWER(TRIM($23))
+          RETURNING *
+        `;
 
-        for (const [k, rawV] of Object.entries(normalized as unknown as Record<string, unknown>)) {
-          if (k.toLowerCase() === 'id') continue;
-          const canonicalCol = allowedLowerMap.get(k.toLowerCase());
-          if (!canonicalCol) continue;
-          queryVals.push(rawV && typeof rawV === 'object' ? JSON.stringify(rawV) : rawV);
-          setClauses.push(`"${canonicalCol}" = $${queryVals.length}`);
-        }
+        const queryVals = [
+          normalized.name,
+          normalized.description || '',
+          normalized.shortDescription || normalized.description || '',
+          normalized.price,
+          normalized.originalPrice || normalized.price,
+          normalized.discount || 0,
+          normalized.image,
+          JSON.stringify(normalized.gallery || [normalized.image]),
+          normalized.category,
+          normalized.subCategory || null,
+          normalized.rating || 4.5,
+          normalized.reviewCount || 0,
+          normalized.inStock !== undefined ? normalized.inStock : true,
+          normalized.deliveryTime || 'Within 12 hours',
+          JSON.stringify(normalized.ingredients || []),
+          JSON.stringify(normalized.allergens || []),
+          normalized.storageInstructions || 'Store fresh.',
+          JSON.stringify(normalized.occasions || []),
+          JSON.stringify(normalized.variants || []),
+          JSON.stringify(normalized.tags || []),
+          now,
+          existingId,
+          cleanTarget
+        ];
 
-        if (setClauses.length > 0) {
-          queryVals.push(existingId);
-          const idParam = `$${queryVals.length}`;
-          queryVals.push(cleanTarget);
-          const targetParam = `$${queryVals.length}`;
+        let res = await activePool.query(queryText, queryVals).catch(async (err) => {
+          console.warn('Initial updateProduct query failed, retrying with fallback:', err);
+          return null;
+        });
 
-          const queryText = `UPDATE "products" SET ${setClauses.join(', ')} WHERE LOWER(TRIM(id)) = LOWER(TRIM(${idParam})) OR LOWER(TRIM(id)) = LOWER(TRIM(${targetParam})) RETURNING *`;
-          const res = await activePool.query(queryText, queryVals);
-          if (res.rows.length > 0) {
-            return normalizeProductRecord(res.rows[0]);
+        if (res && res.rows.length > 0) {
+          const persisted = normalizeProductRecord(res.rows[0]);
+          if (idx >= 0) list[idx] = persisted as any;
+          return persisted;
+        } else {
+          // If no row was updated in PostgreSQL, insert it directly
+          const insertQuery = `
+            INSERT INTO products (
+              id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+              category, subcategory, rating, reviewcount, instock, deliverytime,
+              ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+            ) ON CONFLICT (id) DO UPDATE SET
+              name = EXCLUDED.name,
+              description = EXCLUDED.description,
+              shortdescription = EXCLUDED.shortdescription,
+              price = EXCLUDED.price,
+              originalprice = EXCLUDED.originalprice,
+              discount = EXCLUDED.discount,
+              image = EXCLUDED.image,
+              gallery = EXCLUDED.gallery,
+              category = EXCLUDED.category,
+              subcategory = EXCLUDED.subcategory,
+              rating = EXCLUDED.rating,
+              reviewcount = EXCLUDED.reviewcount,
+              instock = EXCLUDED.instock,
+              deliverytime = EXCLUDED.deliverytime,
+              ingredients = EXCLUDED.ingredients,
+              allergens = EXCLUDED.allergens,
+              storageinstructions = EXCLUDED.storageinstructions,
+              occasions = EXCLUDED.occasions,
+              variants = EXCLUDED.variants,
+              tags = EXCLUDED.tags,
+              updatedat = EXCLUDED.updatedat
+            RETURNING *
+          `;
+          const insertVals = [
+            existingId,
+            normalized.name,
+            normalized.description || '',
+            normalized.shortDescription || '',
+            normalized.price,
+            normalized.originalPrice || normalized.price,
+            normalized.discount || 0,
+            normalized.image,
+            JSON.stringify(normalized.gallery || [normalized.image]),
+            normalized.category,
+            normalized.subCategory || null,
+            normalized.rating || 4.5,
+            normalized.reviewCount || 0,
+            normalized.inStock !== undefined ? normalized.inStock : true,
+            normalized.deliveryTime || 'Within 12 hours',
+            JSON.stringify(normalized.ingredients || []),
+            JSON.stringify(normalized.allergens || []),
+            normalized.storageInstructions || 'Store fresh.',
+            JSON.stringify(normalized.occasions || []),
+            JSON.stringify(normalized.variants || []),
+            JSON.stringify(normalized.tags || []),
+            normalized.createdAt || now,
+            now
+          ];
+          const insRes = await activePool.query(insertQuery, insertVals).catch((err) => {
+            console.error('Insert fallback in updateProduct failed:', err);
+            return null;
+          });
+          if (insRes && insRes.rows.length > 0) {
+            const persisted = normalizeProductRecord(insRes.rows[0]);
+            if (idx >= 0) list[idx] = persisted as any;
+            return persisted;
           }
         }
       } catch (err) {
@@ -3336,7 +3482,7 @@ export const db = {
     const activePool = getPool();
     if (activePool) {
       try {
-        await activePool.query('DELETE FROM "products" WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2))', [existingId, cleanTarget]);
+        await activePool.query('DELETE FROM products WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM(name)) = LOWER(TRIM($2))', [existingId, cleanTarget]);
       } catch (err) {
         console.error('Error deleting product from DB:', err);
       }
