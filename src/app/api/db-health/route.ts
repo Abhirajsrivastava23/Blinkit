@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     let sampleProducts: any[] = [];
     let productCount = 0;
     try {
-      const pRes = await db.query('SELECT id, name, image, "updatedAt" FROM products LIMIT 5');
+      const pRes = await db.query('SELECT id, name, image FROM products LIMIT 5');
       sampleProducts = pRes.rows;
       const countRes = await db.query('SELECT count(*) as count FROM products');
       productCount = Number(countRes.rows[0]?.count || 0);

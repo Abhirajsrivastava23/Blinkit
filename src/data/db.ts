@@ -144,38 +144,59 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
       try {
         // 1. Ensure products table exists with all standard columns
         await p.query(`
-          CREATE TABLE IF NOT EXISTS "products" (
+          CREATE TABLE IF NOT EXISTS products (
             id TEXT PRIMARY KEY,
             name TEXT,
             description TEXT,
-            "shortDescription" TEXT,
+            shortdescription TEXT,
             price NUMERIC,
-            "originalPrice" NUMERIC,
+            originalprice NUMERIC,
             discount NUMERIC,
             image TEXT,
             gallery JSONB DEFAULT '[]'::jsonb,
             category TEXT,
-            "subCategory" TEXT,
+            subcategory TEXT,
             rating NUMERIC DEFAULT 4.5,
-            "reviewCount" NUMERIC DEFAULT 0,
-            "inStock" BOOLEAN DEFAULT true,
-            "deliveryTime" TEXT DEFAULT 'Within 12 hours',
+            reviewcount NUMERIC DEFAULT 0,
+            instock BOOLEAN DEFAULT true,
+            deliverytime TEXT DEFAULT 'Within 12 hours',
             ingredients JSONB DEFAULT '[]'::jsonb,
             allergens JSONB DEFAULT '[]'::jsonb,
-            "storageInstructions" TEXT,
+            storageinstructions TEXT,
             occasions JSONB DEFAULT '[]'::jsonb,
             variants JSONB DEFAULT '[]'::jsonb,
             tags JSONB DEFAULT '[]'::jsonb,
-            "createdAt" TEXT,
-            "updatedAt" TEXT
+            createdat TEXT,
+            updatedat TEXT
           );
-          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shortDescription" TEXT;
-          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "tags" JSONB DEFAULT '[]'::jsonb;
-          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "gallery" JSONB DEFAULT '[]'::jsonb;
-          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "image" TEXT;
-          ALTER TABLE "products" ALTER COLUMN image TYPE TEXT;
-          CREATE INDEX IF NOT EXISTS idx_products_id ON "products" (id);
-          CREATE INDEX IF NOT EXISTS idx_products_category ON "products" (category);
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS updatedat TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS createdat TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS shortdescription TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "shortDescription" TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS originalprice NUMERIC;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "originalPrice" NUMERIC;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS subcategory TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "subCategory" TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS reviewcount NUMERIC DEFAULT 0;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "reviewCount" NUMERIC DEFAULT 0;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS instock BOOLEAN DEFAULT true;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "inStock" BOOLEAN DEFAULT true;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS deliverytime TEXT DEFAULT 'Within 12 hours';
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "deliveryTime" TEXT DEFAULT 'Within 12 hours';
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS storageinstructions TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "storageInstructions" TEXT;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS occasions JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS allergens JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS image TEXT;
+          ALTER TABLE products ALTER COLUMN image TYPE TEXT;
+          CREATE INDEX IF NOT EXISTS idx_products_id ON products (id);
+          CREATE INDEX IF NOT EXISTS idx_products_category ON products (category);
         `).catch(() => {});
 
         // 2. Ensure product_image_history table exists
@@ -496,24 +517,24 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
             }
 
             const batchInsertQuery = `
-              INSERT INTO "products" (
-                id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
-                category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
-                ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
+              INSERT INTO products (
+                id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+                category, subcategory, rating, reviewcount, instock, deliverytime,
+                ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
               ) VALUES ${valuePlaceholders.join(', ')}
               ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
-                "shortDescription" = EXCLUDED."shortDescription",
+                shortdescription = EXCLUDED.shortdescription,
                 price = EXCLUDED.price,
-                "originalPrice" = EXCLUDED."originalPrice",
+                originalprice = EXCLUDED.originalprice,
                 discount = EXCLUDED.discount,
                 category = EXCLUDED.category,
-                "subCategory" = EXCLUDED."subCategory",
+                subcategory = EXCLUDED.subcategory,
                 occasions = EXCLUDED.occasions,
                 variants = EXCLUDED.variants,
                 tags = EXCLUDED.tags,
-                "updatedAt" = EXCLUDED."updatedAt"
+                updatedat = EXCLUDED.updatedat
             `;
             await p.query(batchInsertQuery, queryParams);
           } catch (batchErr) {
@@ -1867,26 +1888,59 @@ export const db = {
         await activePool.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
         
         // 1. Direct atomic single-row update by ID
-        const res = await activePool.query(
+        let res = await activePool.query(
           `UPDATE products 
-           SET image = $1, "updatedAt" = $2, gallery = jsonb_build_array($1)
+           SET image = $1, updatedat = $2, gallery = jsonb_build_array($1)
            WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) 
            RETURNING *`,
           [imageUrl, now, cleanId]
-        );
+        ).catch(async () => {
+          return await activePool.query(
+            `UPDATE products 
+             SET image = $1, "updatedAt" = $2, gallery = jsonb_build_array($1)
+             WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) 
+             RETURNING *`,
+            [imageUrl, now, cleanId]
+          ).catch(async () => {
+            return await activePool.query(
+              `UPDATE products 
+               SET image = $1, gallery = jsonb_build_array($1)
+               WHERE LOWER(TRIM(id)) = LOWER(TRIM($2)) 
+               RETURNING *`,
+              [imageUrl, cleanId]
+            ).catch(() => null);
+          });
+        });
 
-        if (res.rows.length > 0) {
+        if (res && res.rows.length > 0) {
           updatedProduct = normalizeProductRecord(res.rows[0]);
         } else {
           // Fallback: match by name if cleanId was passed as product name
-          const resByName = await activePool.query(
+          let resByName = await activePool.query(
             `UPDATE products 
-             SET image = $1, "updatedAt" = $2, gallery = jsonb_build_array($1)
+             SET image = $1, updatedat = $2, gallery = jsonb_build_array($1)
              WHERE LOWER(TRIM(name)) = LOWER(TRIM($3)) 
              RETURNING *`,
             [imageUrl, now, cleanId]
-          );
-          if (resByName.rows.length > 0) {
+          ).catch(async () => {
+            return await activePool.query(
+              `UPDATE products 
+               SET image = $1, "updatedAt" = $2, gallery = jsonb_build_array($1)
+               WHERE LOWER(TRIM(name)) = LOWER(TRIM($3)) 
+               RETURNING *`,
+              [imageUrl, now, cleanId]
+            ).catch(async () => {
+              return await activePool.query(
+                `UPDATE products 
+                 SET image = $1, gallery = jsonb_build_array($1)
+                 WHERE LOWER(TRIM(name)) = LOWER(TRIM($2)) 
+                 RETURNING *`,
+                [imageUrl, cleanId]
+              ).catch(() => null);
+            });
+          });
+
+          if (resByName && resByName.rows.length > 0) {
             updatedProduct = normalizeProductRecord(resByName.rows[0]);
           } else {
             // Upsert from canonical products if row not yet in PostgreSQL
@@ -1896,16 +1950,16 @@ export const db = {
             );
             if (canonical) {
               await activePool.query(`
-                INSERT INTO "products" (
-                  id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
-                  category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
-                  ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
+                INSERT INTO products (
+                  id, name, description, shortdescription, price, originalprice, discount, image, gallery,
+                  category, subcategory, rating, reviewcount, instock, deliverytime,
+                  ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
                 ) VALUES (
                   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
                 ) ON CONFLICT (id) DO UPDATE SET
                   image = EXCLUDED.image,
                   gallery = EXCLUDED.gallery,
-                  "updatedAt" = EXCLUDED."updatedAt"
+                  updatedat = EXCLUDED.updatedat
               `, [
                 canonical.id, canonical.name, canonical.description || '', canonical.shortDescription || '', canonical.price, canonical.originalPrice || canonical.price, canonical.discount || 0,
                 imageUrl, JSON.stringify([imageUrl]), canonical.category || 'Birthday Cakes', canonical.subCategory || null,
