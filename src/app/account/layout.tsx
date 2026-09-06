@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { User, ShoppingBag, MapPin, Heart, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { User, ShoppingBag, MapPin, Heart, Settings, LogOut, ChevronRight, LifeBuoy } from 'lucide-react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import Breadcrumbs from '../../components/Breadcrumbs';
@@ -132,6 +132,21 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
                     <span className="flex items-center gap-3 text-sm">
                       <Heart className="h-4.5 w-4.5" />
                       <span>Wishlist</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 opacity-40" />
+                  </Link>
+
+                  <Link
+                    href="/account/support"
+                    className={`flex items-center justify-between px-5 py-3.5 transition-all ${
+                      pathname.startsWith('/account/support') 
+                        ? 'bg-brand-burgundy/8 border-l-3 border-brand-burgundy text-brand-burgundy font-semibold' 
+                        : 'text-zinc-700 hover:bg-zinc-50 border-l-3 border-transparent'
+                    }`}
+                  >
+                    <span className="flex items-center gap-3 text-sm">
+                      <LifeBuoy className="h-4.5 w-4.5" />
+                      <span>Support Tickets</span>
                     </span>
                     <ChevronRight className="h-4 w-4 opacity-40" />
                   </Link>

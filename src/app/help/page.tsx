@@ -71,17 +71,25 @@ export default function HelpCenterPage() {
           </div>
 
           {/* Quick Contact CTA */}
-          <div className="bg-white border rounded-3xl p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 border-l-4 border-l-brand-gold">
-            <div className="space-y-1">
-              <h3 className="text-base font-serif font-extrabold text-zinc-800">Still have unanswered questions?</h3>
-              <p className="text-xs text-zinc-400">Our customer happiness team is available daily from 6 AM to 12 Midnight.</p>
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 border-l-4 border-l-brand-gold">
+            <div className="space-y-1 text-left">
+              <h3 className="text-base font-serif font-extrabold text-zinc-800">Still have unanswered questions or issues?</h3>
+              <p className="text-xs text-zinc-500 font-medium">Submit a support ticket and receive an official reply with a unique tracking number (FT-SUP-XXXX).</p>
             </div>
-            <Link
-              href="/contact"
-              className="px-6 py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow flex items-center gap-2"
-            >
-              <MessageSquare className="h-4 w-4" /> Open Chat Support
-            </Link>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <Link
+                href="/account/support"
+                className="px-5 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2"
+              >
+                <HelpCircle className="h-4 w-4" /> My Tickets
+              </Link>
+              <Link
+                href="/contact"
+                className="px-6 py-3 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow flex items-center gap-2"
+              >
+                <MessageSquare className="h-4 w-4" /> Raise Support Ticket
+              </Link>
+            </div>
           </div>
 
         </div>

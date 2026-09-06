@@ -116,9 +116,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ]
     },
     {
-      title: 'Customers',
+      title: 'Customers & Support',
       links: [
         { href: '/admin/customers', label: 'Customers List', icon: Users },
+        { href: '/admin/support', label: 'Support Tickets', icon: HelpCircle },
         { href: '/admin/reviews', label: 'Reviews Feed', icon: Star }
       ]
     },

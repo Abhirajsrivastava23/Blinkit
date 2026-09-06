@@ -70,6 +70,27 @@ export interface CustomRequestRecord {
   [key: string]: unknown;
 }
 
+export interface SupportTicketRecord {
+  id: string;
+  ticketNumber: string;
+  customerId?: string;
+  name: string;
+  email: string;
+  phone: string;
+  orderId?: string;
+  category: string;
+  message: string;
+  attachmentUrl?: string;
+  status: 'New' | 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+  adminReply?: string;
+  adminReplyAt?: string;
+  adminRepliedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface AuditLogRecord {
   id: string;
   adminUser: string;
@@ -645,6 +666,70 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_custom_req_created ON "custom_requests" ("createdAt");
         `).catch(() => {});
 
+        // 13.5. Ensure support_tickets table exists with indexes
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "support_tickets" (
+            id TEXT PRIMARY KEY,
+            "ticketNumber" TEXT UNIQUE,
+            ticketnumber TEXT,
+            "customerId" TEXT,
+            customerid TEXT,
+            name TEXT,
+            email TEXT,
+            phone TEXT,
+            "orderId" TEXT,
+            orderid TEXT,
+            category TEXT,
+            message TEXT,
+            "attachmentUrl" TEXT,
+            attachmenturl TEXT,
+            status TEXT DEFAULT 'New',
+            "adminReply" TEXT,
+            adminreply TEXT,
+            "adminReplyAt" TEXT,
+            adminreplyat TEXT,
+            "adminRepliedBy" TEXT,
+            adminrepliedby TEXT,
+            "createdAt" TEXT,
+            createdat TEXT,
+            "updatedAt" TEXT,
+            updatedat TEXT,
+            metadata JSONB
+          );
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS id TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "ticketNumber" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS ticketnumber TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "customerId" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS customerid TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS name TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS email TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS phone TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "orderId" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS orderid TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS category TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS message TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "attachmentUrl" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS attachmenturl TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'New';
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "adminReply" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS adminreply TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "adminReplyAt" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS adminreplyat TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "adminRepliedBy" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS adminrepliedby TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS createdat TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS updatedat TEXT;
+          ALTER TABLE "support_tickets" ADD COLUMN IF NOT EXISTS metadata JSONB;
+          CREATE INDEX IF NOT EXISTS idx_support_tickets_num ON "support_tickets" ("ticketNumber");
+          CREATE INDEX IF NOT EXISTS idx_support_tickets_cust ON "support_tickets" ("customerId");
+          CREATE INDEX IF NOT EXISTS idx_support_tickets_email ON "support_tickets" (email);
+          CREATE INDEX IF NOT EXISTS idx_support_tickets_order ON "support_tickets" ("orderId");
+          CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON "support_tickets" (status);
+          CREATE INDEX IF NOT EXISTS idx_support_tickets_created ON "support_tickets" ("createdAt");
+        `).catch(() => {});
+
         // 14. Seed and sync categorized products into PostgreSQL using single batched transaction
         if (productsJson.length > 0) {
           try {
@@ -791,6 +876,11 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'uploadedImageUrl', 'referenceImageUrl', 'specialInstructions', 'preferredDeliveryDate',
     'preferredDeliveryTime', 'budget', 'status', 'adminNotes', 'quotedAmount', 'paymentStatus',
     'paymentLinkId', 'paymentLinkUrl', 'customOrderId', 'createdAt', 'updatedAt', 'metadata'
+  ],
+  support_tickets: [
+    'id', 'ticketNumber', 'customerId', 'name', 'email', 'phone', 'orderId',
+    'category', 'message', 'attachmentUrl', 'status', 'adminReply',
+    'adminReplyAt', 'adminRepliedBy', 'createdAt', 'updatedAt', 'metadata'
   ]
 };
 
@@ -1217,6 +1307,48 @@ export function normalizeCustomRequestRecord(row: Record<string, unknown>): Cust
   }
 
   return parsed as unknown as CustomRequestRecord;
+}
+
+export function normalizeSupportTicketRecord(row: Record<string, unknown>): SupportTicketRecord {
+  if (!row || typeof row !== 'object') return row as unknown as SupportTicketRecord;
+  const parsed: Record<string, any> = { ...row };
+
+  if (typeof parsed.metadata === 'string') {
+    try { parsed.metadata = JSON.parse(parsed.metadata); } catch { /* keep */ }
+  }
+
+  // Column alias normalization
+  if (parsed.ticketnumber && !parsed.ticketNumber) parsed.ticketNumber = parsed.ticketnumber;
+  if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+  if (parsed.orderid && !parsed.orderId) parsed.orderId = parsed.orderid;
+  if (parsed.attachmenturl && !parsed.attachmentUrl) parsed.attachmentUrl = parsed.attachmenturl;
+  if (parsed.adminreply && !parsed.adminReply) parsed.adminReply = parsed.adminreply;
+  if (parsed.adminreplyat && !parsed.adminReplyAt) parsed.adminReplyAt = parsed.adminreplyat;
+  if (parsed.adminrepliedby && !parsed.adminRepliedBy) parsed.adminRepliedBy = parsed.adminrepliedby;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+
+  parsed.id = String(parsed.id || '').trim();
+  parsed.ticketNumber = String(parsed.ticketNumber || '').trim();
+  parsed.customerId = parsed.customerId ? String(parsed.customerId).trim() : undefined;
+  parsed.name = String(parsed.name || '').trim();
+  parsed.email = String(parsed.email || '').trim().toLowerCase();
+  parsed.phone = String(parsed.phone || '').trim();
+  parsed.orderId = parsed.orderId ? String(parsed.orderId).trim() : undefined;
+  parsed.category = String(parsed.category || 'General Inquiry').trim();
+  parsed.message = String(parsed.message || '').trim();
+  parsed.attachmentUrl = parsed.attachmentUrl ? String(parsed.attachmentUrl).trim() : undefined;
+  
+  const rawStatus = String(parsed.status || 'New').trim();
+  const validStatuses = ['New', 'Open', 'In Progress', 'Resolved', 'Closed'];
+  const matchedStatus = validStatuses.find(s => s.toLowerCase() === rawStatus.toLowerCase());
+  parsed.status = (matchedStatus || 'New') as 'New' | 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+
+  if (parsed.adminReply) parsed.adminReply = String(parsed.adminReply).trim();
+  if (parsed.adminReplyAt) parsed.adminReplyAt = String(parsed.adminReplyAt).trim();
+  if (parsed.adminRepliedBy) parsed.adminRepliedBy = String(parsed.adminRepliedBy).trim();
+
+  return parsed as unknown as SupportTicketRecord;
 }
 
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
@@ -4485,6 +4617,243 @@ export const db = {
       return merged;
     } catch (err) {
       console.error(`PostgreSQL error updating custom request ${cleanId}:`, err);
+      return merged;
+    }
+  },
+
+  // ==========================================
+  // SUPPORT TICKETS
+  // ==========================================
+
+  async getNextTicketNumber(): Promise<string> {
+    const prefix = 'FT-SUP-';
+    const activePool = getPool();
+    let highestSeq = 0;
+
+    if (activePool) {
+      try {
+        const res = await activePool.query(`
+          SELECT "ticketNumber", ticketnumber FROM "support_tickets" 
+          ORDER BY "createdAt" DESC LIMIT 500
+        `);
+        for (const row of res.rows) {
+          const numStr = String(row.ticketNumber || row.ticketnumber || '').trim();
+          const match = numStr.match(/FT-SUP-(\d+)/i);
+          if (match && match[1]) {
+            const val = parseInt(match[1], 10);
+            if (!isNaN(val) && val > highestSeq) {
+              highestSeq = val;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not query highest ticket number from DB, fallback to memory:', err);
+      }
+    }
+
+    const memList = (inMemoryData['support_tickets'] || []) as unknown as SupportTicketRecord[];
+    for (const item of memList) {
+      const numStr = String(item.ticketNumber || '').trim();
+      const match = numStr.match(/FT-SUP-(\d+)/i);
+      if (match && match[1]) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > highestSeq) {
+          highestSeq = val;
+        }
+      }
+    }
+
+    const nextSeq = highestSeq + 1;
+    return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  },
+
+  async createSupportTicket(ticket: Partial<SupportTicketRecord>): Promise<SupportTicketRecord> {
+    const now = new Date().toISOString();
+    const ticketNumber = ticket.ticketNumber || (await this.getNextTicketNumber());
+    const id = ticket.id || `TICK-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const record = normalizeSupportTicketRecord({
+      ...ticket,
+      id,
+      ticketNumber,
+      status: ticket.status || 'New',
+      createdAt: ticket.createdAt || now,
+      updatedAt: ticket.updatedAt || now
+    });
+
+    const memList = (inMemoryData['support_tickets'] || []) as unknown as SupportTicketRecord[];
+    memList.unshift(record);
+    inMemoryData['support_tickets'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        await insertRow(activePool, 'support_tickets', record as unknown as Record<string, unknown>);
+      } catch (err) {
+        console.error('PostgreSQL error creating support ticket:', err);
+      }
+    }
+
+    return record;
+  },
+
+  async getSupportTicketById(idOrTicketNumber: string): Promise<SupportTicketRecord | null> {
+    const clean = String(idOrTicketNumber || '').trim();
+    if (!clean) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM "support_tickets" WHERE id = $1 OR LOWER("ticketNumber") = LOWER($1) OR LOWER(ticketnumber) = LOWER($1)',
+          [clean]
+        );
+        if (res.rows.length > 0) {
+          return normalizeSupportTicketRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error(`PostgreSQL error fetching support ticket ${clean}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['support_tickets'] || []) as unknown as SupportTicketRecord[];
+    const found = memList.find(r => 
+      String(r.id || '').toLowerCase() === clean.toLowerCase() ||
+      String(r.ticketNumber || '').toLowerCase() === clean.toLowerCase()
+    );
+    return found ? normalizeSupportTicketRecord(found as unknown as Record<string, unknown>) : null;
+  },
+
+  async getSupportTicketsByCustomer(customerIdOrEmailOrPhone: string): Promise<SupportTicketRecord[]> {
+    const clean = String(customerIdOrEmailOrPhone || '').trim();
+    if (!clean) return [];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM "support_tickets" WHERE "customerId" = $1 OR customerid = $1 OR LOWER(email) = LOWER($1) OR phone = $1 ORDER BY "createdAt" DESC',
+          [clean]
+        );
+        return res.rows.map(r => normalizeSupportTicketRecord(r));
+      } catch (err) {
+        console.error(`PostgreSQL error fetching support tickets for customer ${clean}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['support_tickets'] || []) as unknown as SupportTicketRecord[];
+    return memList
+      .filter(r => 
+        r.customerId === clean || 
+        (r.email && r.email.toLowerCase() === clean.toLowerCase()) ||
+        r.phone === clean
+      )
+      .map(r => normalizeSupportTicketRecord(r as unknown as Record<string, unknown>));
+  },
+
+  async getAllSupportTickets(filter?: { status?: string; category?: string }): Promise<SupportTicketRecord[]> {
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        let queryText = 'SELECT * FROM "support_tickets"';
+        const queryParams: unknown[] = [];
+        const conditions: string[] = [];
+
+        if (filter?.status && filter.status !== 'All') {
+          queryParams.push(filter.status);
+          conditions.push(`LOWER(status) = LOWER($${queryParams.length})`);
+        }
+        if (filter?.category && filter.category !== 'All') {
+          queryParams.push(filter.category);
+          conditions.push(`LOWER(category) = LOWER($${queryParams.length})`);
+        }
+
+        if (conditions.length > 0) {
+          queryText += ` WHERE ${conditions.join(' AND ')}`;
+        }
+        queryText += ' ORDER BY "createdAt" DESC';
+
+        const res = await activePool.query(queryText, queryParams);
+        return res.rows.map(r => normalizeSupportTicketRecord(r));
+      } catch (err) {
+        console.error('PostgreSQL error fetching all support tickets:', err);
+      }
+    }
+
+    let memList = (inMemoryData['support_tickets'] || []) as unknown as SupportTicketRecord[];
+    if (filter?.status && filter.status !== 'All') {
+      memList = memList.filter(r => r.status.toLowerCase() === filter.status!.toLowerCase());
+    }
+    if (filter?.category && filter.category !== 'All') {
+      memList = memList.filter(r => r.category.toLowerCase() === filter.category!.toLowerCase());
+    }
+    return memList.map(r => normalizeSupportTicketRecord(r as unknown as Record<string, unknown>));
+  },
+
+  async updateSupportTicket(id: string, updates: Partial<SupportTicketRecord>): Promise<SupportTicketRecord | null> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return null;
+
+    const existing = await this.getSupportTicketById(cleanId);
+    if (!existing) return null;
+
+    const now = new Date().toISOString();
+    const merged = normalizeSupportTicketRecord({ ...existing, ...updates, updatedAt: now });
+
+    const memList = (inMemoryData['support_tickets'] || []) as unknown as SupportTicketRecord[];
+    const idx = memList.findIndex(r => 
+      String(r.id || '').toLowerCase() === cleanId.toLowerCase() ||
+      String(r.ticketNumber || '').toLowerCase() === cleanId.toLowerCase()
+    );
+    if (idx >= 0) {
+      memList[idx] = merged;
+    } else {
+      memList.push(merged);
+    }
+    inMemoryData['support_tickets'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (!activePool) {
+      return merged;
+    }
+
+    try {
+      const fields: string[] = [];
+      const values: unknown[] = [];
+
+      const colMap: Record<string, string> = {
+        status: 'status',
+        adminReply: '"adminReply"',
+        adminReplyAt: '"adminReplyAt"',
+        adminRepliedBy: '"adminRepliedBy"',
+        category: 'category',
+        message: 'message',
+        attachmentUrl: '"attachmentUrl"',
+        orderId: '"orderId"',
+        updatedAt: '"updatedAt"',
+        metadata: 'metadata'
+      };
+
+      for (const [key, dbCol] of Object.entries(colMap)) {
+        if (updates[key] !== undefined) {
+          values.push(key === 'metadata' && updates[key] && typeof updates[key] === 'object' ? JSON.stringify(updates[key]) : updates[key]);
+          fields.push(`${dbCol} = $${values.length}`);
+        }
+      }
+
+      // Always update updatedAt
+      values.push(now);
+      fields.push(`"updatedAt" = $${values.length}`);
+
+      if (fields.length > 0) {
+        values.push(existing.id);
+        const queryText = `UPDATE "support_tickets" SET ${fields.join(', ')} WHERE id = $${values.length}`;
+        await activePool.query(queryText, values);
+      }
+
+      return merged;
+    } catch (err) {
+      console.error(`PostgreSQL error updating support ticket ${cleanId}:`, err);
       return merged;
     }
   },
