@@ -236,6 +236,28 @@ export async function POST(request: Request) {
       createdAt: (targetOrder.createdAt as string) || now
     });
 
+    // 7. If this is a custom order, sync status back to custom_requests table
+    try {
+      const customReqId = targetOrder.customRequestId;
+      if (customReqId) {
+        await db.updateCustomRequest(String(customReqId), {
+          status: 'Paid',
+          paymentStatus: 'PAID'
+        });
+      } else {
+        const allCustomReqs = await db.getAllCustomRequests().catch(() => []);
+        const matchingReq = allCustomReqs.find(cr => String(cr.customOrderId || '').toLowerCase() === authoritativeOrderId.toLowerCase());
+        if (matchingReq) {
+          await db.updateCustomRequest(matchingReq.id, {
+            status: 'Paid',
+            paymentStatus: 'PAID'
+          });
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Custom request sync warning during payment verification:', syncErr);
+    }
+
     db.logActivity(
       String(targetOrder.customerId || targetOrder.customerEmail || 'Customer'),
       `Razorpay Payment Verified for Order #${authoritativeOrderId}`,

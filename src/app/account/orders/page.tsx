@@ -3,7 +3,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight, X, ShieldCheck, RefreshCw, RotateCcw, CheckCircle2, Clock } from 'lucide-react';
+import { 
+  ShoppingBag, Truck, AlertTriangle, ShieldAlert, ArrowRight, X, 
+  ShieldCheck, RefreshCw, RotateCcw, CheckCircle2, Clock, Sparkles, 
+  ExternalLink, CreditCard, MessageSquare, Calendar, Eye, FileText
+} from 'lucide-react';
 import { useOrders } from '../../../context/OrderContext';
 import { useAuth } from '../../../context/AuthContext';
 import SafeImage from '../../../components/SafeImage';
@@ -12,8 +16,17 @@ export default function AccountOrdersPage() {
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
   const { orders, isLoading: isOrdersLoading, statusCode: orderStatusCode, refreshOrders } = useOrders();
+  
+  // Tab: 'standard' vs 'custom'
+  const [activeTab, setActiveTab] = useState<'standard' | 'custom'>('standard');
+
   const [cancellationInProgress, setCancellationInProgress] = useState<string | null>(null);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
+
+  // Custom Requests States
+  const [customRequests, setCustomRequests] = useState<any[]>([]);
+  const [isLoadingCustomRequests, setIsLoadingCustomRequests] = useState<boolean>(true);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
 
   // Refund Management States
   const [refundRequests, setRefundRequests] = useState<Record<string, any>>({});
@@ -44,14 +57,33 @@ export default function AccountOrdersPage() {
     }
   }, [user]);
 
+  const fetchCustomRequests = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch('/api/custom-requests', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.customRequests && Array.isArray(data.customRequests)) {
+          setCustomRequests(data.customRequests);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching custom requests:', e);
+    } finally {
+      setIsLoadingCustomRequests(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchRefunds();
+    fetchCustomRequests();
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchRefunds();
+      fetchCustomRequests();
     }, 4000);
     return () => clearInterval(timer);
-  }, [fetchRefunds]);
+  }, [fetchRefunds, fetchCustomRequests]);
 
   // Redirect to login if unauthenticated once auth finishes loading
   useEffect(() => {
@@ -136,16 +168,13 @@ export default function AccountOrdersPage() {
     );
   }
 
-  // 5. Use orders directly from API (already filtered by server for this authenticated customer)
-  // The backend /api/orders endpoint returns only orders belonging to the authenticated session.userId
-  // No additional frontend filtering needed - backend filtering is authoritative and secure.
-
   const getStatusBadgeStyles = (status: string) => {
     switch (status) {
       case 'Delivered':
         return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
       case 'Cancelled':
       case 'Failed Delivery':
+      case 'Not Available':
         return 'bg-red-100 text-red-700 border border-red-200';
       case 'Out for Delivery':
         return 'bg-blue-100 text-blue-700 border border-blue-200';
@@ -157,7 +186,14 @@ export default function AccountOrdersPage() {
       case 'Packed':
         return 'bg-indigo-100 text-indigo-700 border border-indigo-200';
       case 'Confirmed':
+      case 'Paid':
         return 'bg-teal-100 text-teal-700 border border-teal-200';
+      case 'Available / Quote Ready':
+      case 'Payment Pending':
+        return 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse';
+      case 'Under Review':
+        return 'bg-blue-50 text-blue-800 border border-blue-200';
+      case 'Request Submitted':
       case 'Pending':
         return 'bg-amber-100 text-amber-700 border border-amber-200';
       default:
@@ -343,211 +379,515 @@ export default function AccountOrdersPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="border-b border-zinc-100 pb-6">
-        <div className="flex items-baseline justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-serif font-black text-zinc-900">My Orders</h1>
-            <p className="text-sm text-zinc-500 mt-2">Track and manage your quick commerce deliveries</p>
+            <h1 className="text-2xl md:text-3xl font-serif font-black text-zinc-900">My Orders & Requests</h1>
+            <p className="text-sm text-zinc-500 mt-1">Track and manage your deliveries and bespoke personalisation requests</p>
           </div>
-          {orders.length > 0 && (
-            <div className="text-right">
-              <span className="text-sm font-medium text-zinc-600">Total Orders</span>
-              <p className="text-2xl font-serif font-bold text-brand-burgundy">{orders.length}</p>
-            </div>
-          )}
+          <Link
+            href="/personalisation"
+            className="inline-flex items-center gap-2 self-start sm:self-auto px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Request Personalisation</span>
+          </Link>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-2 mt-6 p-1 bg-zinc-100 rounded-xl max-w-md">
+          <button
+            onClick={() => setActiveTab('standard')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'standard'
+                ? 'bg-white text-brand-burgundy shadow-xs'
+                : 'text-zinc-600 hover:text-zinc-900'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Orders ({orders.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('custom')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'custom'
+                ? 'bg-white text-brand-burgundy shadow-xs'
+                : 'text-zinc-600 hover:text-zinc-900'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>Custom Requests ({customRequests.length})</span>
+          </button>
         </div>
       </div>
 
-      {/* Empty State */}
-      {orders.length === 0 ? (
-        <div className="py-16">
-          <div className="max-w-sm mx-auto text-center space-y-4">
-            <div className="flex justify-center">
-              <div className="p-4 bg-zinc-100 rounded-full">
-                <ShoppingBag className="h-12 w-12 text-zinc-400" />
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-serif font-bold text-zinc-900">No orders yet</h3>
-              <p className="text-sm text-zinc-500 mt-2">When you place orders, they will appear here. Start exploring FATAFAT&apos;s amazing selection!</p>
-            </div>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-brand-burgundy text-white font-medium text-sm rounded-lg hover:bg-brand-burgundy/90 transition-colors"
-            >
-              <span>Start Shopping</span>
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-      ) : (
+      {/* ========================================================================= */}
+      {/* TAB 1: STANDARD ORDERS                                                    */}
+      {/* ========================================================================= */}
+      {activeTab === 'standard' && (
         <>
-          {cancellationError && (
-            <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 text-sm rounded-lg flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold">Cancellation Failed</p>
-                <p className="mt-1">{cancellationError}</p>
+          {/* Empty State */}
+          {orders.length === 0 ? (
+            <div className="py-16">
+              <div className="max-w-sm mx-auto text-center space-y-4">
+                <div className="flex justify-center">
+                  <div className="p-4 bg-zinc-100 rounded-full">
+                    <ShoppingBag className="h-12 w-12 text-zinc-400" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-serif font-bold text-zinc-900">No orders yet</h3>
+                  <p className="text-sm text-zinc-500 mt-2">When you place orders, they will appear here. Start exploring FATAFAT&apos;s amazing selection!</p>
+                </div>
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-brand-burgundy text-white font-medium text-sm rounded-lg hover:bg-brand-burgundy/90 transition-colors"
+                >
+                  <span>Start Shopping</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
             </div>
-          )}
-          <div className="space-y-4">
-          {orders.map((order) => {
-            const cleanOid = String(order.id).replace(/^#+/, '').trim().toLowerCase();
-            const rReq = refundRequests[cleanOid] || refundRequests[String(order.id).toLowerCase()];
-
-            return (
-            <div
-              key={order.id}
-              className="border border-zinc-200 rounded-xl p-5 md:p-6 bg-white hover:shadow-md transition-all duration-200"
-            >
-                
-                {/* Header: Order ID, Status, Date */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 pb-4 border-b border-zinc-100">
-                  <div className="flex items-center justify-between md:flex-col md:items-start gap-3 flex-1">
-                    <div>
-                      <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Order ID</p>
-                      <p className="text-base md:text-lg font-serif font-bold text-brand-burgundy">{order.id}</p>
-                    </div>
-                    <div className="md:hidden flex items-center gap-2">
-                      <span className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full ${getStatusBadgeStyles(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between gap-4 flex-1">
-                    <div>
-                      <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Placed</p>
-                      <p className="text-sm font-semibold text-zinc-700">{new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                    </div>
-                    <div className="hidden md:block text-right">
-                      <span className={`inline-block px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full ${getStatusBadgeStyles(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </div>
+          ) : (
+            <>
+              {cancellationError && (
+                <div className="mb-4 p-4 bg-red-100 border border-red-300 text-red-700 text-sm rounded-lg flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Cancellation Failed</p>
+                    <p className="mt-1">{cancellationError}</p>
                   </div>
                 </div>
+              )}
+              <div className="space-y-4">
+              {orders.map((order) => {
+                const cleanOid = String(order.id).replace(/^#+/, '').trim().toLowerCase();
+                const rReq = refundRequests[cleanOid] || refundRequests[String(order.id).toLowerCase()];
+                const isCustomOrder = (order as any).isCustomOrder || (order as any).customRequestId;
 
-                {/* Refund Status Banner if requested */}
-                {rReq && (
-                  <div className="mb-4 p-3 bg-gradient-to-r from-zinc-50 to-amber-50/40 border border-zinc-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
-                    <div className="flex items-center gap-2">
-                      {getRefundBadge(rReq)}
-                    </div>
-                    {rReq.adminReason && rReq.status === 'REJECTED' && (
-                      <p className="text-xs text-red-700 font-medium">
-                        Admin Note: {rReq.adminReason}
-                      </p>
+                return (
+                <div
+                  key={order.id}
+                  className="border border-zinc-200 rounded-xl p-5 md:p-6 bg-white hover:shadow-md transition-all duration-200 relative overflow-hidden"
+                >
+                    {/* Custom Order Flag Badge */}
+                    {isCustomOrder && (
+                      <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-amber-600 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-bl-lg flex items-center gap-1 shadow-xs">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Custom Order</span>
+                      </div>
                     )}
+                    
+                    {/* Header: Order ID, Status, Date */}
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 pb-4 border-b border-zinc-100">
+                      <div className="flex items-center justify-between md:flex-col md:items-start gap-3 flex-1">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Order ID</p>
+                            {isCustomOrder && (
+                              <span className="md:hidden px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">
+                                Custom Order
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-base md:text-lg font-serif font-bold text-brand-burgundy">{order.id}</p>
+                        </div>
+                        <div className="md:hidden flex items-center gap-2">
+                          <span className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full ${getStatusBadgeStyles(order.status)}`}>
+                            {order.status}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between gap-4 flex-1">
+                        <div>
+                          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Placed</p>
+                          <p className="text-sm font-semibold text-zinc-700">{new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                        </div>
+                        <div className="hidden md:block text-right">
+                          <span className={`inline-block px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full ${getStatusBadgeStyles(order.status)}`}>
+                            {order.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Refund Status Banner if requested */}
+                    {rReq && (
+                      <div className="mb-4 p-3 bg-gradient-to-r from-zinc-50 to-amber-50/40 border border-zinc-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+                        <div className="flex items-center gap-2">
+                          {getRefundBadge(rReq)}
+                        </div>
+                        {rReq.adminReason && rReq.status === 'REJECTED' && (
+                          <p className="text-xs text-red-700 font-medium">
+                            Admin Note: {rReq.adminReason}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Items Summary */}
+                    <div className="mb-4 space-y-3">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="flex gap-3 items-start">
+                          <div className="flex-shrink-0 w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden border border-zinc-200">
+                            <SafeImage
+                              src={item.image}
+                              alt={item.name}
+                              width={48}
+                              height={48}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-zinc-900 line-clamp-2">{item.name}</p>
+                            <p className="text-xs text-zinc-500 mt-0.5">
+                              Qty: {item.quantity}
+                              {item.selectedSize && ` • Size: ${item.selectedSize}`}
+                              {(item as any).flavour && ` • ${(item as any).flavour}`}
+                            </p>
+                            {(item as any).cakeMessage && (
+                              <p className="text-xs text-amber-800 bg-amber-50 px-2 py-0.5 rounded mt-1 inline-block">
+                                Inscription: &ldquo;{(item as any).cakeMessage}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            <p className="text-sm font-bold text-zinc-900">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Delivery OTP Card */}
+                    {order.deliveryOtp && order.deliveryOtp !== '******' && order.status !== 'Cancelled' && (
+                      <div className="my-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/70 border border-amber-200/90 rounded-xl flex items-center justify-between gap-4 shadow-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2 bg-amber-500/10 text-amber-800 rounded-lg flex-shrink-0">
+                            <ShieldCheck className="h-5 w-5 text-brand-burgundy" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-900">
+                              Delivery OTP
+                            </p>
+                            <p className="text-[11px] text-zinc-600 font-medium leading-tight mt-0.5">
+                              Give this OTP to the delivery partner when your order arrives.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          <div className="px-3.5 py-1.5 bg-white border border-amber-300/80 rounded-lg shadow-sm">
+                            <span className="font-mono text-lg md:text-xl font-black text-brand-burgundy tracking-widest block">
+                              {order.deliveryOtp}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer: Payment, Delivery & Actions */}
+                    <div className="pt-4 space-y-3 border-t border-zinc-100">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <span className="font-medium text-zinc-500 uppercase tracking-wide">Payment</span>
+                          <p className="font-bold text-zinc-900 mt-1">{getPaymentStatusLabel(order.paymentStatus)}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-zinc-500 uppercase tracking-wide">Delivery</span>
+                          <p className="font-bold text-zinc-900 mt-1">{getDeliveryPromise(order)}</p>
+                        </div>
+                        <div className="text-right md:text-left">
+                          <span className="font-medium text-zinc-500 uppercase tracking-wide">Total</span>
+                          <p className="font-bold text-zinc-900 mt-1">₹{order.total.toLocaleString('en-IN')}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                        <Link
+                          href={`/account/orders/${order.id}`}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-burgundy text-white font-medium text-sm rounded-lg hover:bg-brand-burgundy/90 transition-colors"
+                        >
+                          <span>View Details & Track</span>
+                          <Truck className="h-4 w-4" />
+                        </Link>
+
+                        {/* Pay Now Button if payment is pending */}
+                        {String(order.paymentStatus || '').toUpperCase() === 'PENDING' && order.status !== 'Cancelled' && (
+                          <Link
+                            href={`/order/${order.id}/payment`}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg transition-colors shadow-sm"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                            <span>Pay Now (₹{order.total.toLocaleString('en-IN')})</span>
+                          </Link>
+                        )}
+
+                        {canRequestRefund(order) && (
+                          <button
+                            onClick={(e) => handleOpenRefundModal(e, order)}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-300 text-amber-900 font-bold text-sm rounded-lg hover:bg-amber-100 transition-colors shadow-sm"
+                          >
+                            <RotateCcw className="h-4 w-4 text-amber-700" />
+                            <span>Request Refund</span>
+                          </button>
+                        )}
+
+                        {canCancelOrder(order) && (
+                          <button
+                            onClick={(e) => handleCancelOrder(e, order.id)}
+                            disabled={cancellationInProgress === order.id}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 font-medium text-sm rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <X className="h-4 w-4" />
+                            <span>{cancellationInProgress === order.id ? 'Cancelling...' : 'Cancel Order'}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
+                );
+              })}
+              </div>
+            </>
+          )}
+        </>
+      )}
 
-                {/* Items Summary */}
-                <div className="mb-4 space-y-3">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex gap-3 items-start">
-                      <div className="flex-shrink-0 w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden border border-zinc-200">
-                        <SafeImage
-                          src={item.image}
-                          alt={item.name}
-                          width={48}
-                          height={48}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-zinc-900 line-clamp-2">{item.name}</p>
-                        <p className="text-xs text-zinc-500 mt-0.5">
-                          Qty: {item.quantity}
-                          {item.selectedSize && ` • Size: ${item.selectedSize}`}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0 text-right">
-                        <p className="text-sm font-bold text-zinc-900">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {/* ========================================================================= */}
+      {/* TAB 2: CUSTOM REQUESTS & PERSONALISATION                                  */}
+      {/* ========================================================================= */}
+      {activeTab === 'custom' && (
+        <div className="space-y-4">
+          {isLoadingCustomRequests ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-3">
+              <div className="animate-spin h-8 w-8 border-3 border-amber-500 border-t-transparent rounded-full"></div>
+              <p className="text-sm text-zinc-500 font-medium">Loading your custom requests...</p>
+            </div>
+          ) : customRequests.length === 0 ? (
+            <div className="py-16 bg-white border border-zinc-200 rounded-2xl p-8 text-center space-y-4">
+              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto text-amber-600">
+                <Sparkles className="h-7 w-7" />
+              </div>
+              <div className="max-w-md mx-auto">
+                <h3 className="text-lg font-serif font-bold text-zinc-900">No Custom Requests Yet</h3>
+                <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                  Want a customized photo cake, an engraved plaque message, or an unlisted gift item? Submit a request and our team will review and fulfill it!
+                </p>
+              </div>
+              <Link
+                href="/personalisation"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-brand-burgundy text-white font-bold text-xs rounded-xl hover:bg-brand-burgundy/90 transition-colors shadow-sm"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Explore Personalisation</span>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {customRequests.map((req) => {
+                const photo = req.uploadedImageUrl || req.referenceImageUrl;
+                const isPaid = String(req.paymentStatus || '').toUpperCase() === 'PAID';
+                const hasQuote = req.quotedAmount && Number(req.quotedAmount) > 0;
 
-                {/* Delivery OTP Card */}
-                {order.deliveryOtp && order.deliveryOtp !== '******' && order.status !== 'Cancelled' && (
-                  <div className="my-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/70 border border-amber-200/90 rounded-xl flex items-center justify-between gap-4 shadow-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 bg-amber-500/10 text-amber-800 rounded-lg flex-shrink-0">
-                        <ShieldCheck className="h-5 w-5 text-brand-burgundy" />
-                      </div>
+                return (
+                  <div
+                    key={req.id}
+                    className="border border-zinc-200 rounded-2xl p-5 md:p-6 bg-white hover:shadow-md transition-all duration-200 relative overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100">
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-900">
-                          Delivery OTP
-                        </p>
-                        <p className="text-[11px] text-zinc-600 font-medium leading-tight mt-0.5">
-                          Give this OTP to the delivery partner when your order arrives.
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 bg-zinc-100 text-zinc-700 rounded-full uppercase tracking-wider">
+                            {req.requestType === 'UNLISTED_PRODUCT' ? '✨ Unlisted Bespoke Request' : '🎂 Product Personalisation'}
+                          </span>
+                          <span className="text-xs text-zinc-400 font-mono">#{req.id}</span>
+                        </div>
+                        <h3 className="text-base font-bold text-zinc-900 mt-1">{req.productName}</h3>
                       </div>
-                    </div>
-                    <div className="flex-shrink-0 text-right">
-                      <div className="px-3.5 py-1.5 bg-white border border-amber-300/80 rounded-lg shadow-sm">
-                        <span className="font-mono text-lg md:text-xl font-black text-brand-burgundy tracking-widest block">
-                          {order.deliveryOtp}
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusBadgeStyles(req.status)}`}>
+                          {req.status}
                         </span>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* Footer: Payment, Delivery & Actions */}
-                <div className="pt-4 space-y-3 border-t border-zinc-100">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span className="font-medium text-zinc-500 uppercase tracking-wide">Payment</span>
-                      <p className="font-bold text-zinc-900 mt-1">{getPaymentStatusLabel(order.paymentStatus)}</p>
+                    {/* Content Body */}
+                    <div className="py-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Photo preview */}
+                      {photo && (
+                        <div className="md:col-span-1">
+                          <div 
+                            onClick={() => setZoomImage(photo)}
+                            className="relative aspect-square w-full rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 cursor-pointer group shadow-xs"
+                          >
+                            <SafeImage
+                              src={photo}
+                              alt="Customer Reference"
+                              width={200}
+                              height={200}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Zoom</span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 text-center mt-1">Uploaded Reference Photo</p>
+                        </div>
+                      )}
+
+                      {/* Request Details */}
+                      <div className={photo ? 'md:col-span-3 space-y-3' : 'md:col-span-4 space-y-3'}>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                          <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                            <span className="text-[10px] text-zinc-400 font-semibold block uppercase">Quantity</span>
+                            <span className="font-bold text-zinc-800">{req.quantity || 1} Unit(s)</span>
+                          </div>
+                          {req.variant && (
+                            <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                              <span className="text-[10px] text-zinc-400 font-semibold block uppercase">Size / Weight</span>
+                              <span className="font-bold text-zinc-800">{req.variant}</span>
+                            </div>
+                          )}
+                          {req.flavour && (
+                            <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                              <span className="text-[10px] text-zinc-400 font-semibold block uppercase">Flavour</span>
+                              <span className="font-bold text-zinc-800">{req.flavour}</span>
+                            </div>
+                          )}
+                          {req.preferredDeliveryDate && (
+                            <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                              <span className="text-[10px] text-zinc-400 font-semibold block uppercase">Preferred Date</span>
+                              <span className="font-bold text-zinc-800">{req.preferredDeliveryDate}</span>
+                            </div>
+                          )}
+                          {req.budget && (
+                            <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                              <span className="text-[10px] text-zinc-400 font-semibold block uppercase">Est. Budget</span>
+                              <span className="font-bold text-zinc-800">{req.budget}</span>
+                            </div>
+                          )}
+                          <div className="p-2.5 bg-zinc-50 rounded-lg border border-zinc-100">
+                            <span className="text-[10px] text-zinc-400 font-semibold block uppercase">Submitted</span>
+                            <span className="font-bold text-zinc-800">{new Date(req.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+                          </div>
+                        </div>
+
+                        {/* Personalisation Message */}
+                        {req.personalisationMessage && (
+                          <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
+                              🎂 Custom Inscription / Message:
+                            </span>
+                            <p className="font-serif italic font-bold text-zinc-900 mt-0.5 text-sm">
+                              &ldquo;{req.personalisationMessage}&rdquo;
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Special Instructions / Description */}
+                        {(req.specialInstructions || req.requestedDetails) && (
+                          <div className="p-3 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs text-zinc-700">
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">
+                              Notes & Details:
+                            </span>
+                            <p className="mt-0.5 font-medium leading-relaxed">
+                              {req.specialInstructions || req.requestedDetails}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Admin Feedback Notes */}
+                        {req.adminNotes && (
+                          <div className="p-3 bg-blue-50 border border-blue-200/80 rounded-xl text-xs text-blue-950">
+                            <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block flex items-center gap-1">
+                              <MessageSquare className="w-3 h-3" />
+                              FATAFAT Team Update:
+                            </span>
+                            <p className="mt-1 font-medium leading-relaxed">
+                              {req.adminNotes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium text-zinc-500 uppercase tracking-wide">Delivery</span>
-                      <p className="font-bold text-zinc-900 mt-1">{getDeliveryPromise(order)}</p>
-                    </div>
-                    <div className="text-right md:text-left">
-                      <span className="font-medium text-zinc-500 uppercase tracking-wide">Total</span>
-                      <p className="font-bold text-zinc-900 mt-1">₹{order.total.toLocaleString('en-IN')}</p>
+
+                    {/* Footer / Quote & Action Buttons */}
+                    <div className="pt-4 mt-2 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        {hasQuote ? (
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-xs text-zinc-500 font-medium">Final Quoted Price:</span>
+                            <span className="text-lg font-serif font-black text-brand-burgundy">
+                              ₹{Number(req.quotedAmount).toLocaleString('en-IN')}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {isPaid ? '✓ Paid' : 'Payment Pending'}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-zinc-500 italic">
+                            Our team is calculating the best quote for your custom request.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Custom Order Track Button */}
+                        {req.customOrderId && (
+                          <Link
+                            href={`/account/orders/${req.customOrderId}`}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-zinc-900 text-white rounded-xl text-xs font-bold hover:bg-zinc-800 transition-colors shadow-xs"
+                          >
+                            <Truck className="w-3.5 h-3.5" />
+                            <span>View Order #{req.customOrderId}</span>
+                          </Link>
+                        )}
+
+                        {/* Pay Now Button (if payment link exists or custom order created and unpaid) */}
+                        {!isPaid && hasQuote && (req.paymentLinkUrl || req.customOrderId) && (
+                          <a
+                            href={req.paymentLinkUrl || `/order/${req.customOrderId}/payment`}
+                            className="inline-flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md animate-pulse"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Pay Now (₹{Number(req.quotedAmount).toLocaleString('en-IN')})</span>
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
-                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    <Link
-                      href={`/account/orders/${order.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-burgundy text-white font-medium text-sm rounded-lg hover:bg-brand-burgundy/90 transition-colors"
-                    >
-                      <span>View Details & Track</span>
-                      <Truck className="h-4 w-4" />
-                    </Link>
-
-                    {canRequestRefund(order) && (
-                      <button
-                        onClick={(e) => handleOpenRefundModal(e, order)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-300 text-amber-900 font-bold text-sm rounded-lg hover:bg-amber-100 transition-colors shadow-sm"
-                      >
-                        <RotateCcw className="h-4 w-4 text-amber-700" />
-                        <span>Request Refund</span>
-                      </button>
-                    )}
-
-                    {canCancelOrder(order) && (
-                      <button
-                        onClick={(e) => handleCancelOrder(e, order.id)}
-                        disabled={cancellationInProgress === order.id}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 font-medium text-sm rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <X className="h-4 w-4" />
-                        <span>{cancellationInProgress === order.id ? 'Cancelling...' : 'Cancel Order'}</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* Image Zoom Modal */}
+      {zoomImage && (
+        <div 
+          onClick={() => setZoomImage(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div className="relative max-w-2xl max-h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setZoomImage(null)}
+              className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black text-white rounded-full transition-colors z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <SafeImage
+              src={zoomImage}
+              alt="Zoomed Reference"
+              width={800}
+              height={800}
+              className="w-full h-full max-h-[80vh] object-contain rounded-xl"
+            />
           </div>
-        </>
+        </div>
       )}
 
       {/* Customer Refund Request Modal */}

@@ -1,193 +1,226 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   Sparkles, Camera, PenTool, Gift, Award, Clock, ShieldCheck, 
   ChevronRight, ArrowRight, Heart, CheckCircle2, MessageSquare, 
-  HelpCircle, ChevronDown, Check, ArrowLeft, Star, ShoppingBag, Eye
+  HelpCircle, ChevronDown, Check, ArrowLeft, Star, ShoppingBag, 
+  Eye, Upload, X, AlertCircle, RefreshCw, Send, Calendar, DollarSign
 } from 'lucide-react';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
-import ProductCard from '../../components/ProductCard';
 import SafeImage from '../../components/SafeImage';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { useProducts } from '../../context/ProductContext';
 import { PRODUCTS as fallbackProducts, Product } from '../../data/mockData';
 import { useToast } from '../../components/Toast';
-import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function PersonalisationPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { addToCart } = useCart();
+  const { user } = useAuth();
   const { products } = useProducts();
   const PRODUCTS = products.length > 0 ? products : fallbackProducts;
 
-  // Interactive Live Studio State
-  const [previewText, setPreviewText] = useState('Happy Birthday Priya! ❤️');
-  const [recipientName, setRecipientName] = useState('Priya');
-  const [selectedStyle, setSelectedStyle] = useState<'gold' | 'rose' | 'classic'>('gold');
-  const [selectedOccasion, setSelectedOccasion] = useState('Birthday');
+  // Active Tab: 'EXISTING_PRODUCT' vs 'UNLISTED_PRODUCT'
+  const [activeTab, setActiveTab] = useState<'EXISTING_PRODUCT' | 'UNLISTED_PRODUCT'>('EXISTING_PRODUCT');
+
+  // Tab A: Existing Product Personalisation State
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [productSearch, setProductSearch] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState('1.0 kg');
+  const [selectedType, setSelectedType] = useState('Eggless');
+  const [selectedFlavour, setSelectedFlavour] = useState('Dutch Chocolate Truffle');
+  const [personalisationType, setPersonalisationType] = useState('Cake Inscription / Name');
+  const [customMessage, setCustomMessage] = useState('Happy Birthday Priya! ❤️');
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  // Tab B: Unlisted Product Request State
+  const [unlistedTitle, setUnlistedTitle] = useState('');
+  const [unlistedDescription, setUnlistedDescription] = useState('');
+  const [unlistedQuantity, setUnlistedQuantity] = useState(1);
+  const [unlistedPreferredDate, setUnlistedPreferredDate] = useState('');
+  const [unlistedPreferredTime, setUnlistedPreferredTime] = useState('Evening (5 PM - 8 PM)');
+  const [unlistedBudget, setUnlistedBudget] = useState('');
+  const [unlistedSpecialInstructions, setUnlistedSpecialInstructions] = useState('');
+  const [unlistedReferenceImageUrl, setUnlistedReferenceImageUrl] = useState<string | null>(null);
+  const [isUploadingUnlistedImage, setIsUploadingUnlistedImage] = useState(false);
+
+  // Contact Info (Shared)
+  const [customerName, setCustomerName] = useState('');
+  const [customerMobile, setCustomerMobile] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+
+  // Submission State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedRequestId, setSubmittedRequestId] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  // Plaque Customizer Modal State
-  const [isPlaqueModalOpen, setIsPlaqueModalOpen] = useState(false);
-  const [modalTitle, setModalTitle] = useState('Custom Gifting Plaque');
-  const [modalMessage, setModalMessage] = useState('Wishing you infinite joy, laughter, and success on your special day!');
-  const [modalRecipient, setModalRecipient] = useState('Best Friend');
+  const fileInputRefA = useRef<HTMLInputElement | null>(null);
+  const fileInputRefB = useRef<HTMLInputElement | null>(null);
 
-  // Filter personalized products from catalog
-  const personalisedProducts = useMemo(() => {
-    return PRODUCTS.filter(p => 
-      p.category === 'cakes' ||
-      p.category === 'gifts'
-    ).slice(0, 8);
-  }, [PRODUCTS]);
-
-  const CATEGORY_CARDS = [
-    {
-      id: 'photo-cakes',
-      badge: '📸 TOP PERSONALISATION',
-      title: 'Custom Photo Print Cakes',
-      subtitle: 'Edible Memories on Fresh Cake',
-      desc: 'High-definition edible sugar sheet printing on fresh vanilla, red velvet, or Belgian chocolate cream cakes. Upload any cherished photo memory.',
-      price: 'From ₹999',
-      image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&auto=format&fit=crop&q=80',
-      highlights: ['100% Edible Sugar Sheet', 'Eggless Available', 'Within 12 hours Delivery'],
-      targetUrl: '/cakes',
-      actionLabel: 'Personalise Now',
-      isDirectProduct: true
-    },
-    {
-      id: 'cake-messages',
-      badge: '✍️ HANDWRITTEN WISHES',
-      title: 'Bespoke Message & Calligraphy Cakes',
-      subtitle: 'Artisanal Piped Lettering',
-      desc: 'Hand-piped Belgian chocolate calligraphy, custom name plaques, and acrylic mirror gold toppers tailored for your celebratory milestone.',
-      price: 'From ₹499',
-      image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
-      highlights: ['Free Custom Cake Message', 'Gold Mirror Topper Option', 'Fresh Baked On Order'],
-      targetUrl: '/cakes',
-      actionLabel: 'Personalise Now',
-      isDirectProduct: true
-    },
-    {
-      id: 'gifting-plaques',
-      badge: '🏆 LUXURY KEEPSAKE',
-      title: 'Custom Gifting Plaques & Cards',
-      subtitle: 'Gold-Foil Engraved Keepsakes',
-      desc: 'Laser-finished golden metallic plaques and heavy-textured archival greeting cards printed with your heartfelt custom celebration letter.',
-      price: 'From ₹299',
-      image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=600&auto=format&fit=crop&q=80',
-      highlights: ['Gold-Foil Hot Stamping', 'Archival Keepsake Card', 'Included with Gift Combos'],
-      targetUrl: '#plaque-studio',
-      actionLabel: 'Customise Plaque',
-      isDirectProduct: false
-    },
-    {
-      id: 'custom-hampers',
-      badge: '🎁 BESPOKE HAMPERS',
-      title: 'Personalised Luxury Gift Hampers',
-      subtitle: 'Curated Milestone Ensembles',
-      desc: 'Luxury celebration hampers with personalized ribbon monogramming, customized chocolate truffle boxes, and floral bouquets.',
-      price: 'From ₹1,499',
-      image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=600&auto=format&fit=crop&q=80',
-      highlights: ['Custom Printed Ribbon', 'Artisanal Pralines & Flowers', 'Delivered within 12 hours'],
-      targetUrl: '/gifts',
-      actionLabel: 'Explore Hampers',
-      isDirectProduct: true
+  // Prefill contact if user is logged in
+  useEffect(() => {
+    if (user) {
+      if (user.name && !customerName) setCustomerName(user.name);
+      if (user.email && !customerEmail) setCustomerEmail(user.email);
+      if (user.phone && !customerMobile) setCustomerMobile(user.phone);
     }
-  ];
+  }, [user]);
 
-  const HOW_IT_WORKS_STEPS = [
-    {
-      step: '01',
-      title: 'Choose Your Product',
-      desc: 'Pick from our selection of artisanal photo cakes, celebration cakes, floral hampers, or custom plaques.',
-      icon: ShoppingBag
-    },
-    {
-      step: '02',
-      title: 'Add Photo or Message',
-      desc: 'Type your custom cake message, recipient name, or upload high-resolution photos during product selection.',
-      icon: PenTool
-    },
-    {
-      step: '03',
-      title: 'Preview Your Customisation',
-      desc: 'Review your personalized lettering, design finish, and select eggless / size options in real time.',
-      icon: Eye
-    },
-    {
-      step: '04',
-      title: 'Handcrafted & Delivered',
-      desc: 'Freshly prepared by master chefs and delivered safely to your doorstep within 12 hours.',
-      icon: Clock
-    }
-  ];
+  // Filter products for the existing product picker
+  const filteredProducts = useMemo(() => {
+    const list = PRODUCTS.filter(p => 
+      p.category === 'cakes' || 
+      p.category === 'gifts' || 
+      p.category === 'chocolates' || 
+      p.category === 'flowers' ||
+      p.category === 'desserts'
+    );
+    if (!productSearch.trim()) return list.slice(0, 12);
+    const q = productSearch.toLowerCase();
+    return list.filter(p => p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)).slice(0, 12);
+  }, [PRODUCTS, productSearch]);
 
-  const TRUST_ITEMS = [
-    {
-      icon: PenTool,
-      title: 'Easy Personalisation',
-      desc: 'Intuitive text inputs and instant preview without complex design tools or delays.'
-    },
-    {
-      icon: Award,
-      title: 'Quality Printing',
-      desc: '100% certified food-grade edible sugar sheets and archival quality gold-foil cards.'
-    },
-    {
-      icon: ShieldCheck,
-      title: 'Secure Checkout',
-      desc: 'Encrypted UPI & card payments with live OTP verification upon doorstep delivery.'
-    },
-    {
-      icon: Clock,
-      title: 'Fast Delivery',
-      desc: 'Freshly prepared on demand and delivered within 12 hours across city zones.'
+  const selectedProduct = useMemo(() => {
+    return PRODUCTS.find(p => p.id === selectedProductId) || filteredProducts[0] || null;
+  }, [PRODUCTS, selectedProductId, filteredProducts]);
+
+  // Handle Photo Upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isUnlisted = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (isUnlisted) setIsUploadingUnlistedImage(true);
+    else setIsUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', isUnlisted ? 'unlisted-reference' : 'personalisation-photo');
+
+      const res = await fetch('/api/custom-requests/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.imageUrl) {
+        if (isUnlisted) {
+          setUnlistedReferenceImageUrl(data.imageUrl);
+        } else {
+          setUploadedImageUrl(data.imageUrl);
+        }
+        showToast('Photo uploaded successfully!', 'success');
+      } else {
+        showToast(data.error || 'Failed to upload photo.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error uploading image.', 'error');
+    } finally {
+      if (isUnlisted) setIsUploadingUnlistedImage(false);
+      else setIsUploadingImage(false);
     }
-  ];
+  };
+
+  // Handle Submit Form
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!customerName.trim()) {
+      showToast('Please enter your full name.', 'error');
+      return;
+    }
+    if (!customerMobile.trim() || customerMobile.trim().length < 10) {
+      showToast('Please enter a valid 10-digit mobile number.', 'error');
+      return;
+    }
+
+    if (activeTab === 'UNLISTED_PRODUCT' && !unlistedTitle.trim()) {
+      showToast('Please describe what product you want us to arrange.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = activeTab === 'EXISTING_PRODUCT' ? {
+        requestType: 'EXISTING_PRODUCT',
+        productId: selectedProduct?.id || undefined,
+        productName: selectedProduct?.name || 'Celebration Personalised Cake',
+        quantity,
+        variant: selectedSize,
+        flavour: selectedFlavour,
+        personalisationType,
+        personalisationMessage: customMessage.trim() || undefined,
+        uploadedImageUrl: uploadedImageUrl || undefined,
+        specialInstructions: specialInstructions.trim() || undefined,
+        customerName: customerName.trim(),
+        mobile: customerMobile.trim(),
+        email: customerEmail.trim() || undefined,
+        budget: selectedProduct?.price ? `₹${selectedProduct.price * quantity}` : undefined
+      } : {
+        requestType: 'UNLISTED_PRODUCT',
+        requestedTitle: unlistedTitle.trim(),
+        productName: unlistedTitle.trim(),
+        requestedDetails: unlistedDescription.trim() || undefined,
+        quantity: unlistedQuantity,
+        referenceImageUrl: unlistedReferenceImageUrl || undefined,
+        preferredDeliveryDate: unlistedPreferredDate || undefined,
+        preferredDeliveryTime: unlistedPreferredTime || undefined,
+        budget: unlistedBudget.trim() || undefined,
+        specialInstructions: unlistedSpecialInstructions.trim() || undefined,
+        customerName: customerName.trim(),
+        mobile: customerMobile.trim(),
+        email: customerEmail.trim() || undefined
+      };
+
+      const res = await fetch('/api/custom-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Your custom request has been submitted to FATAFAT!', 'success');
+        setSubmittedRequestId(data.customRequest?.id || 'REQ-SUCCESS');
+      } else {
+        showToast(data.error || 'Failed to submit request.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Network error submitting your request.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const FAQS = [
     {
-      q: 'How do I customize a photo cake with my own image?',
-      a: 'Select the "Custom Photo Print Cake" from our catalogue. You can customize your cake flavor, eggless preference, and message on the product page. Our chef team will confirm your high-definition image directly upon ordering.'
+      q: 'How does personalising an existing product work?',
+      a: 'Choose any cake, bouquet, or gift from our catalog, type your custom message, or upload a high-resolution photo. Our chef and florist team prepares it exactly to your specifications with doorstep delivery.'
     },
     {
-      q: 'Can I write a custom message on any celebration cake?',
-      a: 'Yes! Every cake on FATAFAT includes complimentary custom piping lettering (up to 30 characters). You can type your exact message directly on the product detail page before adding to cart.'
+      q: 'Can I request an unlisted cake, gift, or special hamper?',
+      a: 'Yes! Select the "Request a Product Not Listed" option. Tell us what you need, add any reference photos, and our team will review availability, source the finest ingredients, and send you a confirmed quote.'
     },
     {
-      q: 'Are the photo prints completely edible and food-safe?',
-      a: 'Absolutely. We use 100% vegetarian, edible sugar sheets imported from certified confectionery producers, printed using food-grade natural edible colors that are completely safe and delicious.'
+      q: 'Are the photo prints 100% edible and safe?',
+      a: 'Absolutely. We use premium certified food-grade edible sugar sheets printed with natural food coloring. They are 100% vegetarian, delicious, and completely food-safe.'
     },
     {
-      q: 'How fast can a personalised photo cake be delivered?',
-      a: 'All personalized photo cakes and custom message cakes are freshly prepared and delivered within 12 hours of placing your order.'
+      q: 'How will I receive the price and pay for my custom order?',
+      a: 'Once our operations team reviews your request, we send you a confirmed price. You can view the status and pay directly with 1-click via Razorpay (UPI, Cards, NetBanking) in your My Orders section or through the SMS/Email payment link.'
     }
   ];
-
-  const handleCardAction = (card: typeof CATEGORY_CARDS[0]) => {
-    if (card.isDirectProduct) {
-      router.push(card.targetUrl);
-    } else {
-      setModalTitle(card.title);
-      setIsPlaqueModalOpen(true);
-    }
-  };
-
-  const handlePlaqueSave = () => {
-    showToast(`Personalised plaque saved: "${modalMessage.slice(0, 30)}..."`, 'success');
-    setIsPlaqueModalOpen(false);
-    // Smooth scroll to personalized cake catalogue
-    const element = document.getElementById('personalised-products');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-brand-charcoal font-sans text-xs select-none">
@@ -207,397 +240,747 @@ export default function PersonalisationPage() {
           </div>
         </div>
 
-        {/* 1. HERO SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
-          <div className="relative rounded-[32px] bg-gradient-to-br from-[#6B1D2F] via-[#501422] to-[#360C16] text-white p-8 sm:p-14 overflow-hidden shadow-2xl border border-brand-burgundy/20">
-            {/* Ambient gold radial pattern */}
+        {/* HERO BANNER */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+          <div className="relative rounded-[32px] bg-gradient-to-br from-[#6B1D2F] via-[#501422] to-[#360C16] text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-brand-burgundy/20">
             <div className="absolute inset-0 bg-[radial-gradient(#DFBA5E_0.75px,transparent_0.75px)] [background-size:20px_20px] opacity-20 pointer-events-none" />
             <div className="absolute top-0 right-0 w-96 h-96 bg-brand-gold/10 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="relative z-10 max-w-2xl space-y-4 text-center sm:text-left">
+            <div className="relative z-10 max-w-3xl space-y-3 text-center sm:text-left">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-brand-gold text-[9px] font-black uppercase tracking-[0.25em]">
                 <Sparkles className="h-3 w-3 text-brand-gold animate-pulse" />
-                <span>BESPOKE GIFTING STUDIO • FATAFAT CRAFTS</span>
+                <span>FATAFAT BESPOKE PERSONALISATION STUDIO</span>
               </div>
 
-              <h1 className="text-3xl sm:text-5xl font-serif font-black tracking-tight leading-tight">
-                Make It Personal. <br />
+              <h1 className="text-2xl sm:text-4xl font-serif font-black tracking-tight leading-tight">
+                Photo Cakes, Custom Wishes & <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-gold via-amber-200 to-brand-gold-light">
-                  Photo Cakes & Custom Gifting
+                  Special Custom Requests
                 </span>
               </h1>
 
-              <p className="text-xs sm:text-sm text-zinc-200 font-medium leading-relaxed max-w-xl">
-                Add cherished memories, custom gold-foil messages, and bespoke names to make every anniversary, birthday, and celebration truly unforgettable. Handcrafted fresh with pure passion.
+              <p className="text-xs sm:text-sm text-zinc-200 font-medium leading-relaxed max-w-2xl">
+                Personalise any celebration product with edible photos, custom calligraphy, and greeting plaques, or request any unlisted bespoke item. Our master chefs and artisans craft every detail fresh.
               </p>
-
-              {/* Action Buttons */}
-              <div className="pt-3 flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                <a
-                  href="#category-cards"
-                  className="px-7 py-3.5 rounded-full bg-brand-gold hover:bg-brand-gold-light text-zinc-950 font-serif font-bold text-xs uppercase tracking-wider shadow-lg transition-all transform active:scale-95 flex items-center gap-2"
-                >
-                  <span>Start Personalising</span>
-                  <ArrowRight className="h-3.5 w-3.5 stroke-[2.5]" />
-                </a>
-
-                <Link
-                  href="/product/cake-6"
-                  className="px-6 py-3.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-serif font-bold text-xs uppercase tracking-wider border border-white/20 backdrop-blur-md transition-all flex items-center gap-2"
-                >
-                  <Camera className="h-3.5 w-3.5 text-brand-gold" />
-                  <span>Custom Photo Cake</span>
-                </Link>
-              </div>
-
-              {/* Trust Badges Bar */}
-              <div className="pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
-                <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-200">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold shrink-0" />
-                  <span>Within 12 hours Delivery</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-200">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold shrink-0" />
-                  <span>Food-Safe Edible Print</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-200">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold shrink-0" />
-                  <span>Free Cake Message</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-200">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-brand-gold shrink-0" />
-                  <span>100% Quality Guaranteed</span>
-                </div>
-              </div>
             </div>
           </div>
         </section>
 
-        {/* 2. CATEGORY CARDS SECTION */}
-        <section id="category-cards" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-          <div className="text-center space-y-1.5 mb-10">
-            <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
-              EXPLORE PERSONALISATION CATEGORIES
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-serif font-black text-brand-charcoal">
-              Choose How You Want to Personalise
-            </h2>
-            <p className="text-xs text-zinc-500 max-w-md mx-auto">
-              From edible photo cakes to engraved golden plaques, select your canvas below.
-            </p>
-          </div>
+        {/* 2 MAIN OPTION TABS */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4">
+          <div className="bg-white p-2 rounded-2xl border border-zinc-200/80 shadow-sm max-w-2xl mx-auto grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setActiveTab('EXISTING_PRODUCT')}
+              className={`py-3 px-4 rounded-xl font-serif font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'EXISTING_PRODUCT'
+                  ? 'bg-brand-burgundy text-white shadow-md'
+                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'
+              }`}
+            >
+              <PenTool className="h-3.5 w-3.5" />
+              <span>Personalise a Product</span>
+            </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {CATEGORY_CARDS.map((card) => (
-              <div
-                key={card.id}
-                className="bg-white rounded-3xl border border-zinc-200/40 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group"
-              >
-                {/* Visual Area */}
-                <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-zinc-100">
-                  <SafeImage
-                    src={card.image}
-                    alt={card.title}
-                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-3 left-3 bg-brand-burgundy/90 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider shadow">
-                    {card.badge}
+            <button
+              onClick={() => setActiveTab('UNLISTED_PRODUCT')}
+              className={`py-3 px-4 rounded-xl font-serif font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'UNLISTED_PRODUCT'
+                  ? 'bg-brand-burgundy text-white shadow-md'
+                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'
+              }`}
+            >
+              <Gift className="h-3.5 w-3.5" />
+              <span>Request Custom / Unlisted</span>
+            </button>
+          </div>
+        </section>
+
+        {/* TAB CONTENT */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+          
+          {submittedRequestId ? (
+            /* SUCCESS CONFIRMATION SCREEN */
+            <div className="max-w-xl mx-auto bg-white border border-emerald-200/80 rounded-3xl p-8 sm:p-12 text-center shadow-lg space-y-5">
+              <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 block">
+                  Request Received Successfully
+                </span>
+                <h3 className="text-xl font-serif font-black text-zinc-900">
+                  We&apos;re On It!
+                </h3>
+                <p className="text-xs text-zinc-600 font-medium leading-relaxed max-w-md mx-auto">
+                  Your customisation request <strong className="text-brand-burgundy">#{submittedRequestId}</strong> has been sent to our culinary & operations team.
+                </p>
+              </div>
+
+              <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200/80 text-left space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500 font-medium">Customer:</span>
+                  <span className="font-bold text-zinc-800">{customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500 font-medium">Mobile Contact:</span>
+                  <span className="font-bold text-zinc-800">{customerMobile}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500 font-medium">Status:</span>
+                  <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded font-bold text-[10px]">
+                    Under Review
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+                <Link
+                  href="/account/orders"
+                  className="px-6 py-3 bg-brand-burgundy text-white font-serif font-bold text-xs uppercase tracking-wider rounded-xl shadow hover:bg-brand-burgundy-dark transition-all"
+                >
+                  Track in My Orders
+                </Link>
+                <button
+                  onClick={() => {
+                    setSubmittedRequestId(null);
+                    setCustomMessage('');
+                    setUploadedImageUrl(null);
+                    setUnlistedTitle('');
+                    setUnlistedDescription('');
+                  }}
+                  className="px-6 py-3 bg-zinc-100 text-zinc-700 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-zinc-200 transition-all"
+                >
+                  Submit Another Request
+                </button>
+              </div>
+            </div>
+          ) : activeTab === 'EXISTING_PRODUCT' ? (
+            /* TAB A: PERSONALISE EXISTING PRODUCT */
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Form Column (7 cols) */}
+              <div className="lg:col-span-7 space-y-6">
+                
+                {/* 1. Select Product Box */}
+                <div className="bg-white border border-zinc-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-serif font-black text-sm text-zinc-900 flex items-center gap-2">
+                      <ShoppingBag className="h-4 w-4 text-brand-burgundy" /> 1. Select Product to Personalise
+                    </h3>
+                    <span className="text-[10px] text-zinc-400 font-bold">Step 1 of 3</span>
                   </div>
-                  <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md text-brand-burgundy px-2.5 py-1 rounded-full text-[9px] font-black shadow border border-zinc-200/20">
-                    {card.price}
+
+                  {/* Search Bar for products */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search cakes, hampers, bouquets, chocolates..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                    />
+                  </div>
+
+                  {/* Product Grid / List Picker */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                    {filteredProducts.map((p) => {
+                      const isSelected = selectedProduct?.id === p.id;
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => setSelectedProductId(p.id)}
+                          className={`p-2 rounded-2xl border text-left cursor-pointer transition-all flex flex-col gap-1.5 ${
+                            isSelected
+                              ? 'border-brand-burgundy bg-brand-burgundy/5 ring-1 ring-brand-burgundy shadow-xs'
+                              : 'border-zinc-200/80 bg-[#FAF9F6] hover:bg-white hover:border-zinc-300'
+                          }`}
+                        >
+                          <div className="h-16 w-full rounded-xl overflow-hidden bg-zinc-100 shrink-0">
+                            <SafeImage src={p.image} alt={p.name} category={p.category} className="h-full w-full object-cover" />
+                          </div>
+                          <p className="font-bold text-[10px] text-zinc-850 line-clamp-1 leading-snug">{p.name}</p>
+                          <span className="font-black text-[10px] text-brand-burgundy">₹{p.price}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Content Area */}
-                <div className="p-5 flex flex-col flex-grow justify-between space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="font-serif font-bold text-base text-zinc-900 leading-snug group-hover:text-brand-burgundy transition-colors">
-                      {card.title}
+                {/* 2. Customisation Specifications Box */}
+                <div className="bg-white border border-zinc-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-serif font-black text-sm text-zinc-900 flex items-center gap-2">
+                      <PenTool className="h-4 w-4 text-brand-burgundy" /> 2. Personalisation Details
                     </h3>
-                    <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-3">
-                      {card.desc}
-                    </p>
+                    <span className="text-[10px] text-zinc-400 font-bold">Step 2 of 3</span>
+                  </div>
 
-                    {/* Highlights */}
-                    <div className="pt-2 space-y-1">
-                      {card.highlights.map((h, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-600">
-                          <Check className="h-3 w-3 text-emerald-600 shrink-0" />
-                          <span>{h}</span>
-                        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Quantity */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Quantity</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                          className="h-9 w-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-black text-xs flex items-center justify-center transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="font-bold text-xs text-zinc-900">{quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => setQuantity(quantity + 1)}
+                          className="h-9 w-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-black text-xs flex items-center justify-center transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Weight / Size Variant */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Size / Weight</label>
+                      <select
+                        value={selectedSize}
+                        onChange={(e) => setSelectedSize(e.target.value)}
+                        className="w-full p-2.5 bg-[#FAF9F6] border border-zinc-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-brand-burgundy"
+                      >
+                        <option value="500 gm">500 gm (Serves 4-6)</option>
+                        <option value="1.0 kg">1.0 kg (Serves 8-12)</option>
+                        <option value="1.5 kg">1.5 kg (Serves 14-18)</option>
+                        <option value="2.0 kg">2.0 kg (Serves 20-25)</option>
+                        <option value="Standard Combo">Standard Celebration Ensemble</option>
+                      </select>
+                    </div>
+
+                    {/* Flavour */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Flavour</label>
+                      <select
+                        value={selectedFlavour}
+                        onChange={(e) => setSelectedFlavour(e.target.value)}
+                        className="w-full p-2.5 bg-[#FAF9F6] border border-zinc-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-brand-burgundy"
+                      >
+                        <option value="Dutch Chocolate Truffle">Dutch Chocolate Truffle</option>
+                        <option value="Belgian Dark Fantasy">Belgian Dark Fantasy</option>
+                        <option value="Velvet Red Romance">Velvet Red Romance</option>
+                        <option value="Fresh Seasonal Fruit">Fresh Seasonal Fruit</option>
+                        <option value="Black Forest Supreme">Black Forest Supreme</option>
+                        <option value="Classic Butterscotch Delight">Classic Butterscotch Delight</option>
+                      </select>
+                    </div>
+
+                    {/* Dietary Type */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Dietary Preference</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedType('Eggless')}
+                          className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            selectedType === 'Eggless'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-1 ring-emerald-300'
+                              : 'bg-[#FAF9F6] text-zinc-600 border-zinc-200 hover:bg-white'
+                          }`}
+                        >
+                          🟢 100% Eggless
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedType('With Egg')}
+                          className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                            selectedType === 'With Egg'
+                              ? 'bg-amber-50 text-amber-800 border-amber-300 ring-1 ring-amber-300'
+                              : 'bg-[#FAF9F6] text-zinc-600 border-zinc-200 hover:bg-white'
+                          }`}
+                        >
+                          🟡 Regular (With Egg)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Personalisation Type Selector */}
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                      Choose Personalisation Element
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {[
+                        { label: 'Cake Inscription / Name', icon: '✍️' },
+                        { label: 'Edible Photo Print', icon: '📸' },
+                        { label: 'Custom Gifting Plaque', icon: '🏆' }
+                      ].map((type) => (
+                        <button
+                          key={type.label}
+                          type="button"
+                          onClick={() => setPersonalisationType(type.label)}
+                          className={`p-2.5 rounded-xl border text-left font-bold text-xs transition-all flex items-center gap-2 ${
+                            personalisationType === type.label
+                              ? 'bg-brand-burgundy/5 text-brand-burgundy border-brand-burgundy ring-1 ring-brand-burgundy shadow-xs'
+                              : 'bg-[#FAF9F6] text-zinc-700 border-zinc-200 hover:bg-white'
+                          }`}
+                        >
+                          <span>{type.icon}</span>
+                          <span className="text-[11px]">{type.label}</span>
+                        </button>
                       ))}
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleCardAction(card)}
-                    className="w-full py-3 rounded-2xl bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-serif font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2 group-hover:bg-brand-gold group-hover:text-zinc-950"
-                  >
-                    <span>{card.actionLabel}</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
+                  {/* Message Input */}
+                  <div className="space-y-1.5 pt-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                        Custom Cake / Plaque Message
+                      </label>
+                      <span className="text-[9px] text-zinc-400 font-mono">{customMessage.length}/60 chars</span>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={60}
+                      placeholder="e.g. Happy 25th Anniversary Mom & Dad! ❤️"
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                    />
+                  </div>
+
+                  {/* Photo Upload Box */}
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                      Upload Custom Photo / Memory (For Edible Photo Print)
+                    </label>
+                    <input
+                      type="file"
+                      ref={fileInputRefA}
+                      onChange={(e) => handleImageUpload(e, false)}
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                    />
+                    {uploadedImageUrl ? (
+                      <div className="p-3 bg-white border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-xl overflow-hidden border border-zinc-200 shrink-0 bg-zinc-100">
+                            <img src={uploadedImageUrl} alt="Custom Memory" className="h-full w-full object-cover" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-emerald-800 block">✓ Custom Photo Uploaded</span>
+                            <span className="text-[9px] text-zinc-500">Ready for high-definition edible sugar sheet printing</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUploadedImageUrl(null)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove Photo"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRefA.current?.click()}
+                        disabled={isUploadingImage}
+                        className="w-full py-4 border-2 border-dashed border-zinc-300 hover:border-brand-burgundy rounded-2xl bg-[#FAF9F6] hover:bg-white flex flex-col items-center justify-center gap-1.5 transition-all text-zinc-600 group disabled:opacity-50"
+                      >
+                        {isUploadingImage ? (
+                          <RefreshCw className="h-5 w-5 text-brand-burgundy animate-spin" />
+                        ) : (
+                          <Upload className="h-5 w-5 text-zinc-400 group-hover:text-brand-burgundy transition-colors" />
+                        )}
+                        <span className="font-bold text-xs">
+                          {isUploadingImage ? 'Uploading High-Res Image...' : 'Click or Drag Photo Here'}
+                        </span>
+                        <span className="text-[9px] text-zinc-400">JPEG, PNG, WebP up to 10 MB</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Special Instructions */}
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                      Additional Preparation Instructions (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="e.g. Please deliver before 7 PM and write message in dark chocolate..."
+                      value={specialInstructions}
+                      onChange={(e) => setSpecialInstructions(e.target.value)}
+                      className="w-full p-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Customer Contact Info */}
+                <div className="bg-white border border-zinc-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-serif font-black text-sm text-zinc-900 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-brand-burgundy" /> 3. Contact & Delivery Info
+                    </h3>
+                    <span className="text-[10px] text-zinc-400 font-bold">Step 3 of 3</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Priya Sharma"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Mobile Number *</label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder="+91 98765 43210"
+                        value={customerMobile}
+                        onChange={(e) => setCustomerMobile(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Email Address</label>
+                      <input
+                        type="email"
+                        placeholder="priya@example.com"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-serif font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  <span>Submit Personalisation Request</span>
+                </button>
+
+              </div>
+
+              {/* Right Live Preview Column (5 cols) */}
+              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
+                <div className="bg-white border border-zinc-200/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <h4 className="font-serif font-black text-sm text-brand-burgundy border-b pb-2 flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-brand-gold" /> Live Studio Preview
+                  </h4>
+
+                  {/* Celebratory Card Simulation */}
+                  <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-amber-50/60 via-pink-50/40 to-white border border-amber-200/60 p-4 space-y-3">
+                    <div className="relative h-44 w-full rounded-xl overflow-hidden bg-zinc-100 border shadow-inner">
+                      {uploadedImageUrl ? (
+                        <img src={uploadedImageUrl} alt="Custom Memory" className="h-full w-full object-cover" />
+                      ) : (
+                        <SafeImage 
+                          src={selectedProduct?.image} 
+                          alt={selectedProduct?.name || 'Product'} 
+                          category={selectedProduct?.category} 
+                          className="h-full w-full object-cover" 
+                        />
+                      )}
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-brand-burgundy/90 text-white font-black text-[8px] uppercase tracking-wider">
+                        {personalisationType}
+                      </div>
+                    </div>
+
+                    {/* Cake Inscription Overlay Box */}
+                    {customMessage && (
+                      <div className="p-2.5 bg-white/95 backdrop-blur-sm rounded-xl border border-brand-burgundy/20 shadow-xs text-center space-y-0.5">
+                        <span className="text-[8px] font-extrabold text-brand-burgundy uppercase tracking-widest block">
+                          Handwritten Calligraphy Inscription
+                        </span>
+                        <p className="font-serif font-black text-zinc-900 text-xs italic">
+                          &ldquo;{customMessage}&rdquo;
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Summary Specs */}
+                    <div className="pt-2 border-t border-zinc-200/60 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 font-medium">Selected Item:</span>
+                        <span className="font-bold text-zinc-800 truncate max-w-[180px]">{selectedProduct?.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 font-medium">Weight & Dietary:</span>
+                        <span className="font-bold text-zinc-800">{selectedSize} • {selectedType}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500 font-medium">Flavour:</span>
+                        <span className="font-bold text-zinc-800">{selectedFlavour}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t font-black text-sm text-brand-burgundy">
+                        <span>Est. Subtotal:</span>
+                        <span>₹{(selectedProduct?.price || 499) * quantity}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-zinc-400 text-center font-medium">
+                    ⚡ Freshly handcrafted on order and delivered to your doorstep within 12 hours.
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
 
-        {/* 3. INTERACTIVE LIVE PLAQUE & MESSAGE STUDIO */}
-        <section id="plaque-studio" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-          <div className="rounded-3xl bg-gradient-to-br from-brand-blush/80 via-white to-amber-50/50 p-6 sm:p-10 border border-zinc-200/30 shadow-sm">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              {/* Studio Controls */}
-              <div className="lg:col-span-6 space-y-5">
-                <div className="space-y-1">
-                  <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
-                    INTERACTIVE STUDIO 🎨
+            </form>
+          ) : (
+            /* TAB B: REQUEST PRODUCT NOT LISTED */
+            <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
+              <div className="bg-white border border-zinc-200/80 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                
+                {/* Header Callout */}
+                <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-900 block flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-700" /> NOT LISTED ON FATAFAT?
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">
-                    Live Plaque & Message Preview
-                  </h3>
-                  <p className="text-xs text-zinc-500">
-                    Type your personalized message below to see how our master calligraphers and laser engravers will render it.
+                  <p className="text-xs text-amber-950 font-medium leading-relaxed">
+                    Tell us what you need! Whether it&apos;s a specific tiered cake, rare gourmet confectionery, bespoke milestone plaque, or imported luxury items, our team will check availability and send you a confirmed quote.
                   </p>
                 </div>
 
-                {/* Recipient Name Input */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600">
-                    Recipient Name / Title
-                  </label>
-                  <input
-                    type="text"
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    placeholder="e.g. Priya, Mom & Dad, Rohan"
-                    maxLength={25}
-                    className="w-full px-4 py-2.5 rounded-xl border border-zinc-250 bg-white text-xs font-bold text-zinc-800 outline-none focus:border-brand-burgundy transition-all"
-                  />
-                </div>
-
-                {/* Custom Message Textarea */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600">
-                    Celebration Message
-                  </label>
-                  <textarea
-                    value={previewText}
-                    onChange={(e) => setPreviewText(e.target.value)}
-                    rows={3}
-                    maxLength={100}
-                    placeholder="Enter your heartfelt message..."
-                    className="w-full p-3 rounded-xl border border-zinc-250 bg-white text-xs font-medium text-zinc-800 outline-none focus:border-brand-burgundy transition-all resize-none"
-                  />
-                  <div className="flex justify-between text-[9px] text-zinc-400 font-medium">
-                    <span>Complimentary with custom orders</span>
-                    <span>{previewText.length}/100</span>
-                  </div>
-                </div>
-
-                {/* Plaque Finish Selector */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600">
-                    Plaque Foil Finish
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'gold', label: 'Golden Metallic' },
-                      { id: 'rose', label: 'Rose Gold Foil' },
-                      { id: 'classic', label: 'Classic Velvet' }
-                    ].map((style) => (
-                      <button
-                        key={style.id}
-                        type="button"
-                        onClick={() => setSelectedStyle(style.id as any)}
-                        className={`py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${
-                          selectedStyle === style.id 
-                            ? 'bg-brand-burgundy text-white border-brand-burgundy shadow-sm' 
-                            : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
-                        }`}
-                      >
-                        {style.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <Link
-                    href="/product/cake-6"
-                    className="w-full py-3 rounded-2xl bg-brand-gold hover:bg-brand-gold-light text-zinc-950 font-serif font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
-                  >
-                    <span>Apply to Photo Cake Order</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              </div>
-
-              {/* Live Preview Display Card */}
-              <div className="lg:col-span-6 flex justify-center">
-                <div className={`w-full max-w-md rounded-3xl p-8 border shadow-xl relative overflow-hidden transition-all duration-300 ${
-                  selectedStyle === 'gold' 
-                    ? 'bg-gradient-to-br from-[#2D1B00] via-[#4A320A] to-[#1F1200] border-amber-500/40 text-amber-100' 
-                    : selectedStyle === 'rose'
-                    ? 'bg-gradient-to-br from-[#3D141E] via-[#5C2330] to-[#2B0E15] border-rose-400/40 text-rose-100'
-                    : 'bg-gradient-to-br from-[#18181B] via-[#27272A] to-[#09090B] border-zinc-600/40 text-zinc-100'
-                }`}>
-                  {/* Subtle Plaque Frame border */}
-                  <div className="border border-brand-gold/30 rounded-2xl p-6 relative z-10 flex flex-col items-center text-center space-y-4 min-h-[260px] justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-brand-gold" />
-                      <span className="text-[8px] font-serif font-black tracking-[0.3em] uppercase text-brand-gold">
-                        FATAFAT BESPOKE ENGRAVING
-                      </span>
-                      <Sparkles className="h-4 w-4 text-brand-gold" />
-                    </div>
-
-                    <div className="space-y-2 my-auto">
-                      <h4 className="font-serif font-black text-lg sm:text-xl tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-100 via-brand-gold-light to-amber-200">
-                        {recipientName ? `Dearest ${recipientName}` : 'Dearest Recipient'}
-                      </h4>
-                      <p className="font-serif italic text-xs sm:text-sm leading-relaxed px-2 text-zinc-200/90">
-                        &ldquo;{previewText || 'Your customized celebration message will be engraved here beautifully.'}&rdquo;
-                      </p>
-                    </div>
-
-                    <div className="pt-2 border-t border-brand-gold/20 w-full flex justify-between items-center text-[8px] font-black uppercase tracking-widest text-brand-gold/80">
-                      <span>Verified Artisanal Craft</span>
-                      <span>Handcrafted with Love</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 4. HOW IT WORKS SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 border-t border-zinc-200/20">
-          <div className="text-center space-y-1.5 mb-10">
-            <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
-              SEAMLESS 4-STEP PROCESS
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-serif font-black text-brand-charcoal">
-              How Personalisation Works
-            </h2>
-            <p className="text-xs text-zinc-500 max-w-md mx-auto">
-              Creating unforgettable personalized gifts is quick, reliable, and effortless.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {HOW_IT_WORKS_STEPS.map((step, idx) => {
-              const Icon = step.icon;
-              return (
-                <div
-                  key={step.step}
-                  className="bg-white rounded-3xl p-6 border border-zinc-200/30 shadow-sm relative flex flex-col justify-between space-y-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="h-12 w-12 rounded-2xl bg-brand-burgundy/5 text-brand-burgundy flex items-center justify-center">
-                      <Icon className="h-6 w-6 stroke-[1.5]" />
-                    </div>
-                    <span className="text-2xl font-serif font-black text-zinc-200">
-                      {step.step}
-                    </span>
-                  </div>
-
+                <div className="space-y-4">
+                  {/* Title / What do you want */}
                   <div className="space-y-1.5">
-                    <h4 className="font-serif font-bold text-sm text-zinc-900">
-                      {step.title}
-                    </h4>
-                    <p className="text-[11px] text-zinc-500 leading-relaxed">
-                      {step.desc}
-                    </p>
+                    <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                      What do you want? *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 3-tier Gold Leaf Fondant Wedding Cake with Fresh Orchids"
+                      value={unlistedTitle}
+                      onChange={(e) => setUnlistedTitle(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                    />
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
 
-        {/* 5. POPULAR PERSONALISABLE PRODUCTS CATALOGUE */}
-        <section id="personalised-products" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-8">
-            <div className="space-y-1 text-left">
-              <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
-                READY TO CUSTOMISE
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-serif font-black text-brand-charcoal">
-                Popular Personalised Bestsellers
-              </h2>
-              <p className="text-xs text-zinc-500">
-                Choose any item below to add your custom photo print or engraved cake message.
-              </p>
-            </div>
-            <Link
-              href="/cakes"
-              className="text-xs font-bold text-brand-burgundy hover:underline flex items-center gap-1 shrink-0"
-            >
-              View All Cakes <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
+                  {/* Detailed Description */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                      Detailed Description & Specifications
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Describe flavors, colors, theme, design elements, dietary requirements, or any specific brand you want..."
+                      value={unlistedDescription}
+                      onChange={(e) => setUnlistedDescription(e.target.value)}
+                      className="w-full p-2.5 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy transition-all"
+                    />
+                  </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4">
-            {personalisedProducts.map((prod) => (
-              <ProductCard key={prod.id} product={prod} />
-            ))}
-          </div>
-        </section>
+                  {/* Reference Image Upload */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">
+                      Upload Reference Image / Design Sketch (Optional)
+                    </label>
+                    <input
+                      type="file"
+                      ref={fileInputRefB}
+                      onChange={(e) => handleImageUpload(e, true)}
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                    />
+                    {unlistedReferenceImageUrl ? (
+                      <div className="p-3 bg-white border border-emerald-200 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-xl overflow-hidden border border-zinc-200 shrink-0 bg-zinc-100">
+                            <img src={unlistedReferenceImageUrl} alt="Reference Sketch" className="h-full w-full object-cover" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-emerald-800 block">✓ Reference Photo Attached</span>
+                            <span className="text-[9px] text-zinc-500">Our chefs will review this design</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUnlistedReferenceImageUrl(null)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRefB.current?.click()}
+                        disabled={isUploadingUnlistedImage}
+                        className="w-full py-4 border-2 border-dashed border-zinc-300 hover:border-brand-burgundy rounded-2xl bg-[#FAF9F6] hover:bg-white flex flex-col items-center justify-center gap-1.5 transition-all text-zinc-600 group disabled:opacity-50"
+                      >
+                        {isUploadingUnlistedImage ? (
+                          <RefreshCw className="h-5 w-5 text-brand-burgundy animate-spin" />
+                        ) : (
+                          <Upload className="h-5 w-5 text-zinc-400 group-hover:text-brand-burgundy transition-colors" />
+                        )}
+                        <span className="font-bold text-xs">
+                          {isUploadingUnlistedImage ? 'Uploading Photo...' : 'Upload Reference Photo / Sketch'}
+                        </span>
+                        <span className="text-[9px] text-zinc-400">JPEG, PNG, WebP up to 10 MB</span>
+                      </button>
+                    )}
+                  </div>
 
-        {/* 6. TRUST & QUALITY SECTION */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 border-t border-zinc-200/20">
-          <div className="bg-brand-blush/60 rounded-3xl p-8 border border-zinc-200/20">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
-              {TRUST_ITEMS.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <div key={idx} className="flex flex-col items-center gap-2 p-2">
-                    <div className="h-12 w-12 rounded-full bg-white shadow-sm border border-zinc-200/20 text-brand-burgundy flex items-center justify-center">
-                      <Icon className="h-5 w-5 stroke-[2]" />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Quantity */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Quantity</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={unlistedQuantity}
+                        onChange={(e) => setUnlistedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy"
+                      />
                     </div>
-                    <h5 className="font-serif font-bold text-xs text-zinc-900">
-                      {item.title}
-                    </h5>
-                    <p className="text-[10px] text-zinc-500 max-w-xs leading-relaxed">
-                      {item.desc}
-                    </p>
+
+                    {/* Preferred Date */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Preferred Date</label>
+                      <input
+                        type="date"
+                        value={unlistedPreferredDate}
+                        onChange={(e) => setUnlistedPreferredDate(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy"
+                      />
+                    </div>
+
+                    {/* Budget */}
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Estimated Budget (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. ₹1,500 - ₹3,000"
+                        value={unlistedBudget}
+                        onChange={(e) => setUnlistedBudget(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy"
+                      />
+                    </div>
                   </div>
-                );
-              })}
+
+                  {/* Customer Contact */}
+                  <div className="pt-3 border-t border-zinc-200/80 space-y-3">
+                    <h4 className="font-serif font-bold text-xs text-zinc-800">Your Contact Details</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Name *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Priya Sharma"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Mobile *</label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="+91 98765 43210"
+                          value={customerMobile}
+                          onChange={(e) => setCustomerMobile(e.target.value)}
+                          className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-extrabold uppercase tracking-wider text-zinc-500 block">Email</label>
+                        <input
+                          type="email"
+                          placeholder="priya@example.com"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
+                          className="w-full px-3 py-2 text-xs bg-[#FAF9F6] border border-zinc-200 rounded-xl focus:bg-white focus:outline-none focus:border-brand-burgundy"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-4 bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-serif font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  <span>Submit Custom Product Request</span>
+                </button>
+
+              </div>
+            </form>
+          )}
+
+        </section>
+
+        {/* TRUST BADGES STRIP */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 bg-white border border-zinc-200/80 rounded-2xl text-center space-y-1.5 shadow-xs">
+              <Award className="h-6 w-6 text-brand-gold mx-auto" />
+              <h5 className="font-bold text-xs text-zinc-900">Food-Grade Sugar Sheets</h5>
+              <p className="text-[10px] text-zinc-500">100% vegetarian & certified edible prints</p>
+            </div>
+            <div className="p-4 bg-white border border-zinc-200/80 rounded-2xl text-center space-y-1.5 shadow-xs">
+              <Clock className="h-6 w-6 text-brand-burgundy mx-auto" />
+              <h5 className="font-bold text-xs text-zinc-900">Handcrafted Fresh</h5>
+              <p className="text-[10px] text-zinc-500">Prepared fresh on demand with doorstep delivery</p>
+            </div>
+            <div className="p-4 bg-white border border-zinc-200/80 rounded-2xl text-center space-y-1.5 shadow-xs">
+              <ShieldCheck className="h-6 w-6 text-emerald-600 mx-auto" />
+              <h5 className="font-bold text-xs text-zinc-900">Razorpay Verified</h5>
+              <p className="text-[10px] text-zinc-500">Secure payments with instant OTP tracking</p>
+            </div>
+            <div className="p-4 bg-white border border-zinc-200/80 rounded-2xl text-center space-y-1.5 shadow-xs">
+              <Sparkles className="h-6 w-6 text-amber-500 mx-auto" />
+              <h5 className="font-bold text-xs text-zinc-900">Bespoke Gifting</h5>
+              <p className="text-[10px] text-zinc-500">Artisanal calligraphy & keepsake plaques</p>
             </div>
           </div>
         </section>
 
-        {/* 7. FAQS ACCORDION */}
-        <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-          <div className="text-center space-y-1.5 mb-8">
-            <span className="text-[9px] text-brand-burgundy font-extrabold uppercase tracking-[0.25em] block">
-              FREQUENTLY ASKED QUESTIONS
-            </span>
-            <h2 className="text-xl sm:text-2xl font-serif font-black text-brand-charcoal">
-              Personalisation Queries Answered
-            </h2>
+        {/* FAQS */}
+        <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 border-t border-zinc-200/60">
+          <div className="text-center space-y-1 mb-6">
+            <span className="text-[9px] font-extrabold uppercase tracking-widest text-brand-burgundy">GOT QUESTIONS?</span>
+            <h3 className="text-xl font-serif font-black text-zinc-900">Personalisation & Custom Requests FAQ</h3>
           </div>
 
           <div className="space-y-3">
             {FAQS.map((faq, idx) => {
               const isOpen = openFaq === idx;
               return (
-                <div
-                  key={idx}
-                  className="bg-white rounded-2xl border border-zinc-200/40 overflow-hidden shadow-sm text-left transition-colors"
-                >
+                <div key={idx} className="bg-white border border-zinc-200/80 rounded-2xl overflow-hidden shadow-xs">
                   <button
-                    type="button"
                     onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-4 flex justify-between items-center gap-3 text-left font-bold text-xs text-zinc-900 hover:text-brand-burgundy transition-colors"
+                    className="w-full p-4 text-left font-serif font-bold text-xs text-zinc-900 flex justify-between items-center gap-4"
                   >
                     <span>{faq.q}</span>
-                    <ChevronDown className={`h-4 w-4 text-zinc-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-brand-burgundy' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {isOpen && (
-                    <div className="px-4 pb-4 pt-1 text-[11px] text-zinc-500 leading-relaxed border-t border-zinc-100">
+                    <div className="px-4 pb-4 text-xs text-zinc-600 font-medium leading-relaxed border-t border-zinc-100 pt-3">
                       {faq.a}
                     </div>
                   )}
@@ -606,82 +989,8 @@ export default function PersonalisationPage() {
             })}
           </div>
         </section>
+
       </main>
-
-      {/* PLAQUE / CUSTOMISATION MODAL DIALOG */}
-      {isPlaqueModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md space-y-5 text-left border shadow-2xl relative">
-            <div className="flex justify-between items-center border-b pb-3">
-              <div>
-                <h4 className="font-serif font-black text-base text-brand-burgundy">
-                  {modalTitle}
-                </h4>
-                <p className="text-[10px] text-zinc-400 font-medium">Configure your custom celebration message</p>
-              </div>
-              <button
-                onClick={() => setIsPlaqueModalOpen(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600">
-                  Recipient Name
-                </label>
-                <input
-                  type="text"
-                  value={modalRecipient}
-                  onChange={(e) => setModalRecipient(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border text-xs font-bold text-zinc-800 outline-none focus:border-brand-burgundy"
-                  placeholder="e.g. Best Friend, Mom & Dad"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-600">
-                  Custom Plaque Lettering
-                </label>
-                <textarea
-                  value={modalMessage}
-                  onChange={(e) => setModalMessage(e.target.value)}
-                  rows={3}
-                  maxLength={120}
-                  className="w-full p-3 rounded-xl border text-xs font-medium text-zinc-800 outline-none focus:border-brand-burgundy resize-none"
-                  placeholder="Enter message for plaque..."
-                />
-              </div>
-
-              {/* Plaque Preview Box */}
-              <div className="bg-gradient-to-br from-[#2D1B00] to-[#1F1200] border border-amber-500/30 text-amber-100 p-4 rounded-2xl text-center space-y-1">
-                <span className="text-[8px] font-mono text-brand-gold uppercase tracking-widest block">Preview</span>
-                <p className="font-serif italic text-xs">&ldquo;{modalMessage}&rdquo;</p>
-                <span className="text-[9px] font-bold text-amber-300 block">- For {modalRecipient}</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsPlaqueModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border text-zinc-600 font-bold text-xs hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handlePlaqueSave}
-                className="flex-1 py-2.5 rounded-xl bg-brand-burgundy hover:bg-brand-burgundy-dark text-white font-bold text-xs uppercase tracking-wider shadow"
-              >
-                Save & Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <Footer />
     </div>

@@ -36,6 +36,40 @@ export interface RefundRequestRecord {
   [key: string]: unknown;
 }
 
+export interface CustomRequestRecord {
+  id: string;
+  customerId: string;
+  customerName: string;
+  email: string;
+  mobile: string;
+  requestType: 'EXISTING_PRODUCT' | 'UNLISTED_PRODUCT';
+  productId?: string;
+  productName?: string;
+  requestedDetails?: string;
+  quantity: number;
+  variant?: string;
+  flavour?: string;
+  personalisationType?: string;
+  personalisationMessage?: string;
+  uploadedImageUrl?: string;
+  referenceImageUrl?: string;
+  specialInstructions?: string;
+  preferredDeliveryDate?: string;
+  preferredDeliveryTime?: string;
+  budget?: string | number;
+  status: 'Request Submitted' | 'Under Review' | 'Available / Quote Ready' | 'Payment Pending' | 'Paid' | 'Confirmed' | 'Preparing' | 'Out for Delivery' | 'Delivered' | 'Not Available' | 'Cancelled';
+  adminNotes?: string;
+  quotedAmount?: number;
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED';
+  paymentLinkId?: string;
+  paymentLinkUrl?: string;
+  customOrderId?: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface AuditLogRecord {
   id: string;
   adminUser: string;
@@ -493,7 +527,76 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_refund_requested_at ON "refund_requests" ("requestedAt");
         `).catch(() => {});
 
-        // 13. Seed and sync categorized products into PostgreSQL using single batched transaction
+        // 13. Ensure custom_requests table exists with indexes
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "custom_requests" (
+            id TEXT PRIMARY KEY,
+            "customerId" TEXT NOT NULL,
+            "customerName" TEXT,
+            email TEXT,
+            mobile TEXT,
+            "requestType" TEXT NOT NULL DEFAULT 'EXISTING_PRODUCT',
+            "productId" TEXT,
+            "productName" TEXT,
+            "requestedDetails" TEXT,
+            quantity INTEGER DEFAULT 1,
+            variant TEXT,
+            flavour TEXT,
+            "personalisationType" TEXT,
+            "personalisationMessage" TEXT,
+            "uploadedImageUrl" TEXT,
+            "referenceImageUrl" TEXT,
+            "specialInstructions" TEXT,
+            "preferredDeliveryDate" TEXT,
+            "preferredDeliveryTime" TEXT,
+            budget TEXT,
+            status TEXT NOT NULL DEFAULT 'Request Submitted',
+            "adminNotes" TEXT,
+            "quotedAmount" NUMERIC,
+            "paymentStatus" TEXT NOT NULL DEFAULT 'PENDING',
+            "paymentLinkId" TEXT,
+            "paymentLinkUrl" TEXT,
+            "customOrderId" TEXT,
+            "createdAt" TEXT NOT NULL,
+            "updatedAt" TEXT NOT NULL,
+            metadata JSONB
+          );
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "customerId" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "customerName" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS email TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS mobile TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "requestType" TEXT DEFAULT 'EXISTING_PRODUCT';
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "productId" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "productName" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "requestedDetails" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS variant TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS flavour TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "personalisationType" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "personalisationMessage" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "uploadedImageUrl" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "referenceImageUrl" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "specialInstructions" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "preferredDeliveryDate" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "preferredDeliveryTime" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS budget TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Request Submitted';
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "adminNotes" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "quotedAmount" NUMERIC;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT DEFAULT 'PENDING';
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "paymentLinkId" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "paymentLinkUrl" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "customOrderId" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+          ALTER TABLE "custom_requests" ADD COLUMN IF NOT EXISTS metadata JSONB;
+          CREATE INDEX IF NOT EXISTS idx_custom_req_customer ON "custom_requests" ("customerId");
+          CREATE INDEX IF NOT EXISTS idx_custom_req_email ON "custom_requests" (email);
+          CREATE INDEX IF NOT EXISTS idx_custom_req_status ON "custom_requests" (status);
+          CREATE INDEX IF NOT EXISTS idx_custom_req_created ON "custom_requests" ("createdAt");
+        `).catch(() => {});
+
+        // 14. Seed and sync categorized products into PostgreSQL using single batched transaction
         if (productsJson.length > 0) {
           try {
             const valuePlaceholders: string[] = [];
@@ -584,6 +687,7 @@ if (!globalForDb._inMemoryData) {
     coupons: [],
     coupon_usages: [],
     refund_requests: [],
+    custom_requests: [],
   };
 }
 
@@ -631,7 +735,14 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata', 'razorpayOrderId', 'razorpayPaymentId', 'razorpaySignature'],
   coupons: ['id', 'code', 'discountType', 'discountValue', 'minSpend', 'maxDiscount', 'startDate', 'expiryDate', 'isActive', 'usageLimit', 'usageCount', 'perCustomerLimit', 'targetAudience', 'selectedCustomerIds', 'createdAt', 'updatedAt', 'createdBy'],
   coupon_usages: ['id', 'couponId', 'couponCode', 'customerId', 'customerEmail', 'orderId', 'discountAmount', 'usedAt'],
-  refund_requests: ['id', 'orderId', 'customerId', 'customerEmail', 'amount', 'reason', 'status', 'adminReason', 'razorpayPaymentId', 'razorpayRefundId', 'razorpayStatus', 'requestedAt', 'reviewedAt', 'refundedAt', 'errorMessage', 'metadata']
+  refund_requests: ['id', 'orderId', 'customerId', 'customerEmail', 'amount', 'reason', 'status', 'adminReason', 'razorpayPaymentId', 'razorpayRefundId', 'razorpayStatus', 'requestedAt', 'reviewedAt', 'refundedAt', 'errorMessage', 'metadata'],
+  custom_requests: [
+    'id', 'customerId', 'customerName', 'email', 'mobile', 'requestType', 'productId', 'productName',
+    'requestedDetails', 'quantity', 'variant', 'flavour', 'personalisationType', 'personalisationMessage',
+    'uploadedImageUrl', 'referenceImageUrl', 'specialInstructions', 'preferredDeliveryDate',
+    'preferredDeliveryTime', 'budget', 'status', 'adminNotes', 'quotedAmount', 'paymentStatus',
+    'paymentLinkId', 'paymentLinkUrl', 'customOrderId', 'createdAt', 'updatedAt', 'metadata'
+  ]
 };
 
 export function normalizeProductRecord(row: Record<string, unknown> | Product | any): Product {
@@ -994,6 +1105,53 @@ export function normalizeSessionRecord(row: Record<string, unknown>): Record<str
   if (parsed.expiresat && !parsed.expiresAt) parsed.expiresAt = parsed.expiresat;
 
   return parsed;
+}
+
+export function normalizeCustomRequestRecord(row: Record<string, unknown>): CustomRequestRecord {
+  if (!row || typeof row !== 'object') return row as unknown as CustomRequestRecord;
+  const parsed: Record<string, any> = { ...row };
+
+  if (typeof parsed.metadata === 'string') {
+    try { parsed.metadata = JSON.parse(parsed.metadata); } catch { /* keep */ }
+  }
+
+  // Column alias normalization
+  if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+  if (parsed.customername && !parsed.customerName) parsed.customerName = parsed.customername;
+  if (parsed.requesttype && !parsed.requestType) parsed.requestType = parsed.requesttype;
+  if (parsed.productid && !parsed.productId) parsed.productId = parsed.productid;
+  if (parsed.productname && !parsed.productName) parsed.productName = parsed.productname;
+  if (parsed.requesteddetails && !parsed.requestedDetails) parsed.requestedDetails = parsed.requesteddetails;
+  if (parsed.personalisationtype && !parsed.personalisationType) parsed.personalisationType = parsed.personalisationtype;
+  if (parsed.personalisationmessage && !parsed.personalisationMessage) parsed.personalisationMessage = parsed.personalisationmessage;
+  if (parsed.uploadedimageurl && !parsed.uploadedImageUrl) parsed.uploadedImageUrl = parsed.uploadedimageurl;
+  if (parsed.referenceimageurl && !parsed.referenceImageUrl) parsed.referenceImageUrl = parsed.referenceimageurl;
+  if (parsed.specialinstructions && !parsed.specialInstructions) parsed.specialInstructions = parsed.specialinstructions;
+  if (parsed.preferreddeliverydate && !parsed.preferredDeliveryDate) parsed.preferredDeliveryDate = parsed.preferreddeliverydate;
+  if (parsed.preferreddeliverytime && !parsed.preferredDeliveryTime) parsed.preferredDeliveryTime = parsed.preferreddeliverytime;
+  if (parsed.adminnotes && !parsed.adminNotes) parsed.adminNotes = parsed.adminnotes;
+  if (parsed.quotedamount !== undefined && parsed.quotedAmount === undefined) parsed.quotedAmount = Number(parsed.quotedamount);
+  if (parsed.paymentstatus && !parsed.paymentStatus) parsed.paymentStatus = parsed.paymentstatus;
+  if (parsed.paymentlinkid && !parsed.paymentLinkId) parsed.paymentLinkId = parsed.paymentlinkid;
+  if (parsed.paymentlinkurl && !parsed.paymentLinkUrl) parsed.paymentLinkUrl = parsed.paymentlinkurl;
+  if (parsed.customorderid && !parsed.customOrderId) parsed.customOrderId = parsed.customorderid;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+
+  parsed.id = String(parsed.id || '').trim();
+  parsed.customerId = String(parsed.customerId || '').trim();
+  parsed.customerName = String(parsed.customerName || '').trim();
+  parsed.email = String(parsed.email || '').trim();
+  parsed.mobile = String(parsed.mobile || '').trim();
+  parsed.requestType = (parsed.requestType === 'UNLISTED_PRODUCT' ? 'UNLISTED_PRODUCT' : 'EXISTING_PRODUCT') as any;
+  parsed.quantity = Math.max(1, Number(parsed.quantity || 1));
+  parsed.status = parsed.status || 'Request Submitted';
+  parsed.paymentStatus = (String(parsed.paymentStatus || 'PENDING').toUpperCase()) as any;
+  if (parsed.quotedAmount !== undefined && parsed.quotedAmount !== null) {
+    parsed.quotedAmount = Number(parsed.quotedAmount);
+  }
+
+  return parsed as unknown as CustomRequestRecord;
 }
 
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
@@ -4015,6 +4173,197 @@ export const db = {
       return merged;
     } catch (err) {
       console.error(`PostgreSQL error updating refund request ${cleanId}:`, err);
+      return merged;
+    }
+  },
+
+  // ==========================================
+  // CUSTOM REQUESTS & PERSONALISATION
+  // ==========================================
+
+  async createCustomRequest(request: Partial<CustomRequestRecord>): Promise<CustomRequestRecord> {
+    const id = request.id || `REQ-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const now = new Date().toISOString();
+
+    const record = normalizeCustomRequestRecord({
+      ...request,
+      id,
+      status: request.status || 'Request Submitted',
+      paymentStatus: request.paymentStatus || 'PENDING',
+      createdAt: request.createdAt || now,
+      updatedAt: request.updatedAt || now
+    });
+
+    const memList = (inMemoryData['custom_requests'] || []) as unknown as CustomRequestRecord[];
+    memList.unshift(record);
+    inMemoryData['custom_requests'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        await insertRow(activePool, 'custom_requests', record as unknown as Record<string, unknown>);
+      } catch (err) {
+        console.error('PostgreSQL error creating custom request:', err);
+      }
+    }
+
+    return record;
+  },
+
+  async getCustomRequestById(id: string): Promise<CustomRequestRecord | null> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query('SELECT * FROM "custom_requests" WHERE id = $1', [cleanId]);
+        if (res.rows.length > 0) {
+          return normalizeCustomRequestRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error(`PostgreSQL error fetching custom request ${cleanId}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['custom_requests'] || []) as unknown as CustomRequestRecord[];
+    const found = memList.find(r => String(r.id || '').toLowerCase() === cleanId.toLowerCase());
+    return found ? normalizeCustomRequestRecord(found as unknown as Record<string, unknown>) : null;
+  },
+
+  async getCustomRequestsByCustomer(customerIdOrEmail: string): Promise<CustomRequestRecord[]> {
+    const cleanIdentifier = String(customerIdOrEmail || '').trim();
+    if (!cleanIdentifier) return [];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM "custom_requests" WHERE "customerId" = $1 OR LOWER(email) = LOWER($1) OR mobile = $1 ORDER BY "createdAt" DESC',
+          [cleanIdentifier]
+        );
+        return res.rows.map(r => normalizeCustomRequestRecord(r));
+      } catch (err) {
+        console.error(`PostgreSQL error fetching custom requests for customer ${cleanIdentifier}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['custom_requests'] || []) as unknown as CustomRequestRecord[];
+    return memList
+      .filter(r => 
+        r.customerId === cleanIdentifier || 
+        (r.email && r.email.toLowerCase() === cleanIdentifier.toLowerCase()) ||
+        r.mobile === cleanIdentifier
+      )
+      .map(r => normalizeCustomRequestRecord(r as unknown as Record<string, unknown>));
+  },
+
+  async getAllCustomRequests(filter?: { status?: string; requestType?: string }): Promise<CustomRequestRecord[]> {
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        let queryText = 'SELECT * FROM "custom_requests"';
+        const queryParams: unknown[] = [];
+        const conditions: string[] = [];
+
+        if (filter?.status && filter.status !== 'All') {
+          queryParams.push(filter.status);
+          conditions.push(`status = $${queryParams.length}`);
+        }
+        if (filter?.requestType && filter.requestType !== 'All') {
+          queryParams.push(filter.requestType);
+          conditions.push(`"requestType" = $${queryParams.length}`);
+        }
+
+        if (conditions.length > 0) {
+          queryText += ` WHERE ${conditions.join(' AND ')}`;
+        }
+        queryText += ' ORDER BY "createdAt" DESC';
+
+        const res = await activePool.query(queryText, queryParams);
+        return res.rows.map(r => normalizeCustomRequestRecord(r));
+      } catch (err) {
+        console.error('PostgreSQL error fetching all custom requests:', err);
+      }
+    }
+
+    let memList = (inMemoryData['custom_requests'] || []) as unknown as CustomRequestRecord[];
+    if (filter?.status && filter.status !== 'All') {
+      memList = memList.filter(r => r.status === filter.status);
+    }
+    if (filter?.requestType && filter.requestType !== 'All') {
+      memList = memList.filter(r => r.requestType === filter.requestType);
+    }
+    return memList.map(r => normalizeCustomRequestRecord(r as unknown as Record<string, unknown>));
+  },
+
+  async updateCustomRequest(id: string, updates: Partial<CustomRequestRecord>): Promise<CustomRequestRecord | null> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return null;
+
+    const existing = await this.getCustomRequestById(cleanId);
+    if (!existing) return null;
+
+    const now = new Date().toISOString();
+    const merged = normalizeCustomRequestRecord({ ...existing, ...updates, updatedAt: now });
+
+    const memList = (inMemoryData['custom_requests'] || []) as unknown as CustomRequestRecord[];
+    const idx = memList.findIndex(r => String(r.id || '').toLowerCase() === cleanId.toLowerCase());
+    if (idx >= 0) {
+      memList[idx] = merged;
+    } else {
+      memList.push(merged);
+    }
+    inMemoryData['custom_requests'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (!activePool) {
+      return merged;
+    }
+
+    try {
+      const fields: string[] = [];
+      const values: unknown[] = [];
+
+      const colMap: Record<string, string> = {
+        status: 'status',
+        adminNotes: '"adminNotes"',
+        quotedAmount: '"quotedAmount"',
+        paymentStatus: '"paymentStatus"',
+        paymentLinkId: '"paymentLinkId"',
+        paymentLinkUrl: '"paymentLinkUrl"',
+        customOrderId: '"customOrderId"',
+        productName: '"productName"',
+        requestedDetails: '"requestedDetails"',
+        quantity: 'quantity',
+        variant: 'variant',
+        flavour: 'flavour',
+        personalisationType: '"personalisationType"',
+        personalisationMessage: '"personalisationMessage"',
+        specialInstructions: '"specialInstructions"',
+        preferredDeliveryDate: '"preferredDeliveryDate"',
+        preferredDeliveryTime: '"preferredDeliveryTime"',
+        budget: 'budget',
+        updatedAt: '"updatedAt"',
+        metadata: 'metadata'
+      };
+
+      for (const [key, val] of Object.entries({ ...updates, updatedAt: now })) {
+        const col = colMap[key];
+        if (!col) continue;
+        values.push(key === 'metadata' && val && typeof val === 'object' ? JSON.stringify(val) : val);
+        fields.push(`${col} = $${values.length}`);
+      }
+
+      if (fields.length > 0) {
+        values.push(cleanId);
+        const queryText = `UPDATE "custom_requests" SET ${fields.join(', ')} WHERE id = $${values.length}`;
+        await activePool.query(queryText, values);
+      }
+
+      return merged;
+    } catch (err) {
+      console.error(`PostgreSQL error updating custom request ${cleanId}:`, err);
       return merged;
     }
   },
