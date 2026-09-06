@@ -16,6 +16,26 @@ import { resolveImageUrl } from '../utils/imageUtils';
 import { Product } from './mockData';
 
 
+export interface RefundRequestRecord {
+  id: string;
+  orderId: string;
+  customerId: string;
+  customerEmail?: string;
+  amount: number;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REFUNDED' | 'FAILED';
+  adminReason?: string;
+  razorpayPaymentId?: string;
+  razorpayRefundId?: string;
+  razorpayStatus?: string;
+  requestedAt: string;
+  reviewedAt?: string;
+  refundedAt?: string;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface AuditLogRecord {
   id: string;
   adminUser: string;
@@ -115,228 +135,391 @@ export function getPool(): Pool | null {
 }
 
 let schemaEnsured = false;
+let schemaPromise: Promise<void> | null = null;
+
 export async function ensureDbSchema(p: Pool): Promise<void> {
   if (schemaEnsured) return;
-  try {
-    // 1. Ensure required columns in orders table
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS "orders" (
-        id TEXT PRIMARY KEY
-      );
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS id TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customerId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customerEmail" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "items" JSONB;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "subtotal" NUMERIC;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryFee" NUMERIC;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discount" NUMERIC;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "total" NUMERIC;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "couponCode" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "address" JSONB;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "status" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOption" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryTimeSlot" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "eta" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationName" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOtp" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpFailedAttempts" INTEGER DEFAULT 0;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpExpiresAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedPartnerId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedPartnerName" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "scheduledDeliveryAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancellationReason" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancelledAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "delivery_otp_verified" BOOLEAN DEFAULT false;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otp_verified_at" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "verified_by_partner_id" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "delivery_completed_at" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "adminOverride" JSONB;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "utr" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "proofImageUrl" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentSubmittedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentRejectedAt" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayOrderId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayPaymentId" TEXT;
-      ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS customerid TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS customeremail TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryfee NUMERIC;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount NUMERIC;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS total NUMERIC;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS couponcode TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS address JSONB;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS status TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryoption TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverytimeslot TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS eta TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS createdat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS updatedat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverylocationid TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverylocationname TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryotp TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS otpfailedattempts INTEGER DEFAULT 0;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS otpexpiresat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS statushistory JSONB;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedpartnerid TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedpartnername TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentstatus TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentmethod TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentid TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduleddeliveryat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancellationreason TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelledat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp_verified BOOLEAN DEFAULT false;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS otp_verified_at TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS verified_by_partner_id TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_completed_at TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS adminoverride JSONB;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS utr TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS proofimageurl TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentsubmittedat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentverifiedat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentrejectedat TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS rejectionreason TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpayorderid TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpaypaymentid TEXT;
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpaysignature TEXT;
-    `).catch(() => {});
-
-    // 2. Ensure payment_transactions table exists with indexes
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS "payment_transactions" (
-        id TEXT PRIMARY KEY,
-        "orderId" TEXT,
-        "customerId" TEXT,
-        amount NUMERIC,
-        currency TEXT DEFAULT 'INR',
-        status TEXT DEFAULT 'PENDING',
-        method TEXT,
-        provider TEXT,
-        "transactionReference" TEXT,
-        utr TEXT,
-        "proofImageUrl" TEXT,
-        "submittedAt" TEXT,
-        "verifiedAt" TEXT,
-        "verifiedBy" TEXT,
-        "rejectedAt" TEXT,
-        "rejectedBy" TEXT,
-        "rejectionReason" TEXT,
-        "paymentProofType" TEXT,
-        "paymentProofSize" NUMERIC,
-        "createdAt" TEXT,
-        "updatedAt" TEXT,
-        "paidAt" TEXT,
-        "failureReason" TEXT,
-        "attemptCount" INTEGER DEFAULT 0,
-        "lastAttemptAt" TEXT,
-        metadata JSONB,
-        "razorpayOrderId" TEXT,
-        "razorpayPaymentId" TEXT,
-        "razorpaySignature" TEXT
-      );
-      CREATE INDEX IF NOT EXISTS idx_payment_order_id ON "payment_transactions" ("orderId");
-      CREATE INDEX IF NOT EXISTS idx_payment_rzp_order ON "payment_transactions" ("razorpayOrderId");
-      CREATE INDEX IF NOT EXISTS idx_payment_rzp_pay ON "payment_transactions" ("razorpayPaymentId");
-    `).catch(() => {});
-
-    // 3. Ensure sessions table exists with indexes and schema resilience
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        sessionid TEXT,
-        userid TEXT,
-        email TEXT,
-        role TEXT,
-        expiresat TEXT
-      );
-      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sessionid TEXT;
-      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS userid TEXT;
-      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS email TEXT;
-      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS role TEXT;
-      ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expiresat TEXT;
-      CREATE INDEX IF NOT EXISTS idx_sessions_userid ON sessions (userid);
-      CREATE INDEX IF NOT EXISTS idx_sessions_sessionid ON sessions (sessionid);
-    `).catch(() => {});
-
-    // 4. Ensure partners table exists with standard columns
-    await p.query(`
-      CREATE TABLE IF NOT EXISTS partners (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        phone TEXT,
-        email TEXT,
-        passwordhash TEXT,
-        role TEXT DEFAULT 'delivery_partner',
-        locationid TEXT,
-        locationname TEXT,
-        status TEXT DEFAULT 'Active',
-        isonline BOOLEAN DEFAULT false
-      );
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS id TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS name TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS phone TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS email TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS passwordhash TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS role TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationid TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationname TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS status TEXT;
-      ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN;
-      CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
-      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shortDescription" TEXT;
-      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "tags" JSONB DEFAULT '[]'::jsonb;
-    `).catch(() => {});
-
-    // Seed and sync categorized products into PostgreSQL
-    if (productsJson.length > 0) {
-      for (const pItem of productsJson as any[]) {
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      try {
+        // 1. Ensure products table exists with all standard columns
         await p.query(`
-          INSERT INTO "products" (
-            id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
-            category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
-            ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
-          ) ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            "shortDescription" = EXCLUDED."shortDescription",
-            price = EXCLUDED.price,
-            "originalPrice" = EXCLUDED."originalPrice",
-            discount = EXCLUDED.discount,
-            category = EXCLUDED.category,
-            "subCategory" = EXCLUDED."subCategory",
-            occasions = EXCLUDED.occasions,
-            variants = EXCLUDED.variants,
-            tags = EXCLUDED.tags,
-            "updatedAt" = EXCLUDED."updatedAt"
-        `, [
-          pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
-          pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
-          pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
-          JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
-          JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
-          pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
-        ]).catch(() => {});
-      }
-    }
+          CREATE TABLE IF NOT EXISTS "products" (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            description TEXT,
+            "shortDescription" TEXT,
+            price NUMERIC,
+            "originalPrice" NUMERIC,
+            discount NUMERIC,
+            image TEXT,
+            gallery JSONB DEFAULT '[]'::jsonb,
+            category TEXT,
+            "subCategory" TEXT,
+            rating NUMERIC DEFAULT 4.5,
+            "reviewCount" NUMERIC DEFAULT 0,
+            "inStock" BOOLEAN DEFAULT true,
+            "deliveryTime" TEXT DEFAULT 'Within 12 hours',
+            ingredients JSONB DEFAULT '[]'::jsonb,
+            allergens JSONB DEFAULT '[]'::jsonb,
+            "storageInstructions" TEXT,
+            occasions JSONB DEFAULT '[]'::jsonb,
+            variants JSONB DEFAULT '[]'::jsonb,
+            tags JSONB DEFAULT '[]'::jsonb,
+            "createdAt" TEXT,
+            "updatedAt" TEXT
+          );
+          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "shortDescription" TEXT;
+          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "tags" JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "gallery" JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "image" TEXT;
+          ALTER TABLE "products" ALTER COLUMN image TYPE TEXT;
+          CREATE INDEX IF NOT EXISTS idx_products_id ON "products" (id);
+          CREATE INDEX IF NOT EXISTS idx_products_category ON "products" (category);
+        `).catch(() => {});
 
-    schemaEnsured = true;
-  } catch (err) {
-    console.warn('[DB SCHEMA WARNING] Could not verify schema extensions:', err);
+        // 2. Ensure product_image_history table exists
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "product_image_history" (
+            id TEXT PRIMARY KEY,
+            "productId" TEXT,
+            "storagePath" TEXT,
+            "imageUrl" TEXT,
+            "uploadedBy" TEXT,
+            "uploadedByRole" TEXT,
+            "uploadedAt" TEXT,
+            "previousImage" TEXT,
+            "isActive" BOOLEAN DEFAULT true
+          );
+          CREATE INDEX IF NOT EXISTS idx_image_history_product ON "product_image_history" ("productId");
+        `).catch(() => {});
+
+        // 3. Ensure categories table exists
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "categories" (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            slug TEXT,
+            description TEXT,
+            status TEXT,
+            image TEXT,
+            "itemCount" NUMERIC
+          );
+        `).catch(() => {});
+
+        // 4. Ensure brands table exists
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "brands" (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            slug TEXT,
+            description TEXT,
+            status TEXT,
+            website TEXT,
+            logo TEXT,
+            "itemCount" NUMERIC
+          );
+        `).catch(() => {});
+
+        // 5. Ensure auditLogs table exists
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "auditLogs" (
+            id TEXT PRIMARY KEY,
+            "adminUser" TEXT,
+            action TEXT,
+            "dateTime" TEXT,
+            product TEXT,
+            "previousValue" TEXT,
+            "newValue" TEXT
+          );
+        `).catch(() => {});
+
+        // 6. Ensure admin table exists
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "admin" (
+            email TEXT PRIMARY KEY,
+            passwordhash TEXT,
+            name TEXT,
+            phone TEXT,
+            role TEXT DEFAULT 'admin'
+          );
+        `).catch(() => {});
+
+        // 7. Ensure users table exists
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "users" (
+            userid TEXT PRIMARY KEY,
+            googleproviderid TEXT,
+            name TEXT,
+            email TEXT,
+            profileimage TEXT,
+            createdat TEXT,
+            lastloginat TEXT,
+            wellnessaccessstatus TEXT,
+            wellnessrequestid TEXT,
+            wellnessapprovedat TEXT,
+            wellnessapprovedby TEXT,
+            phone TEXT,
+            dob TEXT,
+            gender TEXT,
+            addresses JSONB DEFAULT '[]'::jsonb
+          );
+          CREATE INDEX IF NOT EXISTS idx_users_email ON "users" (email);
+        `).catch(() => {});
+
+        // 8. Ensure required columns in orders table
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "orders" (
+            id TEXT PRIMARY KEY
+          );
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS id TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customerId" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customerEmail" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "items" JSONB;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "subtotal" NUMERIC;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryFee" NUMERIC;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "discount" NUMERIC;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "total" NUMERIC;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "couponCode" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "address" JSONB;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "status" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOption" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryTimeSlot" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "eta" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationId" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryLocationName" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "deliveryOtp" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpFailedAttempts" INTEGER DEFAULT 0;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otpExpiresAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "statusHistory" JSONB;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedPartnerId" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedPartnerName" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "assignedAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentId" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "scheduledDeliveryAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancellationReason" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancelledAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "delivery_otp_verified" BOOLEAN DEFAULT false;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "otp_verified_at" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "verified_by_partner_id" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "delivery_completed_at" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "adminOverride" JSONB;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "utr" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "proofImageUrl" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentSubmittedAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paymentRejectedAt" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayOrderId" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpayPaymentId" TEXT;
+          ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "razorpaySignature" TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS customerid TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS customeremail TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryfee NUMERIC;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount NUMERIC;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS total NUMERIC;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS couponcode TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS address JSONB;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS status TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryoption TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverytimeslot TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS eta TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS createdat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS updatedat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverylocationid TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliverylocationname TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS deliveryotp TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS otpfailedattempts INTEGER DEFAULT 0;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS otpexpiresat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS statushistory JSONB;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedpartnerid TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedpartnername TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS assignedat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentstatus TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentmethod TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentid TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduleddeliveryat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancellationreason TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelledat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp_verified BOOLEAN DEFAULT false;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS otp_verified_at TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS verified_by_partner_id TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_completed_at TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS adminoverride JSONB;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS utr TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS proofimageurl TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentsubmittedat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentverifiedat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS paymentrejectedat TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS rejectionreason TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpayorderid TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpaypaymentid TEXT;
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpaysignature TEXT;
+        `).catch(() => {});
+
+        // 9. Ensure payment_transactions table exists with indexes
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "payment_transactions" (
+            id TEXT PRIMARY KEY,
+            "orderId" TEXT,
+            "customerId" TEXT,
+            amount NUMERIC,
+            currency TEXT DEFAULT 'INR',
+            status TEXT DEFAULT 'PENDING',
+            method TEXT,
+            provider TEXT,
+            "transactionReference" TEXT,
+            utr TEXT,
+            "proofImageUrl" TEXT,
+            "submittedAt" TEXT,
+            "verifiedAt" TEXT,
+            "verifiedBy" TEXT,
+            "rejectedAt" TEXT,
+            "rejectedBy" TEXT,
+            "rejectionReason" TEXT,
+            "paymentProofType" TEXT,
+            "paymentProofSize" NUMERIC,
+            "createdAt" TEXT,
+            "updatedAt" TEXT,
+            "paidAt" TEXT,
+            "failureReason" TEXT,
+            "attemptCount" INTEGER DEFAULT 0,
+            "lastAttemptAt" TEXT,
+            metadata JSONB,
+            "razorpayOrderId" TEXT,
+            "razorpayPaymentId" TEXT,
+            "razorpaySignature" TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_payment_order_id ON "payment_transactions" ("orderId");
+          CREATE INDEX IF NOT EXISTS idx_payment_rzp_order ON "payment_transactions" ("razorpayOrderId");
+          CREATE INDEX IF NOT EXISTS idx_payment_rzp_pay ON "payment_transactions" ("razorpayPaymentId");
+        `).catch(() => {});
+
+        // 10. Ensure sessions table exists with indexes and schema resilience
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS sessions (
+            sessionid TEXT,
+            userid TEXT,
+            email TEXT,
+            role TEXT,
+            expiresat TEXT
+          );
+          ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sessionid TEXT;
+          ALTER TABLE sessions ADD COLUMN IF NOT EXISTS userid TEXT;
+          ALTER TABLE sessions ADD COLUMN IF NOT EXISTS email TEXT;
+          ALTER TABLE sessions ADD COLUMN IF NOT EXISTS role TEXT;
+          ALTER TABLE sessions ADD COLUMN IF NOT EXISTS expiresat TEXT;
+          CREATE INDEX IF NOT EXISTS idx_sessions_userid ON sessions (userid);
+          CREATE INDEX IF NOT EXISTS idx_sessions_sessionid ON sessions (sessionid);
+        `).catch(() => {});
+
+        // 11. Ensure partners table exists with standard columns
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS partners (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            phone TEXT,
+            email TEXT,
+            passwordhash TEXT,
+            role TEXT DEFAULT 'delivery_partner',
+            locationid TEXT,
+            locationname TEXT,
+            status TEXT DEFAULT 'Active',
+            isonline BOOLEAN DEFAULT false
+          );
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS id TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS name TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS phone TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS email TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS passwordhash TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS role TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationid TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationname TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS status TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN;
+          CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
+        `).catch(() => {});
+
+        // 12. Ensure refund_requests table exists with indexes
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "refund_requests" (
+            id TEXT PRIMARY KEY,
+            "orderId" TEXT NOT NULL,
+            "customerId" TEXT NOT NULL,
+            "customerEmail" TEXT,
+            amount NUMERIC NOT NULL,
+            reason TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            "adminReason" TEXT,
+            "razorpayPaymentId" TEXT,
+            "razorpayRefundId" TEXT,
+            "razorpayStatus" TEXT,
+            "requestedAt" TEXT NOT NULL,
+            "reviewedAt" TEXT,
+            "refundedAt" TEXT,
+            "errorMessage" TEXT,
+            metadata JSONB
+          );
+          CREATE INDEX IF NOT EXISTS idx_refund_order_id ON "refund_requests" ("orderId");
+          CREATE INDEX IF NOT EXISTS idx_refund_customer_id ON "refund_requests" ("customerId");
+          CREATE INDEX IF NOT EXISTS idx_refund_status ON "refund_requests" ("status");
+          CREATE INDEX IF NOT EXISTS idx_refund_requested_at ON "refund_requests" ("requestedAt");
+        `).catch(() => {});
+
+        // 13. Seed and sync categorized products into PostgreSQL
+        if (productsJson.length > 0) {
+          for (const pItem of productsJson as any[]) {
+            await p.query(`
+              INSERT INTO "products" (
+                id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
+                category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
+                ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+              ) ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                "shortDescription" = EXCLUDED."shortDescription",
+                price = EXCLUDED.price,
+                "originalPrice" = EXCLUDED."originalPrice",
+                discount = EXCLUDED.discount,
+                category = EXCLUDED.category,
+                "subCategory" = EXCLUDED."subCategory",
+                occasions = EXCLUDED.occasions,
+                variants = EXCLUDED.variants,
+                tags = EXCLUDED.tags,
+                "updatedAt" = EXCLUDED."updatedAt"
+            `, [
+              pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
+              pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
+              pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
+              JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
+              JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
+              pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
+            ]).catch(() => {});
+          }
+
+          // Purge non-canonical / demo / test products from PostgreSQL
+          const canonicalIds = (productsJson as any[]).map(p => String(p.id).toLowerCase().trim());
+          if (canonicalIds.length > 0) {
+            await p.query(`DELETE FROM "products" WHERE LOWER(TRIM(id)) != ALL($1::text[])`, [canonicalIds]).catch(() => {});
+            await p.query(`DELETE FROM "products" WHERE id LIKE 'demo-%' OR id LIKE 'test-%' OR id LIKE 'rzp-%' OR id = 'rzp-test-product-2'`).catch(() => {});
+          }
+        }
+
+        schemaEnsured = true;
+      } catch (err) {
+        console.warn('[DB SCHEMA WARNING] Could not verify schema extensions:', err);
+      }
+    })();
   }
+  return schemaPromise;
 }
 
 // Initial pool check
@@ -364,6 +547,7 @@ if (!globalForDb._inMemoryData) {
     product_image_history: [],
     coupons: [],
     coupon_usages: [],
+    refund_requests: [],
   };
 }
 
@@ -410,7 +594,8 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
   product_image_history: ['id', 'productId', 'storagePath', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'previousImage', 'isActive'],
   payment_transactions: ['id', 'orderId', 'customerId', 'amount', 'currency', 'status', 'method', 'provider', 'transactionReference', 'utr', 'proofImageUrl', 'submittedAt', 'verifiedAt', 'verifiedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason', 'paymentProofType', 'paymentProofSize', 'createdAt', 'updatedAt', 'paidAt', 'failureReason', 'attemptCount', 'lastAttemptAt', 'metadata', 'razorpayOrderId', 'razorpayPaymentId', 'razorpaySignature'],
   coupons: ['id', 'code', 'discountType', 'discountValue', 'minSpend', 'maxDiscount', 'startDate', 'expiryDate', 'isActive', 'usageLimit', 'usageCount', 'perCustomerLimit', 'targetAudience', 'selectedCustomerIds', 'createdAt', 'updatedAt', 'createdBy'],
-  coupon_usages: ['id', 'couponId', 'couponCode', 'customerId', 'customerEmail', 'orderId', 'discountAmount', 'usedAt']
+  coupon_usages: ['id', 'couponId', 'couponCode', 'customerId', 'customerEmail', 'orderId', 'discountAmount', 'usedAt'],
+  refund_requests: ['id', 'orderId', 'customerId', 'customerEmail', 'amount', 'reason', 'status', 'adminReason', 'razorpayPaymentId', 'razorpayRefundId', 'razorpayStatus', 'requestedAt', 'reviewedAt', 'refundedAt', 'errorMessage', 'metadata']
 };
 
 export function normalizeProductRecord(row: Record<string, unknown> | Product | any): Product {
@@ -619,6 +804,40 @@ export function normalizePaymentRecord(row: Record<string, unknown>): Record<str
   parsed.amount = Number(parsed.amount || 0);
 
   return parsed;
+}
+
+export function normalizeRefundRecord(row: Record<string, unknown> | RefundRequestRecord): RefundRequestRecord {
+  if (!row || typeof row !== 'object') return row as unknown as RefundRequestRecord;
+  const parsed: Record<string, unknown> = { ...row };
+
+  if (typeof parsed.metadata === 'string') {
+    try {
+      parsed.metadata = JSON.parse(parsed.metadata);
+    } catch {
+      // keep
+    }
+  }
+
+  if (parsed.orderid && !parsed.orderId) parsed.orderId = parsed.orderid;
+  if (parsed.customerid && !parsed.customerId) parsed.customerId = parsed.customerid;
+  if (parsed.customeremail && !parsed.customerEmail) parsed.customerEmail = parsed.customeremail;
+  if (parsed.adminreason && !parsed.adminReason) parsed.adminReason = parsed.adminreason;
+  if (parsed.razorpaypaymentid && !parsed.razorpayPaymentId) parsed.razorpayPaymentId = parsed.razorpaypaymentid;
+  if (parsed.razorpayrefundid && !parsed.razorpayRefundId) parsed.razorpayRefundId = parsed.razorpayrefundid;
+  if (parsed.razorpaystatus && !parsed.razorpayStatus) parsed.razorpayStatus = parsed.razorpaystatus;
+  if (parsed.requestedat && !parsed.requestedAt) parsed.requestedAt = parsed.requestedat;
+  if (parsed.reviewedat && !parsed.reviewedAt) parsed.reviewedAt = parsed.reviewedat;
+  if (parsed.refundedat && !parsed.refundedAt) parsed.refundedAt = parsed.refundedat;
+  if (parsed.errormessage && !parsed.errorMessage) parsed.errorMessage = parsed.errormessage;
+
+  parsed.id = String(parsed.id || '').trim();
+  parsed.orderId = String(parsed.orderId || '').replace(/^#+/, '').trim();
+  parsed.customerId = String(parsed.customerId || '').trim();
+  parsed.amount = Number(parsed.amount || 0);
+  parsed.reason = String(parsed.reason || '').trim();
+  parsed.status = (String(parsed.status || 'PENDING').toUpperCase()) as RefundRequestRecord['status'];
+
+  return parsed as unknown as RefundRequestRecord;
 }
 
 export function normalizePartnerRecord(row: Record<string, unknown>): Record<string, unknown> {
@@ -1019,6 +1238,7 @@ export const db = {
     }
     
     try {
+      await ensureDbSchema(activePool).catch(() => {});
       const tableName = key === 'inventoryIssues' ? 'inventoryIssues' : key === 'auditLogs' ? 'auditLogs' : key === 'product_image_history' ? 'product_image_history' : key === 'payment_transactions' ? 'payment_transactions' : key;
       
       let res: { rows: any[] };
@@ -1068,6 +1288,9 @@ export const db = {
 
       if (key === 'products') {
         parsedList = parsedList.filter((p: any) => String(p.id || '').toLowerCase().trim() !== 'rzp-test-product-2');
+        if (parsedList.length === 0) {
+          parsedList = (productsJson as any[]).map(normalizeProductRecord) as any[];
+        }
       }
 
       return parsedList as unknown as T[];
@@ -1610,7 +1833,7 @@ export const db = {
   /**
    * Dedicated Single Product Image Mutation Method
    */
-  async updateProductImage(productId: string, imageUrl: string): Promise<{ success: boolean; product?: Record<string, unknown>; error?: string }> {
+  async updateProductImage(productId: string, imageUrl: string): Promise<{ success: boolean; product?: any; error?: string }> {
     const cleanId = decodeURIComponent(String(productId || '')).trim();
     if (!cleanId) {
       return { success: false, error: 'Product ID is required' };
@@ -1619,34 +1842,65 @@ export const db = {
       return { success: false, error: 'Image URL is required' };
     }
 
-    let updatedProduct: Record<string, unknown> | null = null;
+    let updatedProduct: any = null;
+    const now = new Date().toISOString();
 
-    if (pool) {
+    const activePool = getPool();
+    if (activePool) {
       try {
-        await pool.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
+        await ensureDbSchema(activePool).catch(() => {});
+        await activePool.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
         
         // 1. Direct atomic single-row update by ID
-        const res = await pool.query(
+        const res = await activePool.query(
           `UPDATE products 
-           SET image = $1 
-           WHERE LOWER(TRIM(id)) = LOWER(TRIM($2)) 
+           SET image = $1, "updatedAt" = $2, gallery = jsonb_build_array($1)
+           WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) 
            RETURNING *`,
-          [imageUrl, cleanId]
+          [imageUrl, now, cleanId]
         );
 
         if (res.rows.length > 0) {
-          updatedProduct = res.rows[0];
+          updatedProduct = normalizeProductRecord(res.rows[0]);
         } else {
           // Fallback: match by name if cleanId was passed as product name
-          const resByName = await pool.query(
+          const resByName = await activePool.query(
             `UPDATE products 
-             SET image = $1 
-             WHERE LOWER(TRIM(name)) = LOWER(TRIM($2)) 
+             SET image = $1, "updatedAt" = $2, gallery = jsonb_build_array($1)
+             WHERE LOWER(TRIM(name)) = LOWER(TRIM($3)) 
              RETURNING *`,
-            [imageUrl, cleanId]
+            [imageUrl, now, cleanId]
           );
           if (resByName.rows.length > 0) {
-            updatedProduct = resByName.rows[0];
+            updatedProduct = normalizeProductRecord(resByName.rows[0]);
+          } else {
+            // Upsert from canonical products if row not yet in PostgreSQL
+            const canonical = (productsJson as any[]).find(p => 
+              String(p.id).trim().toLowerCase() === cleanId.toLowerCase() ||
+              String(p.name).trim().toLowerCase() === cleanId.toLowerCase()
+            );
+            if (canonical) {
+              await activePool.query(`
+                INSERT INTO "products" (
+                  id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
+                  category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
+                  ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
+                ) VALUES (
+                  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+                ) ON CONFLICT (id) DO UPDATE SET
+                  image = EXCLUDED.image,
+                  gallery = EXCLUDED.gallery,
+                  "updatedAt" = EXCLUDED."updatedAt"
+              `, [
+                canonical.id, canonical.name, canonical.description || '', canonical.shortDescription || '', canonical.price, canonical.originalPrice || canonical.price, canonical.discount || 0,
+                imageUrl, JSON.stringify([imageUrl]), canonical.category || 'Birthday Cakes', canonical.subCategory || null,
+                canonical.rating || 0, canonical.reviewCount || 0, canonical.inStock !== undefined ? canonical.inStock : true, canonical.deliveryTime || 'Within 12 hours',
+                JSON.stringify(canonical.ingredients || []), JSON.stringify(canonical.allergens || []), canonical.storageInstructions || '',
+                JSON.stringify(canonical.occasions || []), JSON.stringify(canonical.variants || []), JSON.stringify(canonical.tags || []),
+                canonical.createdAt || now, now
+              ]).catch(() => {});
+              updatedProduct = { ...canonical, image: imageUrl, gallery: [imageUrl], updatedAt: now };
+            }
           }
         }
       } catch (err) {
@@ -1665,6 +1919,7 @@ export const db = {
       memList[idx] = {
         ...memList[idx],
         image: imageUrl,
+        updatedAt: now,
       };
       if (Array.isArray(memList[idx].gallery)) {
         memList[idx].gallery = [imageUrl, ...(memList[idx].gallery as string[]).filter((img: string) => img !== imageUrl)];
@@ -1686,6 +1941,7 @@ export const db = {
         ...updatedProduct,
         id: updatedProduct.id || cleanId,
         image: imageUrl,
+        updatedAt: now
       }
     };
   },
@@ -2773,6 +3029,7 @@ export const db = {
     const activePool = getPool();
     if (activePool) {
       try {
+        await ensureDbSchema(activePool).catch(() => {});
         const res = await activePool.query(
           'SELECT * FROM products WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(id)) = LOWER(TRIM($2)) OR LOWER(TRIM(name)) = LOWER(TRIM($1)) OR LOWER(REPLACE(LOWER(TRIM(name)), \' \', \'-\')) = LOWER(TRIM($2)) LIMIT 1',
           [clean, slug]
@@ -3314,6 +3571,227 @@ export const db = {
     } catch (err) {
       console.error('PostgreSQL error writing homepage config:', err);
       return false;
+    }
+  },
+
+  /**
+   * Dedicated Refund Request Database Methods
+   */
+  async createRefundRequest(requestData: RefundRequestRecord): Promise<RefundRequestRecord> {
+    const normalized = normalizeRefundRecord(requestData);
+    const memList = (inMemoryData['refund_requests'] || []) as unknown as RefundRequestRecord[];
+    const existingIdx = memList.findIndex(r => r.id === normalized.id);
+    if (existingIdx >= 0) {
+      memList[existingIdx] = normalized;
+    } else {
+      memList.unshift(normalized);
+    }
+    inMemoryData['refund_requests'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (!activePool) {
+      return normalized;
+    }
+
+    try {
+      await activePool.query(`
+        INSERT INTO "refund_requests" (
+          id, "orderId", "customerId", "customerEmail", amount, reason, status,
+          "adminReason", "razorpayPaymentId", "razorpayRefundId", "razorpayStatus",
+          "requestedAt", "reviewedAt", "refundedAt", "errorMessage", metadata
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+        ) ON CONFLICT (id) DO UPDATE SET
+          "orderId" = EXCLUDED."orderId",
+          "customerId" = EXCLUDED."customerId",
+          "customerEmail" = EXCLUDED."customerEmail",
+          amount = EXCLUDED.amount,
+          reason = EXCLUDED.reason,
+          status = EXCLUDED.status,
+          "adminReason" = EXCLUDED."adminReason",
+          "razorpayPaymentId" = EXCLUDED."razorpayPaymentId",
+          "razorpayRefundId" = EXCLUDED."razorpayRefundId",
+          "razorpayStatus" = EXCLUDED."razorpayStatus",
+          "requestedAt" = EXCLUDED."requestedAt",
+          "reviewedAt" = EXCLUDED."reviewedAt",
+          "refundedAt" = EXCLUDED."refundedAt",
+          "errorMessage" = EXCLUDED."errorMessage",
+          metadata = EXCLUDED.metadata
+      `, [
+        normalized.id,
+        normalized.orderId,
+        normalized.customerId,
+        normalized.customerEmail || null,
+        normalized.amount,
+        normalized.reason,
+        normalized.status,
+        normalized.adminReason || null,
+        normalized.razorpayPaymentId || null,
+        normalized.razorpayRefundId || null,
+        normalized.razorpayStatus || null,
+        normalized.requestedAt,
+        normalized.reviewedAt || null,
+        normalized.refundedAt || null,
+        normalized.errorMessage || null,
+        normalized.metadata ? JSON.stringify(normalized.metadata) : null
+      ]);
+    } catch (err) {
+      console.error('PostgreSQL error creating refund request:', err);
+    }
+
+    return normalized;
+  },
+
+  async getRefundRequestById(id: string): Promise<RefundRequestRecord | null> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query('SELECT * FROM "refund_requests" WHERE id = $1 LIMIT 1', [cleanId]);
+        if (res.rows.length > 0) {
+          return normalizeRefundRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error(`PostgreSQL error fetching refund request ${cleanId}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['refund_requests'] || []) as unknown as RefundRequestRecord[];
+    const found = memList.find(r => r.id === cleanId);
+    return found ? normalizeRefundRecord(found) : null;
+  },
+
+  async getRefundRequestsByOrderId(orderId: string): Promise<RefundRequestRecord[]> {
+    const cleanOrderId = String(orderId || '').replace(/^#+/, '').trim();
+    if (!cleanOrderId) return [];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM "refund_requests" WHERE "orderId" = $1 OR "orderId" = $2 OR LOWER("orderId") = LOWER($1) ORDER BY "requestedAt" DESC',
+          [cleanOrderId, `#${cleanOrderId}`]
+        );
+        return res.rows.map(normalizeRefundRecord);
+      } catch (err) {
+        console.error(`PostgreSQL error fetching refund requests for order ${cleanOrderId}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['refund_requests'] || []) as unknown as RefundRequestRecord[];
+    return memList
+      .filter(r => String(r.orderId).replace(/^#+/, '').trim().toLowerCase() === cleanOrderId.toLowerCase())
+      .map(normalizeRefundRecord);
+  },
+
+  async getRefundRequestsByCustomerId(customerId: string): Promise<RefundRequestRecord[]> {
+    const cleanCustomerId = String(customerId || '').trim();
+    if (!cleanCustomerId) return [];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM "refund_requests" WHERE "customerId" = $1 OR LOWER("customerEmail") = LOWER($1) ORDER BY "requestedAt" DESC',
+          [cleanCustomerId]
+        );
+        return res.rows.map(normalizeRefundRecord);
+      } catch (err) {
+        console.error(`PostgreSQL error fetching refund requests for customer ${cleanCustomerId}:`, err);
+      }
+    }
+
+    const memList = (inMemoryData['refund_requests'] || []) as unknown as RefundRequestRecord[];
+    return memList
+      .filter(r => r.customerId === cleanCustomerId || (r.customerEmail && r.customerEmail.toLowerCase() === cleanCustomerId.toLowerCase()))
+      .map(normalizeRefundRecord);
+  },
+
+  async getAllRefundRequests(filter?: { status?: string }): Promise<RefundRequestRecord[]> {
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        let queryText = 'SELECT * FROM "refund_requests"';
+        const queryParams: unknown[] = [];
+        if (filter?.status) {
+          queryText += ' WHERE status = $1';
+          queryParams.push(filter.status.toUpperCase());
+        }
+        queryText += ' ORDER BY "requestedAt" DESC';
+        const res = await activePool.query(queryText, queryParams);
+        return res.rows.map(normalizeRefundRecord);
+      } catch (err) {
+        console.error('PostgreSQL error fetching all refund requests:', err);
+      }
+    }
+
+    let memList = (inMemoryData['refund_requests'] || []) as unknown as RefundRequestRecord[];
+    if (filter?.status) {
+      const statusUpper = filter.status.toUpperCase();
+      memList = memList.filter(r => r.status === statusUpper);
+    }
+    return memList.map(normalizeRefundRecord);
+  },
+
+  async updateRefundRequest(id: string, updates: Partial<RefundRequestRecord>): Promise<RefundRequestRecord | null> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return null;
+
+    const existing = await this.getRefundRequestById(cleanId);
+    if (!existing) return null;
+
+    const merged = normalizeRefundRecord({ ...existing, ...updates });
+    const memList = (inMemoryData['refund_requests'] || []) as unknown as RefundRequestRecord[];
+    const idx = memList.findIndex(r => r.id === cleanId);
+    if (idx >= 0) {
+      memList[idx] = merged;
+    } else {
+      memList.push(merged);
+    }
+    inMemoryData['refund_requests'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (!activePool) {
+      return merged;
+    }
+
+    try {
+      const fields: string[] = [];
+      const values: unknown[] = [];
+
+      const colMap: Record<string, string> = {
+        status: 'status',
+        adminReason: '"adminReason"',
+        razorpayPaymentId: '"razorpayPaymentId"',
+        razorpayRefundId: '"razorpayRefundId"',
+        razorpayStatus: '"razorpayStatus"',
+        reviewedAt: '"reviewedAt"',
+        refundedAt: '"refundedAt"',
+        errorMessage: '"errorMessage"',
+        amount: 'amount',
+        reason: 'reason',
+        metadata: 'metadata'
+      };
+
+      for (const [key, val] of Object.entries(updates)) {
+        const col = colMap[key];
+        if (!col) continue;
+        values.push(key === 'metadata' && val && typeof val === 'object' ? JSON.stringify(val) : val);
+        fields.push(`${col} = $${values.length}`);
+      }
+
+      if (fields.length > 0) {
+        values.push(cleanId);
+        const queryText = `UPDATE "refund_requests" SET ${fields.join(', ')} WHERE id = $${values.length}`;
+        await activePool.query(queryText, values);
+      }
+
+      return merged;
+    } catch (err) {
+      console.error(`PostgreSQL error updating refund request ${cleanId}:`, err);
+      return merged;
     }
   },
 

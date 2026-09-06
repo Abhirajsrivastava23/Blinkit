@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingBag, Package, FolderHeart, ListPlus, Users, Tag, Star, 
   Truck, CreditCard, Flame, Settings, ArrowLeft, LogOut, Compass, FileText,
   Menu, X, ChevronDown, Bell, Search, HelpCircle, User, ShieldAlert, Sparkles, ChevronRight, TrendingUp,
-  AlertTriangle
+  AlertTriangle, RotateCcw
 } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 
@@ -102,7 +102,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       links: [
         { href: '/admin/orders', label: 'Orders List', icon: ShoppingBag },
         { href: '/admin/payments', label: 'Payment Verification', icon: CreditCard },
-        { href: '/admin/returns', label: 'Returns & Refunds', icon: ShieldAlert }
+        { href: '/admin/returns', label: 'Returns & Refunds', icon: RotateCcw }
       ]
     },
     {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
 import { Product } from '../../../../data/mockData';
@@ -232,14 +233,36 @@ export async function POST(request: Request) {
       console.warn('Non-fatal audit logging warning:', auditErr);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Product photo updated successfully.',
-      productId: canonicalId,
-      imageUrl,
-      previousImage,
-      product: updateResult.product
-    });
+    // 8. Revalidate all storefront & product routes immediately
+    try {
+      revalidatePath('/');
+      revalidatePath('/products');
+      revalidatePath('/api/products');
+      revalidatePath(`/product/${encodeURIComponent(canonicalId)}`);
+      if (rawProduct?.category) {
+        revalidatePath(`/${rawProduct.category}`);
+      }
+    } catch (revalidateErr) {
+      console.warn('Non-fatal revalidation warning:', revalidateErr);
+    }
+
+    return new NextResponse(
+      JSON.stringify({
+        success: true,
+        message: 'Product photo updated successfully.',
+        productId: canonicalId,
+        imageUrl,
+        previousImage,
+        product: updateResult.product
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
+      }
+    );
   } catch (err) {
     console.error('Error handling product photo upload:', err);
     return NextResponse.json(

@@ -117,7 +117,7 @@ export async function getSession(request?: Request): Promise<Session | null> {
   if (!token && request) {
     const cookieHeader = request.headers.get('cookie') || request.headers.get('Cookie') || '';
     if (cookieHeader) {
-      const match = cookieHeader.match(/(?:^|;\s*)(?:fatafat_session_token|session_token|admin_token|token)=([^;]+)/);
+      const match = cookieHeader.match(/(?:^|;\s*)(?:fatafat_session_token|fatafat_session|session_token|admin_token|token)=([^;]+)/);
       if (match && match[1]) {
         try {
           token = decodeURIComponent(match[1].trim());
@@ -133,6 +133,7 @@ export async function getSession(request?: Request): Promise<Session | null> {
     try {
       const cookieStore = await cookies();
       token = cookieStore.get('fatafat_session_token')?.value || 
+              cookieStore.get('fatafat_session')?.value ||
               cookieStore.get('session_token')?.value || 
               cookieStore.get('admin_token')?.value || 
               cookieStore.get('token')?.value || '';

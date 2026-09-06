@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
 import { Product } from '../../../../data/mockData';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(request: Request) {
   try {
@@ -124,13 +128,33 @@ export async function POST(request: Request) {
       console.warn('Non-fatal audit logging warning:', auditErr);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Product image restored successfully.',
-      productId,
-      restoredImageUrl,
-      previousImage: currentImage
-    });
+    // 7. Revalidate Next.js cache paths
+    try {
+      revalidatePath('/');
+      revalidatePath('/products');
+      revalidatePath('/api/products');
+      revalidatePath(`/product/${encodeURIComponent(productId)}`);
+      if (product.category) {
+        revalidatePath(`/${product.category}`);
+      }
+    } catch {}
+
+    return new NextResponse(
+      JSON.stringify({
+        success: true,
+        message: 'Product image restored successfully.',
+        productId,
+        restoredImageUrl,
+        previousImage: currentImage
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
+        }
+      }
+    );
   } catch (err) {
     console.error('Error handling product image restoration:', err);
     return NextResponse.json(

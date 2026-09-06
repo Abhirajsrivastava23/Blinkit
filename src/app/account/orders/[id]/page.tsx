@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Truck, MapPin, Clock, ArrowLeft, ShoppingBag, X, AlertTriangle, CreditCard, ShieldCheck } from 'lucide-react';
+import { Truck, MapPin, Clock, ArrowLeft, ShoppingBag, X, AlertTriangle, CreditCard, ShieldCheck, RotateCcw, CheckCircle2, RefreshCw, ShieldAlert } from 'lucide-react';
 import { useOrders, Order, STATUS_RANK } from '../../../../context/OrderContext';
 import { useToast } from '../../../../components/Toast';
 
@@ -39,6 +39,28 @@ export default function AccountOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancellationInProgress, setCancellationInProgress] = useState(false);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
+
+  // Refund states
+  const [refundReq, setRefundReq] = useState<any | null>(null);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundReason, setRefundReason] = useState('Damaged or defective item received');
+  const [refundNotes, setRefundNotes] = useState('');
+  const [submittingRefund, setSubmittingRefund] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundSuccessMsg, setRefundSuccessMsg] = useState<string | null>(null);
+
+  const fetchRefundForOrder = useCallback(async () => {
+    if (!orderId) return;
+    try {
+      const res = await fetch(`/api/refunds?orderId=${encodeURIComponent(orderId)}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.refundRequests && data.refundRequests.length > 0) {
+          setRefundReq(data.refundRequests[0]);
+        }
+      }
+    } catch (e) {}
+  }, [orderId]);
 
   const reqSeqRef = React.useRef(0);
   const latestHandledSeqRef = React.useRef(0);
@@ -109,12 +131,14 @@ export default function AccountOrderDetailPage() {
     };
 
     fetchDetail();
+    fetchRefundForOrder();
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchDetail();
+      fetchRefundForOrder();
     }, 2000);
     return () => clearInterval(interval);
-  }, [orderId, getOrderById]);
+  }, [orderId, getOrderById, fetchRefundForOrder]);
 
   if (loading && !order) {
     return (
@@ -138,7 +162,138 @@ export default function AccountOrderDetailPage() {
     return cancellableStatuses.includes(order.status);
   };
 
-  // Get delivery promise text
+  const canRequestRefund = (order: Order): boolean => {
+    if (refundReq) return false;
+    const pStatus = String(order.paymentStatus || '').toUpperCase();
+    const isPaid = pStatus === 'PAID' || pStatus === 'COMPLETED';
+    if (!isPaid) return false;
+    return order.status === 'Delivered' || order.status === 'Cancelled' || order.status === 'Confirmed';
+  };
+
+  const handleSubmitRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    setSubmittingRefund(true);
+    setRefundError(null);
+
+    try {
+      const res = await fetch('/api/refunds/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          reason: refundReason,
+          notes: refundNotes
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setRefundError(data.error || 'Failed to submit refund request.');
+        setSubmittingRefund(false);
+        return;
+      }
+
+      setRefundSuccessMsg('Refund request submitted successfully! We are reviewing it.');
+      await fetchRefundForOrder();
+      await refreshOrders();
+      setTimeout(() => {
+        setIsRefundModalOpen(false);
+        setRefundSuccessMsg(null);
+      }, 1500);
+    } catch (err: any) {
+      setRefundError(err.message || 'Network error submitting refund request.');
+    } finally {
+      setSubmittingRefund(false);
+    }
+  };
+
+  const getRefundBadge = () => {
+    if (!refundReq) return null;
+    switch (refundReq.status) {
+      case 'PENDING':
+        return (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl flex items-center justify-between text-xs font-bold">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
+              <span>Refund Requested (Under Review)</span>
+            </div>
+            <span className="text-[11px] font-medium text-amber-700">₹{Number(refundReq.amount || order.total).toLocaleString('en-IN')}</span>
+          </div>
+        );
+      case 'APPROVED':
+        return (
+          <div className="p-3.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl flex items-center justify-between text-xs font-bold">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+              <span>Refund Approved (Processing Gateway)</span>
+            </div>
+            <span className="text-[11px] font-medium text-blue-700">₹{Number(refundReq.amount || order.total).toLocaleString('en-IN')}</span>
+          </div>
+        );
+      case 'REFUNDED':
+        return (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl flex flex-col gap-1 text-xs">
+            <div className="flex items-center justify-between font-bold">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>Refund Processed Successfully</span>
+              </div>
+              <span className="text-emerald-800">₹{Number(refundReq.amount || order.total).toLocaleString('en-IN')}</span>
+            </div>
+            {refundReq.razorpayRefundId && (
+              <p className="text-[10px] text-emerald-700 font-mono mt-0.5">
+                Razorpay Refund ID: {refundReq.razorpayRefundId}
+              </p>
+            )}
+          </div>
+        );
+      case 'REJECTED':
+        return (
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-900 rounded-xl space-y-1 text-xs">
+            <div className="flex items-center gap-2 font-bold">
+              <ShieldAlert className="h-4 w-4 text-red-600" />
+              <span>Refund Request Rejected</span>
+            </div>
+            {refundReq.adminReason && (
+              <p className="text-[11px] text-red-700 leading-relaxed font-medium">
+                Admin Note: {refundReq.adminReason}
+              </p>
+            )}
+          </div>
+        );
+      case 'FAILED':
+        return (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl flex items-center gap-2 text-xs font-bold">
+            <AlertTriangle className="h-4 w-4 text-rose-600" />
+            <span>Refund Processing Issue (Support team is investigating)</span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getPaymentStatusLabel = (paymentStatus?: string) => {
+    switch (paymentStatus) {
+      case 'PENDING':
+        return 'Payment Pending';
+      case 'PAYMENT_VERIFICATION_PENDING':
+      case 'PROCESSING':
+        return 'Payment Processing';
+      case 'PAID':
+      case 'COMPLETED':
+        return 'Payment Successful';
+      case 'REJECTED':
+      case 'FAILED':
+        return 'Payment Failed';
+      case 'REFUNDED':
+        return 'Refunded';
+      default:
+        return 'Payment Pending';
+    }
+  };
+
   const getDeliveryPromise = (order: Order): string => {
     if (order.deliveryOption === 'Scheduled' && order.scheduledDeliveryAt) {
       const date = new Date(order.scheduledDeliveryAt);
@@ -147,7 +302,6 @@ export default function AccountOrderDetailPage() {
     return 'Within 12 hours';
   };
 
-  // Handle order cancellation
   const handleCancelOrder = async () => {
     if (!order || !confirm('Are you sure you want to cancel this order? This action cannot be undone.')) {
       return;
@@ -173,9 +327,9 @@ export default function AccountOrderDetailPage() {
         return;
       }
 
-      // Refresh and show success
       await refreshOrders();
       showToast('Order cancelled successfully', 'success');
+      setCancellationInProgress(false);
       router.push('/account/orders');
     } catch (err) {
       setCancellationError(err instanceof Error ? err.message : 'Failed to cancel order');
@@ -191,22 +345,6 @@ export default function AccountOrderDetailPage() {
     if (stepIndex < currentIndex) return 'completed';
     if (stepIndex === currentIndex) return 'active';
     return 'pending';
-  };
-
-  const getPaymentStatusLabel = (paymentStatus?: string) => {
-    switch (paymentStatus) {
-      case 'PENDING':
-        return 'Payment Required';
-      case 'PAYMENT_VERIFICATION_PENDING':
-        return 'Payment Under Review';
-      case 'PAID':
-      case 'COMPLETED':
-        return 'Payment Successful';
-      case 'REJECTED':
-        return 'Payment Rejected';
-      default:
-        return 'Payment Required';
-    }
   };
 
   return (
@@ -264,6 +402,9 @@ export default function AccountOrderDetailPage() {
 
         {/* Info detail card */}
         <div className="space-y-6">
+
+          {/* Refund Status Banner */}
+          {refundReq && getRefundBadge()}
 
           {/* Delivery OTP */}
           {order.deliveryOtp && order.status !== 'Cancelled' && (
@@ -372,6 +513,23 @@ export default function AccountOrderDetailPage() {
             </div>
           )}
 
+          {/* Request Refund Button if eligible */}
+          {canRequestRefund(order) && (
+            <button
+              onClick={() => {
+                setIsRefundModalOpen(true);
+                setRefundReason('Damaged or defective item received');
+                setRefundNotes('');
+                setRefundError(null);
+                setRefundSuccessMsg(null);
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 border border-amber-300 text-amber-900 font-bold text-sm rounded-xl hover:bg-amber-100 transition-colors shadow-sm cursor-pointer"
+            >
+              <RotateCcw className="h-4 w-4 text-amber-700" />
+              <span>Request Refund for this Order</span>
+            </button>
+          )}
+
           {/* Cancel Button - Only show if cancellable */}
           {canCancelOrder(order) && (
             <button
@@ -387,6 +545,115 @@ export default function AccountOrderDetailPage() {
         </div>
 
       </div>
+
+      {/* Customer Refund Request Modal */}
+      {isRefundModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-zinc-200 text-left space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                  <RotateCcw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-black text-lg text-zinc-900">Request Refund</h3>
+                  <p className="text-xs text-zinc-500">Order #{order.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRefundModalOpen(false)}
+                className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {refundSuccessMsg ? (
+              <div className="py-8 text-center space-y-3">
+                <div className="h-12 w-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+                <h4 className="font-bold text-zinc-900 text-base">{refundSuccessMsg}</h4>
+                <p className="text-xs text-zinc-500">Updating order status...</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitRefund} className="space-y-4">
+                <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200/80 flex items-center justify-between text-xs">
+                  <span className="font-semibold text-zinc-600">Eligible Refund Amount:</span>
+                  <span className="font-black text-brand-burgundy text-sm">₹{order.total?.toLocaleString('en-IN')}</span>
+                </div>
+
+                {refundError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{refundError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-zinc-700 uppercase tracking-wide block">
+                    Reason for Refund <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                    className="w-full text-xs p-3 rounded-xl border border-zinc-200 focus:border-brand-burgundy outline-none bg-white font-medium"
+                    required
+                  >
+                    <option value="Damaged or defective item received">Damaged or defective item received</option>
+                    <option value="Wrong or missing item in package">Wrong or missing item in package</option>
+                    <option value="Quality / freshness issue">Quality / freshness issue</option>
+                    <option value="Extreme delivery delay">Extreme delivery delay</option>
+                    <option value="Order cancelled / unfulfilled">Order cancelled / unfulfilled</option>
+                    <option value="Other concern">Other concern</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-zinc-700 uppercase tracking-wide block">
+                    Additional Details / Explanation (Optional)
+                  </label>
+                  <textarea
+                    value={refundNotes}
+                    onChange={(e) => setRefundNotes(e.target.value)}
+                    placeholder="Describe the issue in detail to help our admin team process your refund faster..."
+                    rows={3}
+                    className="w-full text-xs p-3 rounded-xl border border-zinc-200 focus:border-brand-burgundy outline-none resize-none font-medium placeholder-zinc-400"
+                  />
+                </div>
+
+                <div className="p-3 bg-amber-50/60 border border-amber-200/60 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                  🛡️ <strong>FATAFAT Money-Back Guarantee:</strong> Approved refunds are credited directly to your original payment method (Razorpay UPI/Card/Netbanking) within 2-5 business days.
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRefundModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 border border-zinc-200 text-zinc-700 text-xs font-bold rounded-xl hover:bg-zinc-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingRefund}
+                    className="flex-1 py-2.5 px-4 bg-brand-burgundy text-white text-xs font-bold rounded-xl hover:bg-brand-burgundy-dark transition-colors shadow flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {submittingRefund ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <span>Submit Refund Request</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -24,14 +24,7 @@ export default function Header() {
   const router = useRouter();
   const { products } = useProducts();
   const PRODUCTS: Product[] = useMemo(() => {
-    const list: Product[] = products.length > 0 ? [...products] : [...fallbackProducts];
-    const existingIds = new Set(list.map((p) => p.id.toLowerCase()));
-    for (const fb of fallbackProducts) {
-      if (!existingIds.has(fb.id.toLowerCase())) {
-        list.push(fb);
-      }
-    }
-    return list;
+    return products.length > 0 ? products : fallbackProducts;
   }, [products]);
   
   const { cartItems } = useCart();

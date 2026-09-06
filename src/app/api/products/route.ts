@@ -114,7 +114,13 @@ export async function GET(request: Request) {
       products = products.filter(p => p.inStock);
     }
 
-    return NextResponse.json(products);
+    return new NextResponse(JSON.stringify(products), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (error) {
     console.error('Error fetching products from database:', error);
     return NextResponse.json({ error: 'Failed to fetch catalog.' }, { status: 500 });
@@ -123,6 +129,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // Server-side authorization check (Admin only)
+    const session = await getSession(request);
+    if (!session || session.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin authorization required to create products.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, price, category, image } = body;
 
@@ -137,6 +152,7 @@ export async function POST(request: Request) {
     try {
       revalidatePath('/');
       revalidatePath('/products');
+      revalidatePath('/api/products');
       if (newProduct.category) {
         revalidatePath(`/${newProduct.category}`);
       }
@@ -146,14 +162,23 @@ export async function POST(request: Request) {
 
     // Audit Log
     db.logActivity(
-      'Admin Console',
+      session.email || 'Admin Console',
       'Added Product',
       newProduct.name,
       'N/A',
       `ID: ${newProduct.id}, Price: ₹${newProduct.price}`
     );
 
-    return NextResponse.json({ success: true, product: newProduct }, { status: 201 });
+    return new NextResponse(
+      JSON.stringify({ success: true, product: newProduct }),
+      {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
+        }
+      }
+    );
   } catch (error) {
     console.error('Error creating product in database:', error);
     return NextResponse.json({ error: 'Failed to create product.' }, { status: 500 });

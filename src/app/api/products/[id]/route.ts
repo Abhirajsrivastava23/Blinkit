@@ -40,7 +40,13 @@ export async function GET(request: Request, context: any) {
       }
     }
 
-    return NextResponse.json(product);
+    return new NextResponse(JSON.stringify(product), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (error) {
     console.error('Error fetching product detail:', error);
     return NextResponse.json({ error: 'Failed to fetch product.' }, { status: 500 });
@@ -49,6 +55,15 @@ export async function GET(request: Request, context: any) {
 
 export async function PATCH(request: Request, context: any) {
   try {
+    // 1. Server-side session & role verification (Admin or Delivery Partner)
+    const session = await getSession(request);
+    if (!session || (session.role !== 'admin' && session.role !== 'delivery_partner')) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin or Delivery Partner authorization required to modify products.' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await context.params;
     const cleanId = decodeURIComponent(String(id || '')).trim();
     const body = await request.json();
@@ -56,6 +71,19 @@ export async function PATCH(request: Request, context: any) {
     const prevProduct = await db.getProductById(cleanId);
     if (!prevProduct) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
+    }
+
+    // Block delivery partner from changing price or sensitive attributes
+    if (session.role === 'delivery_partner') {
+      const allowedKeys = ['image', 'gallery', 'inStock'];
+      for (const k of Object.keys(body)) {
+        if (!allowedKeys.includes(k)) {
+          return NextResponse.json(
+            { error: `Access Denied: Delivery partners can only update product image or availability.` },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     const updatedProduct = await db.updateProduct(prevProduct.id, body);
@@ -67,6 +95,7 @@ export async function PATCH(request: Request, context: any) {
     try {
       revalidatePath('/');
       revalidatePath('/products');
+      revalidatePath('/api/products');
       revalidatePath(`/product/${encodeURIComponent(prevProduct.id)}`);
       if (updatedProduct.category) {
         revalidatePath(`/${updatedProduct.category}`);
@@ -86,12 +115,25 @@ export async function PATCH(request: Request, context: any) {
     if (body.inStock !== undefined && body.inStock !== prevProduct.inStock) {
       auditLogs.push(`Stock: ${prevProduct.inStock ? 'In Stock' : 'Out of Stock'} -> ${body.inStock ? 'In Stock' : 'Out of Stock'}`);
     }
-
-    if (auditLogs.length > 0) {
-      db.logActivity('Admin Console', 'Updated Product', prevProduct.name, auditLogs.join(', '), 'Success');
+    if (body.image && body.image !== prevProduct.image) {
+      auditLogs.push(`Image updated`);
     }
 
-    return NextResponse.json({ success: true, product: updatedProduct });
+    if (auditLogs.length > 0) {
+      const actor = session.role === 'delivery_partner' ? `Delivery Partner (${session.email || session.userId})` : (session.email || 'Admin Console');
+      db.logActivity(actor, 'Updated Product', prevProduct.name, auditLogs.join(', '), 'Success');
+    }
+
+    return new NextResponse(
+      JSON.stringify({ success: true, product: updatedProduct }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
+        }
+      }
+    );
   } catch (error) {
     console.error('Error updating product details:', error);
     return NextResponse.json({ error: 'Failed to update product.' }, { status: 500 });
@@ -100,6 +142,15 @@ export async function PATCH(request: Request, context: any) {
 
 export async function DELETE(request: Request, context: any) {
   try {
+    // Server-side session & role verification (Admin only)
+    const session = await getSession(request);
+    if (!session || session.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin authorization required to delete products.' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await context.params;
     const cleanId = decodeURIComponent(String(id || '')).trim();
     const existing = await db.getProductById(cleanId);
@@ -116,15 +167,28 @@ export async function DELETE(request: Request, context: any) {
     try {
       revalidatePath('/');
       revalidatePath('/products');
+      revalidatePath('/api/products');
       revalidatePath(`/product/${encodeURIComponent(existing.id)}`);
+      if (existing.category) {
+        revalidatePath(`/${existing.category}`);
+      }
     } catch {
       // ignore
     }
 
     // Audit Log
-    db.logActivity('Admin Console', 'Deleted Product', existing.name, 'Active SKU', 'Removed from database');
+    db.logActivity(session.email || 'Admin Console', 'Deleted Product', existing.name, 'Active SKU', 'Removed from database');
 
-    return NextResponse.json({ success: true, message: 'Product deleted successfully.' });
+    return new NextResponse(
+      JSON.stringify({ success: true, message: 'Product deleted successfully.' }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
+        }
+      }
+    );
   } catch (error) {
     console.error('Error deleting product from database:', error);
     return NextResponse.json({ error: 'Failed to delete product.' }, { status: 500 });

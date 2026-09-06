@@ -46,6 +46,10 @@ export default function ProductDetailPage() {
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients' | 'storage'>('desc');
   const [activeImage, setActiveImage] = useState<string>('');
 
+  React.useEffect(() => {
+    setActiveImage('');
+  }, [product?.id, product?.image]);
+
   // Customization States
   const [selectedSizeState, setSelectedSizeState] = useState<string>('');
   const [selectedTypeState, setSelectedTypeState] = useState<string>('Eggless');
