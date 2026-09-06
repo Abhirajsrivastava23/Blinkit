@@ -481,26 +481,34 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
             name TEXT,
             phone TEXT,
             email TEXT,
+            "passwordHash" TEXT,
             passwordhash TEXT,
             role TEXT DEFAULT 'delivery_partner',
+            "locationId" TEXT,
             locationid TEXT,
+            "locationName" TEXT,
             locationname TEXT,
             status TEXT DEFAULT 'Active',
+            "isOnline" BOOLEAN DEFAULT false,
             isonline BOOLEAN DEFAULT false,
+            "createdAt" TEXT,
             createdat TEXT,
+            "updatedAt" TEXT,
             updatedat TEXT
           );
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS id TEXT;
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS name TEXT;
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS phone TEXT;
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS email TEXT;
+          ALTER TABLE partners ALTER COLUMN "passwordHash" DROP NOT NULL;
+          ALTER TABLE partners ALTER COLUMN passwordhash DROP NOT NULL;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS "passwordHash" TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS passwordhash TEXT;
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS role TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS "locationId" TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationid TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS "locationName" TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS locationname TEXT;
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS status TEXT;
-          ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS "isOnline" BOOLEAN DEFAULT false;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS isonline BOOLEAN DEFAULT false;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS createdat TEXT;
+          ALTER TABLE partners ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
           ALTER TABLE partners ADD COLUMN IF NOT EXISTS updatedat TEXT;
           CREATE INDEX IF NOT EXISTS idx_partners_email ON partners (email);
           CREATE INDEX IF NOT EXISTS idx_partners_id ON partners (id);
@@ -2843,41 +2851,79 @@ export const db = {
     }
     inMemoryData['partners'] = list;
 
-    // 2. Persist to PostgreSQL single row atomically
+    // 2. Persist to PostgreSQL dynamically according to table schema
     const activePool = getPool();
     if (activePool) {
       try {
-        const query = `
-          INSERT INTO partners (id, name, phone, email, passwordhash, role, locationid, locationname, status, isonline, createdat, updatedat)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name,
-            phone = COALESCE(EXCLUDED.phone, partners.phone),
-            email = COALESCE(EXCLUDED.email, partners.email),
-            passwordhash = CASE WHEN EXCLUDED.passwordhash != '' THEN EXCLUDED.passwordhash ELSE partners.passwordhash END,
-            locationid = COALESCE(EXCLUDED.locationid, partners.locationid),
-            locationname = COALESCE(EXCLUDED.locationname, partners.locationname),
-            status = COALESCE(EXCLUDED.status, partners.status),
-            isonline = COALESCE(EXCLUDED.isonline, partners.isonline),
-            updatedat = EXCLUDED.updatedat
-          RETURNING *;
-        `;
-        const res = await activePool.query(query, [
-          cleanId,
-          cleanName,
-          cleanPhone,
-          cleanEmail,
-          passwordHash,
-          role,
-          locationId,
-          locationName,
-          status,
-          isOnline,
-          createdAt,
-          updatedAt
-        ]);
-        if (res.rows.length > 0) {
-          return normalizePartnerRecord(res.rows[0]);
+        // Query current columns in partners table to adapt dynamically
+        const colRes = await activePool.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'partners';
+        `);
+        const existingCols = new Set(colRes.rows.map((r: any) => r.column_name));
+
+        const insertCols: string[] = [];
+        const insertVals: any[] = [];
+        const updateSets: string[] = [];
+
+        const addCol = (colName: string, sqlIdentifier: string, val: any, isUpdate = true, isPassword = false) => {
+          if (existingCols.size === 0 || existingCols.has(colName)) {
+            insertCols.push(sqlIdentifier);
+            insertVals.push(val);
+            if (isUpdate) {
+              if (isPassword) {
+                updateSets.push(`${sqlIdentifier} = CASE WHEN EXCLUDED.${sqlIdentifier} != '' THEN EXCLUDED.${sqlIdentifier} ELSE partners.${sqlIdentifier} END`);
+              } else {
+                updateSets.push(`${sqlIdentifier} = EXCLUDED.${sqlIdentifier}`);
+              }
+            }
+          }
+        };
+
+        addCol('id', 'id', cleanId, false);
+        addCol('name', 'name', cleanName);
+        addCol('phone', 'phone', cleanPhone);
+        addCol('email', 'email', cleanEmail);
+        
+        // Populate both column representations for passwordHash
+        addCol('passwordHash', '"passwordHash"', passwordHash, true, true);
+        addCol('passwordhash', 'passwordhash', passwordHash, true, true);
+
+        addCol('role', 'role', role);
+
+        addCol('locationId', '"locationId"', locationId);
+        addCol('locationid', 'locationid', locationId);
+
+        addCol('locationName', '"locationName"', locationName);
+        addCol('locationname', 'locationname', locationName);
+
+        addCol('status', 'status', status);
+
+        addCol('isOnline', '"isOnline"', isOnline);
+        addCol('isonline', 'isonline', isOnline);
+
+        addCol('createdAt', '"createdAt"', createdAt, false);
+        addCol('createdat', 'createdat', createdAt, false);
+
+        addCol('updatedAt', '"updatedAt"', updatedAt);
+        addCol('updatedat', 'updatedat', updatedAt);
+
+        if (insertCols.length > 0) {
+          const placeholders = insertVals.map((_, i) => `$${i + 1}`).join(', ');
+          const updateClause = updateSets.length > 0 ? updateSets.join(', ') : 'name = EXCLUDED.name';
+
+          const sql = `
+            INSERT INTO partners (${insertCols.join(', ')})
+            VALUES (${placeholders})
+            ON CONFLICT (id) DO UPDATE SET ${updateClause}
+            RETURNING *;
+          `;
+
+          const res = await activePool.query(sql, insertVals);
+          if (res.rows.length > 0) {
+            return normalizePartnerRecord(res.rows[0]);
+          }
         }
       } catch (err) {
         console.error('Error upserting partner in PostgreSQL:', err);
