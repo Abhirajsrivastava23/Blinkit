@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Sparkles, ArrowRight, ShieldCheck, Mail, ArrowUpRight, Award, Compass, 
   MessageSquare, Flame, Heart, ShoppingBag, Star, Clock, ChevronLeft, ChevronRight, 
-  Smile, Gift, ShoppingCart, RefreshCw 
+  Smile, Gift, ShoppingCart, RefreshCw, Zap, Leaf 
 } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -106,7 +106,7 @@ export default function HomePage() {
       {/* HEADER SECTION */}
       <Header />
 
-      <main className="flex-grow pb-16">
+      <main className="flex-grow pb-4 sm:pb-6">
         
         {/* 1. COMPACT HERO CAROUSEL BANNER (3:1 Native Aspect Ratio) */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 sm:py-5">
@@ -554,39 +554,69 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 15. COMPACT TRUST STRIP */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 border-t border-zinc-200/20">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-            <div className="flex flex-col items-center gap-2 p-3">
-              <div className="p-3 bg-brand-burgundy/5 text-brand-burgundy rounded-full w-fit">
-                <Clock className="h-5 w-5" />
+        {/* 15. WHY CHOOSE FATAFAT / TRUST FEATURES */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 sm:py-5">
+          <div className="bg-white border border-zinc-200/70 rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+              {/* 1. Fast Delivery */}
+              <div className="flex items-center sm:flex-col sm:items-center sm:text-center gap-3.5 sm:gap-2.5 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-zinc-50/60 hover:bg-brand-burgundy/[0.03] border border-zinc-200/50 hover:border-brand-burgundy/20 transition-all duration-300 group">
+                <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-brand-burgundy/[0.08] border border-brand-burgundy/15 text-brand-burgundy flex items-center justify-center shrink-0 shadow-xs transition-all duration-300 group-hover:scale-105 group-hover:bg-brand-burgundy group-hover:text-white">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h5 className="font-sans font-black text-xs sm:text-[13px] uppercase tracking-wider text-brand-charcoal">
+                    ⚡ FAST DELIVERY
+                  </h5>
+                  <p className="text-[11px] sm:text-xs text-zinc-500 font-medium leading-relaxed mt-0.5">
+                    Reliable delivery to your doorstep
+                  </p>
+                </div>
               </div>
-              <h5 className="font-extrabold text-[10px] uppercase tracking-wider text-zinc-800">⚡ Fast Delivery</h5>
-              <p className="text-[9px] text-zinc-400 font-medium">Delivered to sector hubs in 30-60 mins</p>
-            </div>
-            
-            <div className="flex flex-col items-center gap-2 p-3">
-              <div className="p-3 bg-brand-burgundy/5 text-brand-burgundy rounded-full w-fit">
-                <Smile className="h-5 w-5" />
-              </div>
-              <h5 className="font-extrabold text-[10px] uppercase tracking-wider text-zinc-800">🎂 Fresh Products</h5>
-              <p className="text-[9px] text-zinc-400 font-medium">Bakehouse fresh and organic ingredients</p>
-            </div>
 
-            <div className="flex flex-col items-center gap-2 p-3">
-              <div className="p-3 bg-brand-burgundy/5 text-brand-burgundy rounded-full w-fit">
-                <Gift className="h-5 w-5" />
+              {/* 2. Fresh Products */}
+              <div className="flex items-center sm:flex-col sm:items-center sm:text-center gap-3.5 sm:gap-2.5 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-zinc-50/60 hover:bg-brand-burgundy/[0.03] border border-zinc-200/50 hover:border-brand-burgundy/20 transition-all duration-300 group">
+                <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-brand-burgundy/[0.08] border border-brand-burgundy/15 text-brand-burgundy flex items-center justify-center shrink-0 shadow-xs transition-all duration-300 group-hover:scale-105 group-hover:bg-brand-burgundy group-hover:text-white">
+                  <Leaf className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h5 className="font-sans font-black text-xs sm:text-[13px] uppercase tracking-wider text-brand-charcoal">
+                    🌿 FRESH PRODUCTS
+                  </h5>
+                  <p className="text-[11px] sm:text-xs text-zinc-500 font-medium leading-relaxed mt-0.5">
+                    Freshly prepared and carefully selected
+                  </p>
+                </div>
               </div>
-              <h5 className="font-extrabold text-[10px] uppercase tracking-wider text-zinc-800">🎁 Beautiful Packaging</h5>
-              <p className="text-[9px] text-zinc-400 font-medium">Delicate ribbons & envelopes</p>
-            </div>
 
-            <div className="flex flex-col items-center gap-2 p-3">
-              <div className="p-3 bg-brand-burgundy/5 text-brand-burgundy rounded-full w-fit">
-                <ShieldCheck className="h-5 w-5" />
+              {/* 3. Beautiful Packaging */}
+              <div className="flex items-center sm:flex-col sm:items-center sm:text-center gap-3.5 sm:gap-2.5 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-zinc-50/60 hover:bg-brand-burgundy/[0.03] border border-zinc-200/50 hover:border-brand-burgundy/20 transition-all duration-300 group">
+                <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-brand-burgundy/[0.08] border border-brand-burgundy/15 text-brand-burgundy flex items-center justify-center shrink-0 shadow-xs transition-all duration-300 group-hover:scale-105 group-hover:bg-brand-burgundy group-hover:text-white">
+                  <Gift className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h5 className="font-sans font-black text-xs sm:text-[13px] uppercase tracking-wider text-brand-charcoal">
+                    🎁 BEAUTIFUL PACKAGING
+                  </h5>
+                  <p className="text-[11px] sm:text-xs text-zinc-500 font-medium leading-relaxed mt-0.5">
+                    Thoughtfully packed for every occasion
+                  </p>
+                </div>
               </div>
-              <h5 className="font-extrabold text-[10px] uppercase tracking-wider text-zinc-800">🔒 Secure Checkout</h5>
-              <p className="text-[9px] text-zinc-400 font-medium">Encrypted payment & OTP login security</p>
+
+              {/* 4. Secure Checkout */}
+              <div className="flex items-center sm:flex-col sm:items-center sm:text-center gap-3.5 sm:gap-2.5 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-zinc-50/60 hover:bg-brand-burgundy/[0.03] border border-zinc-200/50 hover:border-brand-burgundy/20 transition-all duration-300 group">
+                <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-brand-burgundy/[0.08] border border-brand-burgundy/15 text-brand-burgundy flex items-center justify-center shrink-0 shadow-xs transition-all duration-300 group-hover:scale-105 group-hover:bg-brand-burgundy group-hover:text-white">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h5 className="font-sans font-black text-xs sm:text-[13px] uppercase tracking-wider text-brand-charcoal">
+                    🔒 SECURE CHECKOUT
+                  </h5>
+                  <p className="text-[11px] sm:text-xs text-zinc-500 font-medium leading-relaxed mt-0.5">
+                    Secure payments with trusted verification
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
