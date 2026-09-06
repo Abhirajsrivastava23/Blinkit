@@ -875,25 +875,25 @@ export function normalizeOrderRecord(row: Record<string, unknown>): Record<strin
   if (Array.isArray(parsed.items)) {
     parsed.items = parsed.items.map((item: any) => {
       if (!item || typeof item !== 'object') return item;
-      const price = Number(item.price || 0);
+      const price = Number(item.price || item.product?.price || 0);
       const qty = Number(item.quantity || 1);
       return {
         ...item,
-        productId: String(item.productId || item.id || '').trim(),
-        id: String(item.id || item.productId || '').trim(),
-        name: String(item.name || item.title || 'Product').trim(),
+        productId: String(item.productId || item.id || item.product?.id || '').trim(),
+        id: String(item.id || item.productId || item.product?.id || '').trim(),
+        name: String(item.name || item.title || item.product?.name || 'Product').trim(),
         price,
         quantity: qty,
-        image: item.image || item.imageUrl || '',
+        image: item.image || item.imageUrl || item.product?.image || '',
         unit: item.unit || '',
-        category: item.category || undefined,
-        selectedSize: item.selectedSize || item.size || item.weight || undefined,
-        selectedType: item.selectedType || item.type || item.eggless || undefined,
-        cakeMessage: item.cakeMessage || item.message || item.text || undefined,
-        customImage: item.customImage || item.photoUrl || item.uploadedImage || undefined,
-        addons: Array.isArray(item.addons) ? item.addons : (item.addons ? [item.addons] : undefined),
-        flavour: item.flavour || item.flavor || undefined,
-        specialInstructions: item.specialInstructions || item.instructions || item.notes || undefined,
+        category: item.category || item.product?.category || undefined,
+        selectedSize: item.selectedSize || item.size || item.weight || item.selectedWeight || item.variant || undefined,
+        selectedType: item.selectedType || item.type || item.eggless || item.dietary || undefined,
+        cakeMessage: item.cakeMessage || item.message || item.text || item.inscription || item.customMessage || undefined,
+        customImage: item.customImage || item.customImageUrl || item.uploadedImageUrl || item.photoUrl || item.uploadedImage || item.photo || item.referenceImageUrl || undefined,
+        addons: Array.isArray(item.addons) ? item.addons : (Array.isArray(item.addOns) ? item.addOns : (Array.isArray(item.selectedAddOns) ? item.selectedAddOns : (item.addons ? [item.addons] : undefined))),
+        flavour: item.flavour || item.flavor || item.selectedFlavour || item.selectedFlavor || undefined,
+        specialInstructions: item.specialInstructions || item.instructions || item.notes || item.specialInstruction || item.note || undefined,
         customisation: item.customisation || item.customization || undefined,
         subtotal: Number(item.subtotal || (price * qty))
       };
