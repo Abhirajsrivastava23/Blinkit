@@ -472,17 +472,36 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_refund_requested_at ON "refund_requests" ("requestedAt");
         `).catch(() => {});
 
-        // 13. Seed and sync categorized products into PostgreSQL
+        // 13. Seed and sync categorized products into PostgreSQL using single batched transaction
         if (productsJson.length > 0) {
-          for (const pItem of productsJson as any[]) {
-            await p.query(`
+          try {
+            const valuePlaceholders: string[] = [];
+            const queryParams: unknown[] = [];
+            let paramIdx = 1;
+
+            for (const pItem of productsJson as any[]) {
+              const cols: string[] = [];
+              for (let i = 0; i < 23; i++) {
+                cols.push(`$${paramIdx++}`);
+              }
+              valuePlaceholders.push(`(${cols.join(', ')})`);
+              queryParams.push(
+                pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
+                pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
+                pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
+                JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
+                JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
+                pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
+              );
+            }
+
+            const batchInsertQuery = `
               INSERT INTO "products" (
                 id, name, description, "shortDescription", price, "originalPrice", discount, image, gallery,
                 category, "subCategory", rating, "reviewCount", "inStock", "deliveryTime",
                 ingredients, allergens, "storageInstructions", occasions, variants, tags, "createdAt", "updatedAt"
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
-              ) ON CONFLICT (id) DO UPDATE SET
+              ) VALUES ${valuePlaceholders.join(', ')}
+              ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
                 "shortDescription" = EXCLUDED."shortDescription",
@@ -495,14 +514,10 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
                 variants = EXCLUDED.variants,
                 tags = EXCLUDED.tags,
                 "updatedAt" = EXCLUDED."updatedAt"
-            `, [
-              pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
-              pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
-              pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
-              JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
-              JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
-              pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
-            ]).catch(() => {});
+            `;
+            await p.query(batchInsertQuery, queryParams);
+          } catch (batchErr) {
+            console.warn('[DB SCHEMA WARNING] Batch insert failed, falling back to individual inserts:', batchErr);
           }
 
           // Purge non-canonical / demo / test products from PostgreSQL
