@@ -89,6 +89,15 @@ for (const test of tests) {
     if (!result.html.includes('FATAFAT') || !result.html.includes('#7C1D37')) {
       throw new Error('Missing FATAFAT branding or primary maroon accent');
     }
+    if (!result.html.includes('hello.fatafat@gmail.com')) {
+      throw new Error('Missing support contact email hello.fatafat@gmail.com');
+    }
+    if (result.html.includes('support@fatafatapp.me')) {
+      throw new Error('Found forbidden support@fatafatapp.me in rendered HTML');
+    }
+    if (!result.html.includes('Please do not reply to this email. This is an automated message.')) {
+      throw new Error('Missing no-reply automated notice');
+    }
     console.log(`[PASS] ${test.name.padEnd(30)} -> Subject: "${result.subject}" (HTML size: ${result.html.length} bytes)`);
   } catch (err) {
     allPassed = false;

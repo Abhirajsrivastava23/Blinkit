@@ -139,7 +139,7 @@ export function renderEmailLayout({
           <tr>
             <td style="padding: 0 32px 28px 32px;" class="mobile-padding">
               <div style="background-color: #F8F9FA; border-radius: 12px; padding: 14px 18px; border: 1px solid #ECEAE5; border-left: 4px solid ${BRAND_MAROON}; font-size: 12px; color: ${TEXT_MUTED}; line-height: 1.5;">
-                <strong style="color: ${TEXT_DARK}; font-weight: 700;">Need assistance?</strong> Contact our 24/7 Operations Desk at <a href="mailto:support@fatafatapp.me" style="color: ${BRAND_MAROON}; text-decoration: none; font-weight: 700;">support@fatafatapp.me</a> or via our in-app Help Center.
+                <strong style="color: ${TEXT_DARK}; font-weight: 700;">Need assistance?</strong> Contact us at <a href="mailto:hello.fatafat@gmail.com" style="color: ${BRAND_MAROON}; text-decoration: none; font-weight: 700;">hello.fatafat@gmail.com</a>
               </div>
             </td>
           </tr>
@@ -147,10 +147,11 @@ export function renderEmailLayout({
           <!-- Footer -->
           <tr>
             <td style="background-color: #FAF9F7; padding: 24px 32px; text-align: center; border-top: 1px solid #ECEAE5; font-size: 11px; color: #94A3B8; line-height: 1.6;" class="mobile-padding">
-              <div style="font-weight: 700; color: #64748B; margin-bottom: 4px; letter-spacing: 0.5px;">FATAFAT &mdash; Handcrafted Freshness Delivered in Minutes</div>
+              <div style="font-weight: 700; color: #64748B; margin-bottom: 4px; letter-spacing: 0.5px;">FATAFAT &mdash; Handcrafted Freshness Delivered</div>
               <div>Nawabganj &bull; Unnao &bull; Chandigarh University &bull; Express Hubs</div>
               <div style="margin-top: 8px;">&copy; ${new Date().getFullYear()} FATAFAT App. All rights reserved. &bull; <a href="https://www.fatafatapp.me" style="color: #64748B; text-decoration: underline; font-weight: 600;">fatafatapp.me</a></div>
-              <div style="margin-top: 6px; font-size: 10px; color: #CBD5E1;">This is an automated transactional notification. Security reminder: FATAFAT staff will never request your PIN or passwords.</div>
+              <div style="margin-top: 8px; font-size: 11px; color: #64748B; font-weight: 500;">Please do not reply to this email. This is an automated message.</div>
+              <div style="margin-top: 4px; font-size: 10px; color: #94A3B8;">Security reminder: FATAFAT staff will never request your PIN or passwords.</div>
             </td>
           </tr>
 
@@ -252,7 +253,6 @@ export function renderPriceBreakdown({
 export function templateOrderPlaced(order: any): EmailTemplateResult {
   const orderId = String(order.id).replace(/^#+/, '');
   const customerName = order.address?.name || 'Valued Customer';
-  const eta = order.eta || order.deliveryTimeSlot || 'Within 35 mins';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.fatafatapp.me';
   const total = Number(order.total ?? order.totalAmount ?? 0);
   const subtotal = Number(order.subtotal ?? total);
@@ -262,8 +262,8 @@ export function templateOrderPlaced(order: any): EmailTemplateResult {
     <p style="margin: 0 0 16px 0;">Thank you for your order with <strong>FATAFAT</strong>! Your celebration order <strong>#${orderId}</strong> has been successfully placed and forwarded to our kitchen.</p>
     
     <div style="background-color: #FFF5F7; border: 1px solid #FCD4DC; border-radius: 10px; padding: 14px 18px; margin: 18px 0;">
-      <div style="font-size: 11px; color: ${BRAND_MAROON}; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Estimated Delivery</div>
-      <div style="font-size: 16px; font-weight: 800; color: ${BRAND_MAROON}; margin-top: 2px;">${eta} &bull; ${order.deliveryOption || 'Express Delivery'}</div>
+      <div style="font-size: 11px; color: ${BRAND_MAROON}; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">ESTIMATED DELIVERY</div>
+      <div style="font-size: 16px; font-weight: 800; color: ${BRAND_MAROON}; margin-top: 2px;">Delivery within 24 hours</div>
     </div>
 
     ${renderOrderItemsTable(order.items || [])}
@@ -602,7 +602,7 @@ export function templateRefundRejected(refundReq: any, reason?: string): EmailTe
       </div>
     </div>
 
-    <p style="font-size: 13px; color: #475569;">If you believe this decision was made in error or have additional photo proofs to submit, please reply to this email or open a support ticket.</p>
+    <p style="font-size: 13px; color: #475569;">If you believe this decision was made in error or have additional photo proofs to submit, please contact us at <a href="mailto:hello.fatafat@gmail.com" style="color: ${BRAND_MAROON}; font-weight: 600; text-decoration: none;">hello.fatafat@gmail.com</a> or open a support ticket.</p>
   `;
 
   return {
@@ -697,7 +697,7 @@ export function templateSupportTicketCreated(ticket: any): EmailTemplateResult {
       </div>
     </div>
 
-    <p style="font-size: 13px; color: #475569;">A customer care executive is reviewing your issue and will reply directly to this email or via in-app notification within <strong>2 to 4 hours</strong>.</p>
+    <p style="font-size: 13px; color: #475569;">A customer care executive is reviewing your issue and will respond via email or in-app notification within <strong>2 to 4 hours</strong>.</p>
   `;
 
   return {
@@ -789,7 +789,7 @@ export function templateAdminNewOrder(order: any): EmailTemplateResult {
       <strong>Phone:</strong> ${order.address?.mobile || order.address?.phone || 'N/A'}<br>
       <strong>Total Value:</strong> &#8377;${total.toLocaleString('en-IN')}<br>
       <strong>Delivery Hub:</strong> ${order.deliveryLocationName || 'Nawabganj Hub'}<br>
-      <strong>Slot:</strong> ${order.deliveryOption || 'Express'} (${order.deliveryTimeSlot || order.eta || 'ASAP'})
+      <strong>Slot:</strong> ${order.deliveryOption || 'Standard'} (${order.deliveryTimeSlot || order.eta || 'Delivery within 24 hours'})
     </div>
     ${renderOrderItemsTable(items)}
   `;
