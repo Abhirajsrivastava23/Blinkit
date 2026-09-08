@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/data/db';
 import { logSecurityEvent, safeErrorResponse } from '@/lib/security';
+import { sendPaymentVerifiedEmail, sendPaymentFailedEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -188,6 +189,9 @@ export async function POST(request: Request) {
           String(targetOrder.paymentStatus || 'PENDING'),
           'PAID'
         );
+
+        // Safe non-blocking email dispatch (Payment Verified receipt to customer + Admin alert)
+        void sendPaymentVerifiedEmail(targetOrder, razorpayPaymentId);
       }
     } else if (eventType === 'payment.failed') {
       // 3. Handle payment.failed cleanly without marking the order as paid
@@ -221,6 +225,9 @@ export async function POST(request: Request) {
             razorpayPaymentId,
             rejectionReason: failureReason
           });
+
+          // Safe non-blocking admin alert on payment failure
+          void sendPaymentFailedEmail(targetOrder, failureReason, razorpayPaymentId);
         }
       }
     }

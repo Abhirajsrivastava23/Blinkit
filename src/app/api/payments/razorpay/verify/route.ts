@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/data/db';
 import { getSession } from '@/data/auth';
+import { sendPaymentVerifiedEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -265,6 +266,9 @@ export async function POST(request: Request) {
       String(targetOrder.paymentStatus || 'PENDING'),
       'PAID'
     );
+
+    // Safe non-blocking email dispatch (Payment Verified receipt to customer + Admin alert)
+    void sendPaymentVerifiedEmail(updatedOrder || targetOrder, razorpayPaymentId);
 
     return NextResponse.json({
       success: true,

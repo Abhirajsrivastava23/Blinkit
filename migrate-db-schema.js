@@ -311,6 +311,25 @@ async function migrate() {
           '"termsVersion" VARCHAR(255) NOT NULL,' +
           '"acceptedAt" VARCHAR(255) NOT NULL' +
           ')'
+      },
+      {
+        name: 'email_logs',
+        sql: 'CREATE TABLE IF NOT EXISTS "email_logs" (' +
+          'id VARCHAR(255) PRIMARY KEY,' +
+          '"eventType" VARCHAR(255) NOT NULL,' +
+          '"recipientEmail" VARCHAR(255) NOT NULL,' +
+          '"recipientName" VARCHAR(255),' +
+          '"recipientRole" VARCHAR(50) DEFAULT \'customer\',' +
+          'subject VARCHAR(500) NOT NULL,' +
+          'status VARCHAR(50) NOT NULL,' +
+          'provider VARCHAR(50) NOT NULL,' +
+          '"idempotencyKey" VARCHAR(255),' +
+          '"referenceId" VARCHAR(255),' +
+          '"errorMessage" TEXT,' +
+          'metadata JSONB,' +
+          '"createdAt" VARCHAR(255) NOT NULL,' +
+          '"updatedAt" VARCHAR(255) NOT NULL' +
+          ')'
       }
     ];
 

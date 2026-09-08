@@ -101,7 +101,8 @@ const requiredTables = {
   'product_image_history': ['id', 'productId', 'imageUrl', 'uploadedBy', 'uploadedByRole', 'uploadedAt', 'isActive'],
   'delivery_photos': ['id', 'orderId', 'partnerId', 'photoUrl', 'uploadedAt'],
   'wellness_access_requests': ['id', 'customerId', 'status', 'requestedAt'],
-  'wellness_terms_acceptances': ['customerId', 'acceptedAt']
+  'wellness_terms_acceptances': ['customerId', 'acceptedAt'],
+  'email_logs': ['id', 'eventType', 'recipientEmail', 'subject', 'status', 'provider', 'createdAt']
 };
 
 async function verify() {

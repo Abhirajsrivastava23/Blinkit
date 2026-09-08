@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, SupportTicketRecord } from '@/data/db';
 import { getSession } from '@/data/auth';
+import { sendSupportTicketCreatedEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -92,6 +93,9 @@ export async function POST(request: Request) {
     };
 
     const createdTicket = await db.createSupportTicket(payload);
+
+    // Trigger Non-blocking Email Notifications to Customer & Admin
+    void sendSupportTicketCreatedEmail(createdTicket);
 
     return NextResponse.json({
       success: true,

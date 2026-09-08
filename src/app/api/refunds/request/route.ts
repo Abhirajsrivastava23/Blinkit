@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db, RefundRequestRecord } from '@/data/db';
 import { getSession } from '@/data/auth';
+import { sendRefundRequestedEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -148,6 +149,9 @@ export async function POST(request: Request) {
       'Delivered / Paid',
       'Refund Requested'
     );
+
+    // Safe non-blocking email dispatch (Refund Requested acknowledgment to customer + Admin alert)
+    void sendRefundRequestedEmail(saved, order);
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../data/db';
 import { getSession } from '../../../data/auth';
+import { sendOrderPlacedEmail } from '../../../services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -344,6 +345,9 @@ export async function POST(request: Request) {
       } catch (payErr) {
         console.warn('Non-fatal payment_transactions insert warning:', payErr);
       }
+
+      // Safe non-blocking email dispatch (Order Placed to customer + Admin notification)
+      void sendOrderPlacedEmail(savedOrder || newOrder);
 
       return NextResponse.json({
         success: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
+import { sendOrderStatusEmail } from '../../../../services/emailService';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,9 @@ export async function POST(request: Request) {
       cancelledAt: now,
       statusHistory: hist
     });
+
+    // Safe non-blocking email dispatch (Order Cancelled to customer)
+    void sendOrderStatusEmail(updated || { ...order, status: 'Cancelled', cancellationReason: reason }, currentStatus, 'Cancelled');
 
     return NextResponse.json({
       success: true,

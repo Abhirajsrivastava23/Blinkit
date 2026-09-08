@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
 import { getSession } from '../../../../data/auth';
+import { sendOrderStatusEmail } from '../../../../services/emailService';
 
 export async function POST(request: Request) {
   try {
@@ -405,6 +406,11 @@ export async function POST(request: Request) {
     
     const orderKey = targetOrder.id ? String(targetOrder.id) : cleanId;
     const updatedOrder = await db.updateOrder(orderKey, updatesToPersist);
+
+    if (newStatus && newStatus !== prevStatus) {
+      void sendOrderStatusEmail(updatedOrder || { ...targetOrder, ...updatesToPersist }, prevStatus, newStatus);
+    }
+
     return NextResponse.json({ success: true, order: updatedOrder });
   } catch (err) {
     console.error('Error updating order on server:', err);

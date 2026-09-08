@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/data/db';
 import { validateRole } from '@/data/auth';
+import { sendCustomOrderPaymentLinkEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -93,6 +94,9 @@ export async function POST(
       paymentStatus: 'PENDING',
       status: 'Payment Pending'
     });
+
+    // Trigger Non-blocking Payment Link Email to Customer
+    void sendCustomOrderPaymentLinkEmail(customReq, paymentLinkUrl, amount);
 
     const shareMessage = `Hi ${customReq.customerName}, your custom order for "${customReq.productName || 'Personalised Product'}" (Total: ₹${amount}) is ready! Please complete your payment securely using this link: ${paymentLinkUrl} - Team FATAFAT`;
 

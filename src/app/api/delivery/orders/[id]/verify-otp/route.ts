@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/data/db';
 import { getSession } from '@/data/auth';
+import { sendOrderStatusEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -87,6 +88,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       delivery_completed_at: now,
       statusHistory: historyList
     });
+
+    // Safe non-blocking email dispatch (Order Delivered to customer)
+    void sendOrderStatusEmail(updated || { ...order, status: 'Delivered' }, String(order.status || 'Out for Delivery'), 'Delivered');
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/data/db';
 import { validateRole } from '@/data/auth';
+import { sendRefundDecisionEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -75,6 +76,11 @@ export async function POST(
       'Pending Refund',
       'Refund Rejected'
     );
+
+    // 5. Trigger Non-blocking Email Notification to Customer & Admin
+    if (order) {
+      void sendRefundDecisionEmail(updatedRefund || refundReq, order, 'REJECTED', adminReason);
+    }
 
     return NextResponse.json({
       success: true,

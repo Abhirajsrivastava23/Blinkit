@@ -22,7 +22,15 @@ import {
   Bike,
   ShieldCheck,
   X,
-  AlertOctagon
+  AlertOctagon,
+  Mail,
+  Send,
+  CheckCircle,
+  AlertCircle,
+  Inbox,
+  Server,
+  Shield,
+  Sparkles
 } from 'lucide-react';
 
 interface EntityCounts {
@@ -148,7 +156,7 @@ const RESET_ACTIONS: ResetActionConfig[] = [
 
 export default function AdminSettingsPage() {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'cms' | 'data-management'>('cms');
+  const [activeTab, setActiveTab] = useState<'cms' | 'email-notifications' | 'data-management'>('cms');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -179,6 +187,16 @@ export default function AdminSettingsPage() {
 
   // Payment Config state
   const [razorpaySettings, setRazorpaySettings] = useState<any>(null);
+
+  // Email & Notifications State
+  const [emailConfig, setEmailConfig] = useState<any>(null);
+  const [emailStats, setEmailStats] = useState<any>(null);
+  const [emailLogs, setEmailLogs] = useState<any[]>([]);
+  const [loadingEmailStatus, setLoadingEmailStatus] = useState(false);
+  const [testEmailRecipient, setTestEmailRecipient] = useState('');
+  const [testEmailTemplate, setTestEmailTemplate] = useState('test');
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<any | null>(null);
 
   // Data Management State
   const [entityCounts, setEntityCounts] = useState<EntityCounts | null>(null);
@@ -225,6 +243,26 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const fetchEmailStatus = useCallback(async () => {
+    try {
+      setLoadingEmailStatus(true);
+      const res = await fetch('/api/admin/email-status?limit=50', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setEmailConfig(data.config || null);
+        setEmailStats(data.stats || null);
+        setEmailLogs(data.logs || []);
+        if (data.config?.adminAlertEmail && !testEmailRecipient) {
+          setTestEmailRecipient(data.config.adminAlertEmail);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load email status:', err);
+    } finally {
+      setLoadingEmailStatus(false);
+    }
+  }, [testEmailRecipient]);
+
   const fetchEntityCounts = useCallback(async () => {
     try {
       setLoadingCounts(true);
@@ -245,7 +283,41 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     fetchConfig();
     fetchEntityCounts();
-  }, [fetchEntityCounts]);
+    fetchEmailStatus();
+  }, [fetchEntityCounts, fetchEmailStatus]);
+
+  const handleSendTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testEmailRecipient || !testEmailRecipient.includes('@')) {
+      showToast('Please enter a valid recipient email address.', 'error');
+      return;
+    }
+    try {
+      setIsSendingTestEmail(true);
+      setTestEmailResult(null);
+      const res = await fetch('/api/admin/email-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientEmail: testEmailRecipient,
+          templateType: testEmailTemplate
+        })
+      });
+      const data = await res.json();
+      setTestEmailResult(data);
+      if (res.ok && data.success) {
+        showToast(data.message || 'Test email dispatched successfully!', 'success');
+        void fetchEmailStatus();
+      } else {
+        showToast(data.error || 'Failed to dispatch test email.', 'error');
+      }
+    } catch (err) {
+      console.error('Test email error:', err);
+      showToast('Network error while sending test email.', 'error');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
 
   const handleToggle = (key: string) => {
     setVisibilities((prev: any) => ({
@@ -443,6 +515,17 @@ export default function AdminSettingsPage() {
             }`}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" /> Platform CMS
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('email-notifications')}
+            className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              activeTab === 'email-notifications'
+                ? 'bg-white text-brand-burgundy shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-900'
+            }`}
+          >
+            <Mail className="h-3.5 w-3.5" /> Email & Notifications
           </button>
           <button
             type="button"
@@ -851,6 +934,462 @@ export default function AdminSettingsPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: TRANSACTIONAL EMAIL & NOTIFICATIONS SYSTEM                         */}
+      {/* ========================================================================= */}
+      {activeTab === 'email-notifications' && (
+        <div className="space-y-8 animate-fade-in text-left">
+          
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-zinc-200/40 p-5 rounded-3xl shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 bg-brand-burgundy/10 text-brand-burgundy rounded-2xl border border-brand-burgundy/10">
+                <Mail className="h-6 w-6" />
+              </div>
+              <div>
+                <h4 className="font-serif font-black text-base text-zinc-900 flex items-center gap-2">
+                  Transactional Email Engine
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    emailConfig?.isConfigured
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {emailConfig?.provider || 'SIMULATION'}
+                  </span>
+                </h4>
+                <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                  Automated customer updates (15 scenarios) and instant administrative alerts (7 triggers).
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => fetchEmailStatus()}
+              disabled={loadingEmailStatus}
+              className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-xl font-bold text-xs flex items-center gap-2 transition-all self-start sm:self-auto"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingEmailStatus ? 'animate-spin' : ''}`} />
+              Refresh Status
+            </button>
+          </div>
+
+          {/* Provider Overview & Configuration Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Active Provider Card */}
+            <div className="bg-white border border-zinc-200/40 p-6 rounded-3xl shadow-sm space-y-4">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                Active Mail Provider
+              </span>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-2xl ${
+                  emailConfig?.isConfigured ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                }`}>
+                  <Server className="h-5 w-5" />
+                </div>
+                <div>
+                  <h5 className="font-bold text-sm text-zinc-900">
+                    {emailConfig?.details || 'Dev / Simulation Mode'}
+                  </h5>
+                  <p className="text-[11px] text-zinc-500 font-medium">
+                    {emailConfig?.isConfigured 
+                      ? 'Live transactional mail delivery enabled' 
+                      : 'Emails simulated & logged to PostgreSQL audit table'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-zinc-100 space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Orders &amp; Payments:</span>
+                  <span className="font-bold text-zinc-900 font-mono text-[10px]">
+                    {emailConfig?.categorySenders?.orders || 'orders@fatafatapp.me'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Status &amp; Delivery:</span>
+                  <span className="font-bold text-zinc-900 font-mono text-[10px]">
+                    {emailConfig?.categorySenders?.notifications || 'notifications@fatafatapp.me'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Support Tickets:</span>
+                  <span className="font-bold text-zinc-900 font-mono text-[10px]">
+                    {emailConfig?.categorySenders?.support || 'support@fatafatapp.me'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Customer Care &amp; Custom:</span>
+                  <span className="font-bold text-zinc-900 font-mono text-[10px]">
+                    {emailConfig?.categorySenders?.customercare || 'customercare@fatafatapp.me'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-medium">Refunds:</span>
+                  <span className="font-bold text-zinc-900 font-mono text-[10px]">
+                    {emailConfig?.categorySenders?.refunds || 'refunds@fatafatapp.me'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-dashed">
+                  <span className="text-zinc-500 font-medium">Admin Alerts To:</span>
+                  <span className="font-bold text-brand-burgundy font-mono text-[10px]">
+                    {emailConfig?.adminAlertEmail || 'superadmin@fatafat.com'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Vercel Environment Variables Status */}
+            <div className="bg-white border border-zinc-200/40 p-6 rounded-3xl shadow-sm space-y-4">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                Environment Secret Keys (Server-Side)
+              </span>
+              <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                {[
+                  { key: 'RESEND_API_KEY', label: 'Resend API Key', desc: 'Free 3,000/mo' },
+                  { key: 'EMAIL_FROM_ORDERS', label: 'Orders Sender', desc: 'orders@fatafatapp.me' },
+                  { key: 'EMAIL_FROM_NOTIFICATIONS', label: 'Notifications Sender', desc: 'notifications@fatafatapp.me' },
+                  { key: 'EMAIL_FROM_SUPPORT', label: 'Support Sender', desc: 'support@fatafatapp.me' },
+                  { key: 'EMAIL_FROM_CUSTOMERCARE', label: 'Customer Care Sender', desc: 'customercare@fatafatapp.me' },
+                  { key: 'EMAIL_FROM_REFUNDS', label: 'Refunds Sender', desc: 'refunds@fatafatapp.me' },
+                  { key: 'ADMIN_ALERT_EMAIL', label: 'Admin Recipient', desc: 'Store Alerts' }
+                ].map(item => {
+                  const isPresent = !!emailConfig?.environmentVariablesDetected?.[item.key];
+                  return (
+                    <div key={item.key} className="flex items-center justify-between p-1.5 rounded-xl bg-zinc-50 text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${isPresent ? 'bg-emerald-500' : 'bg-zinc-300'}`} />
+                        <span className="font-mono font-bold text-zinc-800 text-[10px]">{item.key}</span>
+                      </div>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                        isPresent ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-500'
+                      }`}>
+                        {isPresent ? 'Set' : 'Default'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Architecture Safety Guarantees */}
+            <div className="bg-zinc-900 text-white p-6 rounded-3xl shadow-sm space-y-3.5">
+              <div className="flex items-center gap-2 text-brand-gold">
+                <ShieldCheck className="h-4.5 w-4.5" />
+                <span className="font-bold text-xs uppercase tracking-wider">Architecture Protections</span>
+              </div>
+              <ul className="space-y-2 text-[11px] text-zinc-300 leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Zero Frontend Exposure:</strong> All keys and dispatch logic live strictly server-side.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Fail-Safe Non-Blocking:</strong> Email errors never interrupt customer checkouts or payments.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Deterministic Deduplication:</strong> PostgreSQL idempotency keys prevent duplicate emails.</span>
+                </li>
+              </ul>
+            </div>
+
+          </div>
+
+          {/* Metric KPI Counters */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white border border-zinc-200/40 p-5 rounded-3xl shadow-sm">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Total Dispatches</span>
+              <p className="font-serif font-black text-2xl text-zinc-900 mt-1">
+                {emailStats?.totalProcessed ?? emailLogs.length ?? 0}
+              </p>
+              <span className="text-[10px] text-zinc-400 font-medium">All logged transactions</span>
+            </div>
+
+            <div className="bg-white border border-zinc-200/40 p-5 rounded-3xl shadow-sm">
+              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Live Sent</span>
+              <p className="font-serif font-black text-2xl text-emerald-600 mt-1">
+                {emailStats?.sentCount ?? 0}
+              </p>
+              <span className="text-[10px] text-zinc-400 font-medium">Delivered to mailboxes</span>
+            </div>
+
+            <div className="bg-white border border-zinc-200/40 p-5 rounded-3xl shadow-sm">
+              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Simulated (Dev)</span>
+              <p className="font-serif font-black text-2xl text-blue-600 mt-1">
+                {emailStats?.simulatedCount ?? 0}
+              </p>
+              <span className="text-[10px] text-zinc-400 font-medium">Captured in database</span>
+            </div>
+
+            <div className="bg-white border border-zinc-200/40 p-5 rounded-3xl shadow-sm">
+              <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Failures</span>
+              <p className="font-serif font-black text-2xl text-rose-600 mt-1">
+                {emailStats?.failedCount ?? 0}
+              </p>
+              <span className="text-[10px] text-zinc-400 font-medium">0% impact on checkout</span>
+            </div>
+          </div>
+
+          {/* Send Live Test Email Card */}
+          <div className="bg-white border border-zinc-200/40 p-6 rounded-3xl shadow-sm space-y-4">
+            <div className="flex items-center gap-2.5 border-b pb-3">
+              <Send className="h-4.5 w-4.5 text-brand-burgundy" />
+              <div>
+                <h4 className="font-serif font-black text-sm text-zinc-900">
+                  Send Test Email & Verify Integration
+                </h4>
+                <p className="text-[11px] text-zinc-500 font-medium">
+                  Dispatch a real email to verify deliverability, template styling, and provider connectivity.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSendTestEmail} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+              <div className="sm:col-span-6 space-y-1.5">
+                <label className="font-bold text-zinc-700 text-[11px] block">
+                  Recipient Email Address
+                </label>
+                <input
+                  type="email"
+                  value={testEmailRecipient}
+                  onChange={(e) => setTestEmailRecipient(e.target.value)}
+                  placeholder="e.g. yourname@example.com"
+                  required
+                  className="w-full p-2.5 border rounded-xl bg-zinc-50 focus:bg-white focus:outline-none text-xs"
+                />
+              </div>
+
+              <div className="sm:col-span-4 space-y-1.5">
+                <label className="font-bold text-zinc-700 text-[11px] block">
+                  Email Template
+                </label>
+                <select
+                  value={testEmailTemplate}
+                  onChange={(e) => setTestEmailTemplate(e.target.value)}
+                  className="w-full p-2.5 border rounded-xl bg-zinc-50 focus:bg-white focus:outline-none text-xs font-medium"
+                >
+                  <option value="test">System Diagnostic Ping</option>
+                  <option value="send_all_22_synthetic">🚀 Super Admin: Dispatch ALL 22 Branded Templates (Synthetic Test)</option>
+                  <option value="order_placed">Customer: 1. Order Placed</option>
+                  <option value="out_for_delivery">Customer: 5. Out for Delivery</option>
+                  <option value="order_delivered">Customer: 6. Order Delivered</option>
+                  <option value="refund_processed">Customer: 9. Refund Processed</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={isSendingTestEmail}
+                  className="w-full py-2.5 px-4 bg-brand-burgundy hover:bg-black text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-sm"
+                >
+                  {isSendingTestEmail ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5" /> {testEmailTemplate === 'send_all_22_synthetic' ? 'Dispatch 22' : 'Send Test'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {testEmailResult && (
+              <div className={`p-4 rounded-2xl text-xs border ${
+                testEmailResult.success 
+                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' 
+                  : 'bg-rose-50/80 border-rose-200 text-rose-900'
+              }`}>
+                <div className="flex items-center gap-2 font-bold">
+                  {testEmailResult.success ? (
+                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{testEmailResult.message || (testEmailResult.success ? `Synthetic batch dispatch completed: ${testEmailResult.passedCount || 22}/22 accepted.` : 'Dispatch Failed')}</span>
+                </div>
+
+                {testEmailResult.results && Array.isArray(testEmailResult.results) && (
+                  <div className="mt-3 overflow-x-auto rounded-xl border border-emerald-200/80 bg-white">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-zinc-50 border-b text-zinc-500 uppercase tracking-wider text-[9px] font-bold">
+                        <tr>
+                          <th className="p-2.5">#</th>
+                          <th className="p-2.5">Template</th>
+                          <th className="p-2.5">Category Sender</th>
+                          <th className="p-2.5">Resend Message ID</th>
+                          <th className="p-2.5 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 font-mono text-[10px]">
+                        {testEmailResult.results.map((r: any) => (
+                          <tr key={r.id} className="hover:bg-zinc-50/50">
+                            <td className="p-2.5 font-bold text-zinc-400">{r.id}</td>
+                            <td className="p-2.5 font-sans font-bold text-zinc-800">{r.name}</td>
+                            <td className="p-2.5 text-zinc-600 truncate max-w-[180px]">{r.sender}</td>
+                            <td className="p-2.5 text-brand-burgundy font-mono truncate max-w-[160px]">{r.messageId || 'N/A'}</td>
+                            <td className="p-2.5 text-right font-sans font-black">
+                              <span className={`px-2 py-0.5 rounded text-[9px] ${r.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {testEmailResult.result && !testEmailResult.results && (
+                  <div className="mt-2 text-[11px] space-y-1 font-mono text-zinc-600">
+                    <div>Provider: {testEmailResult.result.provider} | Status: {testEmailResult.result.status}</div>
+                    {testEmailResult.result.idempotencyKey && (
+                      <div className="truncate">Key: {testEmailResult.result.idempotencyKey}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Email Audit Log Table */}
+          <div className="bg-white border border-zinc-200/40 rounded-3xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b flex items-center justify-between">
+              <div>
+                <h4 className="font-serif font-black text-sm text-zinc-900">
+                  Recent Email Audit Trail (PostgreSQL)
+                </h4>
+                <p className="text-[11px] text-zinc-500 font-medium">
+                  Real-time log of the latest 50 dispatched and simulated notifications.
+                </p>
+              </div>
+              <span className="text-[10px] font-bold text-zinc-400 bg-zinc-50 px-2.5 py-1 rounded-lg border">
+                {emailLogs.length} Records
+              </span>
+            </div>
+
+            {emailLogs.length === 0 ? (
+              <div className="p-12 text-center text-zinc-400 space-y-2">
+                <Inbox className="h-8 w-8 mx-auto text-zinc-300" />
+                <p className="font-medium text-xs">No email records logged yet.</p>
+                <p className="text-[11px]">Send a test email or place an order to see live audit logs.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="bg-zinc-50/75 border-b text-zinc-500 uppercase tracking-wider text-[10px] font-bold">
+                    <tr>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5">Event Type</th>
+                      <th className="p-3.5">Recipient</th>
+                      <th className="p-3.5">Role</th>
+                      <th className="p-3.5">Reference ID</th>
+                      <th className="p-3.5">Provider</th>
+                      <th className="p-3.5">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 font-medium">
+                    {emailLogs.map((log) => {
+                      const isSuccess = log.status === 'SENT';
+                      const isSim = log.status === 'SIMULATED';
+                      return (
+                        <tr key={log.id || log.idempotencyKey} className="hover:bg-zinc-50/60 transition-colors">
+                          <td className="p-3.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isSuccess 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : isSim 
+                                ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 font-bold text-zinc-900 font-mono text-[10px]">
+                            {log.eventType}
+                          </td>
+                          <td className="p-3.5 text-zinc-700 font-mono text-[10px]">
+                            {log.recipientEmail}
+                          </td>
+                          <td className="p-3.5">
+                            <span className={`text-[10px] font-bold uppercase ${
+                              log.recipientRole === 'admin' ? 'text-purple-600' : 'text-zinc-600'
+                            }`}>
+                              {log.recipientRole || 'customer'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-zinc-600 font-mono text-[10px]">
+                            {log.referenceId || '-'}
+                          </td>
+                          <td className="p-3.5 text-zinc-500 font-mono text-[10px]">
+                            {log.provider}
+                          </td>
+                          <td className="p-3.5 text-zinc-400 text-[10px]">
+                            {log.createdAt ? new Date(log.createdAt).toLocaleString('en-IN') : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Vercel Setup Instructions Helper Card */}
+          <div className="bg-gradient-to-r from-zinc-50 to-zinc-100/60 border border-zinc-200 rounded-3xl p-6 space-y-4 text-left">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-brand-burgundy" />
+              <h5 className="font-bold text-xs text-zinc-900 uppercase tracking-wider">
+                Production Deployment Instructions (Vercel Environment Variables)
+              </h5>
+            </div>
+            <p className="text-xs text-zinc-600 leading-relaxed font-medium">
+              To send real emails to your customers and administrators on Vercel at <strong>zero cost</strong>, simply add these environment variables under <strong>Project Settings → Environment Variables</strong>:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">RESEND_API_KEY</span>
+                <span className="text-[11px] text-zinc-500 block">Free API key from <a href="https://resend.com" target="_blank" rel="noreferrer" className="text-blue-600 underline">resend.com</a> (3,000 emails/month free).</span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_ORDERS</span>
+                <span className="text-[11px] text-zinc-500 block">Order &amp; payment notifications: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT Orders &lt;orders@fatafatapp.me&gt;</code></span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_NOTIFICATIONS</span>
+                <span className="text-[11px] text-zinc-500 block">Order status &amp; delivery: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT &lt;notifications@fatafatapp.me&gt;</code></span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_SUPPORT</span>
+                <span className="text-[11px] text-zinc-500 block">Support ticket responses: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT Support &lt;support@fatafatapp.me&gt;</code></span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_CUSTOMERCARE</span>
+                <span className="text-[11px] text-zinc-500 block">Custom celebration quotes: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT &lt;customercare@fatafatapp.me&gt;</code></span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_REFUNDS</span>
+                <span className="text-[11px] text-zinc-500 block">Refund claims &amp; status: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT Refunds &lt;refunds@fatafatapp.me&gt;</code></span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">ADMIN_ALERT_EMAIL</span>
+                <span className="text-[11px] text-zinc-500 block">Destination email address where store admins receive instant order &amp; refund alerts.</span>
+              </div>
+              <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1 sm:col-span-2">
+                <span className="font-mono font-bold text-brand-burgundy text-[11px] block">NEXT_PUBLIC_APP_URL</span>
+                <span className="text-[11px] text-zinc-500 block">Storefront URL (e.g. <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">https://www.fatafatapp.me</code>) used for invoice &amp; tracking links.</span>
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, SupportTicketRecord } from '@/data/db';
 import { validateRole } from '@/data/auth';
+import { sendSupportTicketReplyEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -53,6 +54,11 @@ export async function POST(
     }
 
     const updated = await db.updateSupportTicket(existingTicket.id, updates);
+
+    // Trigger Non-blocking Reply Email to Customer
+    if (adminReply) {
+      void sendSupportTicketReplyEmail(existingTicket, adminReply);
+    }
 
     // Audit log activity
     await db.logActivity(

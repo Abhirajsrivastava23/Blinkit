@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/data/db';
 import { validateRole } from '@/data/auth';
+import { sendRefundDecisionEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -218,6 +219,9 @@ export async function POST(
       'Pending Refund',
       'Refunded'
     );
+
+    // Safe non-blocking email dispatch (Refund Processed to customer + Admin alert)
+    void sendRefundDecisionEmail(updatedRefund || refundReq, order, 'APPROVED');
 
     return NextResponse.json({
       success: true,

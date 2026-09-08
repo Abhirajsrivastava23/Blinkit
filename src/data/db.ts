@@ -91,6 +91,24 @@ export interface SupportTicketRecord {
   [key: string]: unknown;
 }
 
+export interface EmailLogRecord {
+  id: string;
+  eventType: string;
+  recipientEmail: string;
+  recipientName?: string;
+  recipientRole?: 'customer' | 'admin';
+  subject: string;
+  status: 'SENT' | 'SIMULATED' | 'FAILED';
+  provider: 'RESEND' | 'BREVO' | 'SMTP' | 'SIMULATION';
+  idempotencyKey?: string;
+  referenceId?: string;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
 export interface AuditLogRecord {
   id: string;
   adminUser: string;
@@ -726,6 +744,64 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_support_tickets_created ON "support_tickets" ("createdAt");
         `).catch(() => {});
 
+        // 13.8. Ensure email_logs table exists with indexes
+        await p.query(`
+          CREATE TABLE IF NOT EXISTS "email_logs" (
+            id TEXT PRIMARY KEY,
+            "eventType" TEXT NOT NULL,
+            eventtype TEXT,
+            "recipientEmail" TEXT NOT NULL,
+            recipientemail TEXT,
+            "recipientName" TEXT,
+            recipientname TEXT,
+            "recipientRole" TEXT DEFAULT 'customer',
+            recipientrole TEXT DEFAULT 'customer',
+            subject TEXT NOT NULL,
+            status TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            "idempotencyKey" TEXT,
+            idempotencykey TEXT,
+            "referenceId" TEXT,
+            referenceid TEXT,
+            "errorMessage" TEXT,
+            errormessage TEXT,
+            metadata JSONB,
+            "createdAt" TEXT NOT NULL,
+            createdat TEXT,
+            "updatedAt" TEXT NOT NULL,
+            updatedat TEXT
+          );
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS id TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "eventType" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS eventtype TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "recipientEmail" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS recipientemail TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "recipientName" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS recipientname TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "recipientRole" TEXT DEFAULT 'customer';
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS recipientrole TEXT DEFAULT 'customer';
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS subject TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS status TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS provider TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "idempotencyKey" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS idempotencykey TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "referenceId" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS referenceid TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "errorMessage" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS errormessage TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS metadata JSONB;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS createdat TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+          ALTER TABLE "email_logs" ADD COLUMN IF NOT EXISTS updatedat TEXT;
+          CREATE INDEX IF NOT EXISTS idx_email_logs_event ON "email_logs" ("eventType");
+          CREATE INDEX IF NOT EXISTS idx_email_logs_recipient ON "email_logs" ("recipientEmail");
+          CREATE INDEX IF NOT EXISTS idx_email_logs_ref ON "email_logs" ("referenceId");
+          CREATE INDEX IF NOT EXISTS idx_email_logs_idempotency ON "email_logs" ("idempotencyKey");
+          CREATE INDEX IF NOT EXISTS idx_email_logs_status ON "email_logs" (status);
+          CREATE INDEX IF NOT EXISTS idx_email_logs_created ON "email_logs" ("createdAt");
+        `).catch(() => {});
+
         // 14. Seed and sync categorized products into PostgreSQL using safe chunks and fallback loop
         if (productsJson.length > 0) {
           try {
@@ -861,6 +937,8 @@ if (!globalForDb._inMemoryData) {
     coupon_usages: [],
     refund_requests: [],
     custom_requests: [],
+    support_tickets: [],
+    email_logs: [],
   };
 }
 
@@ -920,6 +998,11 @@ const ALLOWED_COLUMNS: Record<string, string[]> = {
     'id', 'ticketNumber', 'customerId', 'name', 'email', 'phone', 'orderId',
     'category', 'message', 'attachmentUrl', 'status', 'adminReply',
     'adminReplyAt', 'adminRepliedBy', 'createdAt', 'updatedAt', 'metadata'
+  ],
+  email_logs: [
+    'id', 'eventType', 'recipientEmail', 'recipientName', 'recipientRole',
+    'subject', 'status', 'provider', 'idempotencyKey', 'referenceId',
+    'errorMessage', 'metadata', 'createdAt', 'updatedAt'
   ]
 };
 
@@ -1388,6 +1471,55 @@ export function normalizeSupportTicketRecord(row: Record<string, unknown>): Supp
   if (parsed.adminRepliedBy) parsed.adminRepliedBy = String(parsed.adminRepliedBy).trim();
 
   return parsed as unknown as SupportTicketRecord;
+}
+
+export function normalizeEmailLogRecord(row: Record<string, unknown>): EmailLogRecord {
+  if (!row || typeof row !== 'object') return row as unknown as EmailLogRecord;
+  const parsed: Record<string, any> = { ...row };
+
+  if (typeof parsed.metadata === 'string') {
+    try { parsed.metadata = JSON.parse(parsed.metadata); } catch { /* keep */ }
+  }
+
+  // Column alias normalization
+  if (parsed.eventtype && !parsed.eventType) parsed.eventType = parsed.eventtype;
+  if (parsed.recipientemail && !parsed.recipientEmail) parsed.recipientEmail = parsed.recipientemail;
+  if (parsed.recipientname && !parsed.recipientName) parsed.recipientName = parsed.recipientname;
+  if (parsed.recipientrole && !parsed.recipientRole) parsed.recipientRole = parsed.recipientrole;
+  if (parsed.idempotencykey && !parsed.idempotencyKey) parsed.idempotencyKey = parsed.idempotencykey;
+  if (parsed.referenceid && !parsed.referenceId) parsed.referenceId = parsed.referenceid;
+  if (parsed.errormessage && !parsed.errorMessage) parsed.errorMessage = parsed.errormessage;
+  if (parsed.createdat && !parsed.createdAt) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat && !parsed.updatedAt) parsed.updatedAt = parsed.updatedat;
+
+  parsed.id = String(parsed.id || '').trim();
+  parsed.eventType = String(parsed.eventType || 'generic_notification').trim();
+  parsed.recipientEmail = String(parsed.recipientEmail || '').trim().toLowerCase();
+  parsed.recipientName = parsed.recipientName ? String(parsed.recipientName).trim() : undefined;
+  parsed.recipientRole = (String(parsed.recipientRole || 'customer').toLowerCase() === 'admin' ? 'admin' : 'customer') as 'customer' | 'admin';
+  parsed.subject = String(parsed.subject || '').trim();
+  
+  const rawStatus = String(parsed.status || 'SENT').toUpperCase().trim();
+  if (rawStatus === 'SIMULATED' || rawStatus === 'FAILED' || rawStatus === 'SENT') {
+    parsed.status = rawStatus as 'SENT' | 'SIMULATED' | 'FAILED';
+  } else {
+    parsed.status = 'SENT';
+  }
+
+  const rawProvider = String(parsed.provider || 'SIMULATION').toUpperCase().trim();
+  if (rawProvider === 'RESEND' || rawProvider === 'BREVO' || rawProvider === 'SMTP' || rawProvider === 'SIMULATION') {
+    parsed.provider = rawProvider as 'RESEND' | 'BREVO' | 'SMTP' | 'SIMULATION';
+  } else {
+    parsed.provider = 'SIMULATION';
+  }
+
+  parsed.idempotencyKey = parsed.idempotencyKey ? String(parsed.idempotencyKey).trim() : undefined;
+  parsed.referenceId = parsed.referenceId ? String(parsed.referenceId).trim() : undefined;
+  parsed.errorMessage = parsed.errorMessage ? String(parsed.errorMessage).trim() : undefined;
+  parsed.createdAt = String(parsed.createdAt || new Date().toISOString());
+  parsed.updatedAt = String(parsed.updatedAt || new Date().toISOString());
+
+  return parsed as unknown as EmailLogRecord;
 }
 
 async function insertRow(p: Pool, table: string, item: Record<string, unknown>) {
@@ -4946,6 +5078,215 @@ export const db = {
       console.error(`PostgreSQL error updating support ticket ${cleanId}:`, err);
       return merged;
     }
+  },
+
+  // ==========================================
+  // TRANSACTIONAL EMAIL LOGS & AUDIT TRAIL
+  // ==========================================
+
+  async createEmailLog(log: Partial<EmailLogRecord>): Promise<EmailLogRecord> {
+    const id = log.id || `eml_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const now = new Date().toISOString();
+
+    const record = normalizeEmailLogRecord({
+      ...log,
+      id,
+      status: log.status || 'SENT',
+      provider: log.provider || 'SIMULATION',
+      createdAt: log.createdAt || now,
+      updatedAt: log.updatedAt || now
+    });
+
+    const memList = (inMemoryData['email_logs'] || []) as unknown as EmailLogRecord[];
+    memList.unshift(record);
+    inMemoryData['email_logs'] = memList as unknown as Record<string, unknown>[];
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        await activePool.query(`
+          INSERT INTO "email_logs" (
+            id, "eventType", "recipientEmail", "recipientName", "recipientRole",
+            subject, status, provider, "idempotencyKey", "referenceId",
+            "errorMessage", metadata, "createdAt", "updatedAt"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          ON CONFLICT (id) DO UPDATE SET
+            status = EXCLUDED.status,
+            provider = EXCLUDED.provider,
+            "errorMessage" = EXCLUDED."errorMessage",
+            metadata = EXCLUDED.metadata,
+            "updatedAt" = EXCLUDED."updatedAt"
+        `, [
+          record.id,
+          record.eventType,
+          record.recipientEmail,
+          record.recipientName || null,
+          record.recipientRole || 'customer',
+          record.subject,
+          record.status,
+          record.provider,
+          record.idempotencyKey || null,
+          record.referenceId || null,
+          record.errorMessage || null,
+          record.metadata ? JSON.stringify(record.metadata) : null,
+          record.createdAt,
+          record.updatedAt
+        ]);
+      } catch (err) {
+        console.error('PostgreSQL error creating email log:', err);
+      }
+    }
+
+    return record;
+  },
+
+  async getEmailLogByIdempotencyKey(key: string): Promise<EmailLogRecord | null> {
+    const cleanKey = String(key || '').trim();
+    if (!cleanKey) return null;
+
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const res = await activePool.query(
+          'SELECT * FROM "email_logs" WHERE "idempotencyKey" = $1 OR idempotencykey = $1 LIMIT 1',
+          [cleanKey]
+        );
+        if (res.rows.length > 0) {
+          return normalizeEmailLogRecord(res.rows[0]);
+        }
+      } catch (err) {
+        console.error('PostgreSQL error fetching email log by idempotency key:', err);
+      }
+    }
+
+    const memList = (inMemoryData['email_logs'] || []) as unknown as EmailLogRecord[];
+    const found = memList.find(r => r.idempotencyKey === cleanKey);
+    return found ? normalizeEmailLogRecord(found as unknown as Record<string, unknown>) : null;
+  },
+
+  async isEmailAlreadySent(idempotencyKey: string): Promise<boolean> {
+    const existing = await this.getEmailLogByIdempotencyKey(idempotencyKey);
+    return Boolean(existing && (existing.status === 'SENT' || existing.status === 'SIMULATED'));
+  },
+
+  async getEmailLogs(filter?: {
+    eventType?: string;
+    status?: string;
+    recipientEmail?: string;
+    recipientRole?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<EmailLogRecord[]> {
+    const activePool = getPool();
+    const limit = Math.min(100, Math.max(1, Number(filter?.limit || 50)));
+    const offset = Math.max(0, Number(filter?.offset || 0));
+
+    if (activePool) {
+      try {
+        let queryText = 'SELECT * FROM "email_logs"';
+        const queryParams: unknown[] = [];
+        const conditions: string[] = [];
+
+        if (filter?.eventType && filter.eventType !== 'All') {
+          queryParams.push(filter.eventType);
+          conditions.push(`"eventType" = $${queryParams.length}`);
+        }
+        if (filter?.status && filter.status !== 'All') {
+          queryParams.push(filter.status.toUpperCase());
+          conditions.push(`status = $${queryParams.length}`);
+        }
+        if (filter?.recipientEmail) {
+          queryParams.push(filter.recipientEmail.toLowerCase().trim());
+          conditions.push(`LOWER("recipientEmail") = $${queryParams.length}`);
+        }
+        if (filter?.recipientRole && filter.recipientRole !== 'All') {
+          queryParams.push(filter.recipientRole.toLowerCase());
+          conditions.push(`LOWER("recipientRole") = $${queryParams.length}`);
+        }
+
+        if (conditions.length > 0) {
+          queryText += ` WHERE ${conditions.join(' AND ')}`;
+        }
+
+        queryText += ` ORDER BY "createdAt" DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+        queryParams.push(limit, offset);
+
+        const res = await activePool.query(queryText, queryParams);
+        return res.rows.map(r => normalizeEmailLogRecord(r));
+      } catch (err) {
+        console.error('PostgreSQL error querying email logs:', err);
+      }
+    }
+
+    let memList = (inMemoryData['email_logs'] || []) as unknown as EmailLogRecord[];
+    if (filter?.eventType && filter.eventType !== 'All') {
+      const targetEvent = String(filter.eventType);
+      memList = memList.filter(r => r.eventType === targetEvent);
+    }
+    if (filter?.status && filter.status !== 'All') {
+      const targetStatus = String(filter.status).toUpperCase();
+      memList = memList.filter(r => r.status === targetStatus);
+    }
+    if (filter?.recipientEmail) {
+      const targetEmail = String(filter.recipientEmail).toLowerCase().trim();
+      memList = memList.filter(r => r.recipientEmail.toLowerCase() === targetEmail);
+    }
+    if (filter?.recipientRole && filter.recipientRole !== 'All') {
+      const targetRole = String(filter.recipientRole).toLowerCase();
+      memList = memList.filter(r => r.recipientRole === targetRole);
+    }
+
+    return memList.slice(offset, offset + limit).map(r => normalizeEmailLogRecord(r as unknown as Record<string, unknown>));
+  },
+
+  async getEmailStats(): Promise<{
+    total: number;
+    sent: number;
+    simulated: number;
+    failed: number;
+    lastSentAt: string | null;
+    lastStatus: string | null;
+  }> {
+    const activePool = getPool();
+    if (activePool) {
+      try {
+        const countsRes = await activePool.query(`
+          SELECT 
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE status = 'SENT') as sent,
+            COUNT(*) FILTER (WHERE status = 'SIMULATED') as simulated,
+            COUNT(*) FILTER (WHERE status = 'FAILED') as failed
+          FROM "email_logs"
+        `);
+        const lastRes = await activePool.query(`
+          SELECT "createdAt", status FROM "email_logs" ORDER BY "createdAt" DESC LIMIT 1
+        `);
+
+        const c = countsRes.rows[0] || {};
+        const l = lastRes.rows[0];
+
+        return {
+          total: parseInt(c.total || '0', 10),
+          sent: parseInt(c.sent || '0', 10),
+          simulated: parseInt(c.simulated || '0', 10),
+          failed: parseInt(c.failed || '0', 10),
+          lastSentAt: l ? (l.createdAt || l.createdat || null) : null,
+          lastStatus: l ? l.status : null
+        };
+      } catch (err) {
+        console.warn('PostgreSQL error fetching email stats:', err);
+      }
+    }
+
+    const memList = (inMemoryData['email_logs'] || []) as unknown as EmailLogRecord[];
+    return {
+      total: memList.length,
+      sent: memList.filter(r => r.status === 'SENT').length,
+      simulated: memList.filter(r => r.status === 'SIMULATED').length,
+      failed: memList.filter(r => r.status === 'FAILED').length,
+      lastSentAt: memList.length > 0 ? memList[0].createdAt : null,
+      lastStatus: memList.length > 0 ? memList[0].status : null
+    };
   },
 
   async logActivity(adminUser: string, action: string, product: string, previousValue: string, newValue: string) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, CustomRequestRecord } from '@/data/db';
 import { getSession } from '@/data/auth';
+import { sendCustomRequestReceivedEmail } from '@/services/emailService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -95,6 +96,9 @@ export async function POST(request: Request) {
     };
 
     const created = await db.createCustomRequest(payload);
+
+    // Trigger Non-blocking Email Notifications to Customer & Admin
+    void sendCustomRequestReceivedEmail(created);
 
     return NextResponse.json({
       success: true,
