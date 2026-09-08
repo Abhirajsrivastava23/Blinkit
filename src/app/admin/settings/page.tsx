@@ -207,7 +207,7 @@ export default function AdminSettingsPage() {
   const [isExecutingReset, setIsExecutingReset] = useState(false);
   const [lastResetResult, setLastResetResult] = useState<any | null>(null);
 
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/homepage');
@@ -241,7 +241,7 @@ export default function AdminSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   const fetchEmailStatus = useCallback(async () => {
     try {
@@ -252,8 +252,8 @@ export default function AdminSettingsPage() {
         setEmailConfig(data.config || null);
         setEmailStats(data.stats || null);
         setEmailLogs(data.logs || []);
-        if (data.config?.adminAlertEmail && !testEmailRecipient) {
-          setTestEmailRecipient(data.config.adminAlertEmail);
+        if (data.config?.adminAlertEmail) {
+          setTestEmailRecipient((prev) => (prev ? prev : (data.config.adminAlertEmail || '')));
         }
       }
     } catch (err) {
@@ -261,7 +261,7 @@ export default function AdminSettingsPage() {
     } finally {
       setLoadingEmailStatus(false);
     }
-  }, [testEmailRecipient]);
+  }, []);
 
   const fetchEntityCounts = useCallback(async () => {
     try {
@@ -284,7 +284,7 @@ export default function AdminSettingsPage() {
     fetchConfig();
     fetchEntityCounts();
     fetchEmailStatus();
-  }, [fetchEntityCounts, fetchEmailStatus]);
+  }, [fetchConfig, fetchEntityCounts, fetchEmailStatus]);
 
   const handleSendTestEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1158,10 +1158,13 @@ export default function AdminSettingsPage() {
                   Recipient Email Address
                 </label>
                 <input
+                  id="recipient-email-input"
                   type="email"
                   value={testEmailRecipient}
                   onChange={(e) => setTestEmailRecipient(e.target.value)}
                   placeholder="e.g. yourname@example.com"
+                  autoComplete="email"
+                  spellCheck={false}
                   required
                   className="w-full p-2.5 border rounded-xl bg-zinc-50 focus:bg-white focus:outline-none text-xs"
                 />
