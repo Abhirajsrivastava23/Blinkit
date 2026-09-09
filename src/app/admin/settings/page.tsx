@@ -24,9 +24,6 @@ import {
   X,
   AlertOctagon,
   Mail,
-  Send,
-  CheckCircle,
-  AlertCircle,
   Inbox,
   Server,
   Shield,
@@ -193,10 +190,6 @@ export default function AdminSettingsPage() {
   const [emailStats, setEmailStats] = useState<any>(null);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [loadingEmailStatus, setLoadingEmailStatus] = useState(false);
-  const [testEmailRecipient, setTestEmailRecipient] = useState('');
-  const [testEmailTemplate, setTestEmailTemplate] = useState('test');
-  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
-  const [testEmailResult, setTestEmailResult] = useState<any | null>(null);
 
   // Data Management State
   const [entityCounts, setEntityCounts] = useState<EntityCounts | null>(null);
@@ -252,9 +245,6 @@ export default function AdminSettingsPage() {
         setEmailConfig(data.config || null);
         setEmailStats(data.stats || null);
         setEmailLogs(data.logs || []);
-        if (data.config?.adminAlertEmail) {
-          setTestEmailRecipient((prev) => (prev ? prev : (data.config.adminAlertEmail || '')));
-        }
       }
     } catch (err) {
       console.error('Failed to load email status:', err);
@@ -286,38 +276,7 @@ export default function AdminSettingsPage() {
     fetchEmailStatus();
   }, [fetchConfig, fetchEntityCounts, fetchEmailStatus]);
 
-  const handleSendTestEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!testEmailRecipient || !testEmailRecipient.includes('@')) {
-      showToast('Please enter a valid recipient email address.', 'error');
-      return;
-    }
-    try {
-      setIsSendingTestEmail(true);
-      setTestEmailResult(null);
-      const res = await fetch('/api/admin/email-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipientEmail: testEmailRecipient,
-          templateType: testEmailTemplate
-        })
-      });
-      const data = await res.json();
-      setTestEmailResult(data);
-      if (res.ok && data.success) {
-        showToast(data.message || 'Test email dispatched successfully!', 'success');
-        void fetchEmailStatus();
-      } else {
-        showToast(data.error || 'Failed to dispatch test email.', 'error');
-      }
-    } catch (err) {
-      console.error('Test email error:', err);
-      showToast('Network error while sending test email.', 'error');
-    } finally {
-      setIsSendingTestEmail(false);
-    }
-  };
+
 
   const handleToggle = (key: string) => {
     setVisibilities((prev: any) => ({
@@ -1059,7 +1018,8 @@ export default function AdminSettingsPage() {
                   { key: 'EMAIL_FROM_SUPPORT', label: 'Support Sender', desc: 'support@fatafatapp.me' },
                   { key: 'EMAIL_FROM_CUSTOMERCARE', label: 'Customer Care Sender', desc: 'customercare@fatafatapp.me' },
                   { key: 'EMAIL_FROM_REFUNDS', label: 'Refunds Sender', desc: 'refunds@fatafatapp.me' },
-                  { key: 'ADMIN_ALERT_EMAIL', label: 'Admin Recipient', desc: 'Store Alerts' }
+                  { key: 'ADMIN_ALERT_EMAIL', label: 'Admin Recipient', desc: 'Store Alerts' },
+                  { key: 'ADMIN_ALERT_EMAILS', label: 'Multi-Admin Recipient', desc: 'Comma-separated' }
                 ].map(item => {
                   const isPresent = !!emailConfig?.environmentVariablesDetected?.[item.key];
                   return (
@@ -1138,132 +1098,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          {/* Send Live Test Email Card */}
-          <div className="bg-white border border-zinc-200/40 p-6 rounded-3xl shadow-sm space-y-4">
-            <div className="flex items-center gap-2.5 border-b pb-3">
-              <Send className="h-4.5 w-4.5 text-brand-burgundy" />
-              <div>
-                <h4 className="font-serif font-black text-sm text-zinc-900">
-                  Send Test Email & Verify Integration
-                </h4>
-                <p className="text-[11px] text-zinc-500 font-medium">
-                  Dispatch a real email to verify deliverability, template styling, and provider connectivity.
-                </p>
-              </div>
-            </div>
 
-            <form onSubmit={handleSendTestEmail} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
-              <div className="sm:col-span-6 space-y-1.5">
-                <label className="font-bold text-zinc-700 text-[11px] block">
-                  Recipient Email Address
-                </label>
-                <input
-                  id="recipient-email-input"
-                  type="email"
-                  value={testEmailRecipient}
-                  onChange={(e) => setTestEmailRecipient(e.target.value)}
-                  placeholder="e.g. yourname@example.com"
-                  autoComplete="email"
-                  spellCheck={false}
-                  required
-                  className="w-full p-2.5 border rounded-xl bg-zinc-50 focus:bg-white focus:outline-none text-xs"
-                />
-              </div>
-
-              <div className="sm:col-span-4 space-y-1.5">
-                <label className="font-bold text-zinc-700 text-[11px] block">
-                  Email Template
-                </label>
-                <select
-                  value={testEmailTemplate}
-                  onChange={(e) => setTestEmailTemplate(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-zinc-50 focus:bg-white focus:outline-none text-xs font-medium"
-                >
-                  <option value="test">System Diagnostic Ping</option>
-                  <option value="send_all_22_synthetic">🚀 Super Admin: Dispatch ALL 22 Branded Templates (Synthetic Test)</option>
-                  <option value="order_placed">Customer: 1. Order Placed</option>
-                  <option value="out_for_delivery">Customer: 5. Out for Delivery</option>
-                  <option value="order_delivered">Customer: 6. Order Delivered</option>
-                  <option value="refund_processed">Customer: 9. Refund Processed</option>
-                </select>
-              </div>
-
-              <div className="sm:col-span-2">
-                <button
-                  type="submit"
-                  disabled={isSendingTestEmail}
-                  className="w-full py-2.5 px-4 bg-brand-burgundy hover:bg-black text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-sm"
-                >
-                  {isSendingTestEmail ? (
-                    <>
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5" /> {testEmailTemplate === 'send_all_22_synthetic' ? 'Dispatch 22' : 'Send Test'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-
-            {testEmailResult && (
-              <div className={`p-4 rounded-2xl text-xs border ${
-                testEmailResult.success 
-                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' 
-                  : 'bg-rose-50/80 border-rose-200 text-rose-900'
-              }`}>
-                <div className="flex items-center gap-2 font-bold">
-                  {testEmailResult.success ? (
-                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
-                  )}
-                  <span>{testEmailResult.message || (testEmailResult.success ? `Synthetic batch dispatch completed: ${testEmailResult.passedCount || 22}/22 accepted.` : 'Dispatch Failed')}</span>
-                </div>
-
-                {testEmailResult.results && Array.isArray(testEmailResult.results) && (
-                  <div className="mt-3 overflow-x-auto rounded-xl border border-emerald-200/80 bg-white">
-                    <table className="w-full text-left text-[11px]">
-                      <thead className="bg-zinc-50 border-b text-zinc-500 uppercase tracking-wider text-[9px] font-bold">
-                        <tr>
-                          <th className="p-2.5">#</th>
-                          <th className="p-2.5">Template</th>
-                          <th className="p-2.5">Category Sender</th>
-                          <th className="p-2.5">Resend Message ID</th>
-                          <th className="p-2.5 text-right">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100 font-mono text-[10px]">
-                        {testEmailResult.results.map((r: any) => (
-                          <tr key={r.id} className="hover:bg-zinc-50/50">
-                            <td className="p-2.5 font-bold text-zinc-400">{r.id}</td>
-                            <td className="p-2.5 font-sans font-bold text-zinc-800">{r.name}</td>
-                            <td className="p-2.5 text-zinc-600 truncate max-w-[180px]">{r.sender}</td>
-                            <td className="p-2.5 text-brand-burgundy font-mono truncate max-w-[160px]">{r.messageId || 'N/A'}</td>
-                            <td className="p-2.5 text-right font-sans font-black">
-                              <span className={`px-2 py-0.5 rounded text-[9px] ${r.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                {r.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {testEmailResult.result && !testEmailResult.results && (
-                  <div className="mt-2 text-[11px] space-y-1 font-mono text-zinc-600">
-                    <div>Provider: {testEmailResult.result.provider} | Status: {testEmailResult.result.status}</div>
-                    {testEmailResult.result.idempotencyKey && (
-                      <div className="truncate">Key: {testEmailResult.result.idempotencyKey}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
           {/* Email Audit Log Table */}
           <div className="bg-white border border-zinc-200/40 rounded-3xl shadow-sm overflow-hidden">
@@ -1285,7 +1120,7 @@ export default function AdminSettingsPage() {
               <div className="p-12 text-center text-zinc-400 space-y-2">
                 <Inbox className="h-8 w-8 mx-auto text-zinc-300" />
                 <p className="font-medium text-xs">No email records logged yet.</p>
-                <p className="text-[11px]">Send a test email or place an order to see live audit logs.</p>
+                <p className="text-[11px]">Place an order or trigger customer actions to see live audit logs.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">

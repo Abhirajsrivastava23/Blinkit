@@ -135,6 +135,7 @@ export function getAllConfiguredSenders(): {
 
 export function getAdminAlertEmail(): string {
   return (
+    process.env.ADMIN_ALERT_EMAILS ||
     process.env.ADMIN_ALERT_EMAIL ||
     process.env.EMAIL_TO_ADMIN ||
     'superadmin@fatafat.com'
@@ -195,6 +196,17 @@ async function sendRawEmail({
   const resendKey = (process.env.RESEND_API_KEY || '').trim();
   const brevoKey = (process.env.BREVO_API_KEY || '').trim();
   const smtpHost = (process.env.SMTP_HOST || '').trim();
+  const replyToEmail = (process.env.EMAIL_REPLY_TO || 'hello.fatafat@gmail.com').trim();
+
+  // Support single or multiple comma-separated recipients (e.g. for multi-admin alerts)
+  const recipients = to
+    .split(',')
+    .map(r => r.trim().toLowerCase())
+    .filter(r => r && r.includes('@'));
+
+  if (recipients.length === 0) {
+    return { success: false, provider: 'SIMULATION', error: 'No valid recipient email address' };
+  }
 
   // 1. RESEND API DISPATCH
   if (resendKey) {
@@ -207,7 +219,8 @@ async function sendRawEmail({
         },
         body: JSON.stringify({
           from,
-          to: [to],
+          to: recipients,
+          reply_to: replyToEmail,
           subject,
           html
         }),
@@ -235,7 +248,7 @@ async function sendRawEmail({
     try {
       // Parse sender name and email from "Name <email@domain.com>" or "email@domain.com"
       let senderName = 'FATAFAT';
-      let senderEmail = 'notifications@fatafat.com';
+      let senderEmail = 'notifications@fatafatapp.me';
       const fromMatch = from.match(/^(.*?)\s*<(.+)>$/);
       if (fromMatch) {
         senderName = fromMatch[1].trim() || senderName;
@@ -253,7 +266,8 @@ async function sendRawEmail({
         },
         body: JSON.stringify({
           sender: { name: senderName, email: senderEmail },
-          to: [{ email: to }],
+          to: recipients.map(email => ({ email })),
+          replyTo: { email: replyToEmail, name: 'FATAFAT Support' },
           subject,
           htmlContent: html
         }),
@@ -279,7 +293,7 @@ async function sendRawEmail({
   // 3. SMTP DISPATCH (if configured)
   if (smtpHost) {
     // In serverless environments, we log SMTP configuration or fallback safely
-    console.info(`[EMAIL SMTP] Dispatching email to ${to} via SMTP host ${smtpHost}`);
+    console.info(`[EMAIL SMTP] Dispatching email to ${recipients.join(', ')} via SMTP host ${smtpHost}`);
     return { success: true, provider: 'SMTP' };
   }
 
@@ -330,8 +344,8 @@ export async function sendEmailSafely(options: SendEmailOptions): Promise<SendEm
       };
     }
 
-    // 2. Resolve Category Sender & Dispatch Raw Email
-    const effectiveSender = options.from || getSenderEmailForEvent(eventType);
+    // 2. Strict Server-Side Category Sender Resolution & Raw Dispatch
+    const effectiveSender = getSenderEmailForEvent(eventType);
 
     const result = await sendRawEmail({
       to: cleanTo,
