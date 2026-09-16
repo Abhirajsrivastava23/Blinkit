@@ -20,7 +20,7 @@ export default function DeliveryPartnerPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { orders, updateOrderStatus, updateOrderDetails } = useOrders();
-  const { products, refreshProducts } = useProducts();
+  const { products, refreshProducts, updateLocalProduct } = useProducts();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'home' | 'deliveries' | 'photos' | 'issues' | 'history' | 'profile'>('home');
@@ -321,6 +321,9 @@ export default function DeliveryPartnerPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
+        if (data.product && updateLocalProduct) {
+          updateLocalProduct(data.product);
+        }
         setPhotoSuccessMsg('Product photo updated successfully.');
         showToast('Product photo updated successfully.', 'success');
         await refreshProducts();

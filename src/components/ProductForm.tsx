@@ -38,7 +38,7 @@ type ImageHistoryItem = {
 export default function ProductForm({ initialProduct }: ProductFormProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const { refreshProducts } = useProducts();
+  const { refreshProducts, updateLocalProduct } = useProducts();
   const [loading, setLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -160,6 +160,9 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
       const data = await res.json();
       if (res.ok && data.success) {
         setPrimaryImage(data.imageUrl);
+        if (data.product && updateLocalProduct) {
+          updateLocalProduct(data.product);
+        }
         showToast('Real product photo updated successfully!', 'success');
         await refreshProducts();
         await fetchImageHistory();
@@ -186,6 +189,9 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
       const data = await res.json();
       if (res.ok && data.success) {
         setPrimaryImage(data.imageUrl);
+        if (data.product && updateLocalProduct) {
+          updateLocalProduct(data.product);
+        }
         showToast('Product image rolled back successfully!', 'success');
         await refreshProducts();
         await fetchImageHistory();
@@ -287,6 +293,9 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        if (data.product && updateLocalProduct) {
+          updateLocalProduct(data.product);
+        }
         showToast(initialProduct ? 'Product specifications updated successfully!' : 'New product registered successfully!', 'success');
         await refreshProducts();
         router.push('/admin/products');

@@ -145,13 +145,14 @@ export async function POST(request: Request) {
         message: 'Product image restored successfully.',
         productId,
         restoredImageUrl,
-        previousImage: currentImage
+        previousImage: currentImage,
+        product: updateResult.product
       }),
       {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate'
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
         }
       }
     );
