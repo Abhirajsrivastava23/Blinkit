@@ -167,6 +167,12 @@ export function getPool(): Pool | null {
     return pool;
   }
 
+  if (!process.env.POSTGRES_URL && typeof (process as any).loadEnvFile === 'function') {
+    try { (process as any).loadEnvFile('.env.local'); } catch {}
+    try { (process as any).loadEnvFile('.env.production'); } catch {}
+    try { (process as any).loadEnvFile('.env'); } catch {}
+  }
+
   const rawConnectionString = (
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
