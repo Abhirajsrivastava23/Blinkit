@@ -139,7 +139,7 @@ async function runLiveProductionSuite() {
 
   console.log('[STEP 5.2] Testing Delivery Partner stock toggle API on test product...');
   const stockToggleRes = await db.updateProduct(targetId, { inStock: true });
-  console.log(`PASS: Product inStock verified = ${stockToggleRes.inStock}\n`);
+  console.log(`PASS: Product inStock verified = ${stockToggleRes?.inStock}\n`);
 
   // 6. RESTORE CLEAN ORIGINAL STATE
   console.log('--- CLEAN STATE RESTORATION ---');
