@@ -71,7 +71,7 @@ export default function ShippingPolicyPage() {
               <div className="border-t border-dashed pt-6 mt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
                 <div className="flex items-center gap-2">
                   <HelpCircle className="h-5 w-5 text-brand-gold shrink-0 animate-pulse" />
-                  <span className="font-medium text-zinc-500">Need shipping support?</span>
+                  <span className="font-medium text-zinc-500">Need shipping support? Write to <a href="mailto:hello.fatafat@gmail.com" className="text-brand-burgundy font-bold hover:underline">hello.fatafat@gmail.com</a></span>
                 </div>
                 <Link
                   href="/contact"

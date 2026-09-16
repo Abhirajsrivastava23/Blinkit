@@ -155,7 +155,7 @@ export default function AboutPage() {
             <span className="text-[9px] text-brand-gold font-extrabold uppercase tracking-[0.25em] block">THE FATAFAT PROMISE</span>
             <h3 className="text-2xl font-serif font-extrabold">Thoughtful Gifting, Spontaneous Delivery.</h3>
             <p className="text-xs max-w-xl mx-auto leading-relaxed text-zinc-300 font-medium">
-              We pledge to provide cakes baked with organic dairy materials, flowers hand-arranged by master florists, compliance-guaranteed adult wellness items with discreet packing overlays, and prompt runner fulfillment loops.
+              We pledge to provide cakes baked with organic dairy materials, flowers hand-arranged by master florists, compliance-guaranteed adult wellness items with discreet packing overlays, and prompt runner fulfillment loops within 24 hours. Questions or assistance? Reach us anytime at <a href="mailto:hello.fatafat@gmail.com" className="text-brand-gold underline font-bold">hello.fatafat@gmail.com</a>.
             </p>
           </div>
 

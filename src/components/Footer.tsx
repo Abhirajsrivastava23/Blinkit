@@ -32,6 +32,11 @@ export default function Footer() {
             <p className={`text-xs max-w-xs leading-relaxed ${isWellness ? 'text-wellness-muted' : 'text-zinc-400'}`}>
               Handcrafting beautiful celebration moments. From artisanal pastries and fresh floral bouquets to luxury hampers and personal care essentials. Delivered Fatafat.
             </p>
+            <p className="text-[11px] font-medium">
+              <a href="mailto:hello.fatafat@gmail.com" className={`hover:underline transition-opacity ${isWellness ? 'text-wellness-bronze' : 'text-brand-gold'}`}>
+                Support: hello.fatafat@gmail.com
+              </a>
+            </p>
             <div className="flex gap-4 pt-1">
               <a href="#" className={`hover:opacity-75 transition-opacity ${isWellness ? 'text-wellness-bronze' : 'text-brand-gold'}`}>
                 <Share2 className="h-4.5 w-4.5" />
