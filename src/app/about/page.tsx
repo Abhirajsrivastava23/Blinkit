@@ -55,7 +55,7 @@ export default function AboutPage() {
                 FATAFAT began as a simple realization: the most important moments in life—birthdays, acts of romantic gratitude, congratulations, or quiet self-care—frequently deserve immediate celebration. Yet, ordering a premium cake or luxury flowers has always involved hours of advance planning.
               </p>
               <p className="text-xs text-zinc-550 leading-relaxed font-medium">
-                We designed a platform to bridge the gap: matching premium artisanal quality with quick-commerce speed. By partnering with gourmet chefs, florist masters, and premium creators, we ensure your acts of care are delivered fresh within 12 hours.
+                We designed a platform to bridge the gap: matching premium artisanal quality with quick-commerce speed. By partnering with gourmet chefs, florist masters, and premium creators, we ensure your acts of care are delivered fresh within 24 hours.
               </p>
             </div>
             <div className="relative h-72 w-full rounded-3xl overflow-hidden border border-zinc-200/25 shadow-md">
@@ -136,7 +136,7 @@ export default function AboutPage() {
                 <span className="text-4xl font-serif font-extrabold text-brand-gold block select-none">03</span>
                 <h4 className="font-bold text-zinc-800 uppercase tracking-wider text-xs">Speed</h4>
                 <p className="text-[11px] text-zinc-550 leading-relaxed font-medium">
-                  spontaneous ideas demand fast execution. Our runners dispatch within minutes.
+                  Spontaneous ideas demand fast execution. Our runners ensure delivery within 24 hours.
                 </p>
               </div>
 
@@ -153,7 +153,7 @@ export default function AboutPage() {
           {/* Section 5: Our Promise Block */}
           <div className="bg-brand-burgundy text-white rounded-3xl p-8 sm:p-12 text-center space-y-4 shadow-xl border border-brand-burgundy/10">
             <span className="text-[9px] text-brand-gold font-extrabold uppercase tracking-[0.25em] block">THE FATAFAT PROMISE</span>
-            <h3 className="text-2xl font-serif font-extrabold"> спонтанная радость, Spontaneous Delivery.</h3>
+            <h3 className="text-2xl font-serif font-extrabold">Thoughtful Gifting, Spontaneous Delivery.</h3>
             <p className="text-xs max-w-xl mx-auto leading-relaxed text-zinc-300 font-medium">
               We pledge to provide cakes baked with organic dairy materials, flowers hand-arranged by master florists, compliance-guaranteed adult wellness items with discreet packing overlays, and prompt runner fulfillment loops.
             </p>

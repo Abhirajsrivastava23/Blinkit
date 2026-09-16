@@ -39,7 +39,7 @@ export interface SendEmailResult {
  * Category-specific sender addresses on verified fatafatapp.me domain:
  * - orders@fatafatapp.me -> Order creation & payment notifications
  * - notifications@fatafatapp.me -> Order status updates, tracking & delivery
- * - support@fatafatapp.me -> Support tickets & replies
+ * - hello.fatafat@gmail.com -> Support tickets & replies
  * - customercare@fatafatapp.me -> Custom orders & personalised requests
  * - refunds@fatafatapp.me -> Refund claims, approvals & rejections
  */
@@ -70,7 +70,7 @@ export function getSenderEmailForEvent(eventType: string): string {
     ).trim();
   }
 
-  // 3. Support Tickets -> support@fatafatapp.me
+  // 3. Support Tickets -> hello.fatafat@gmail.com
   if (
     normEvent.includes('support') ||
     normEvent.includes('ticket')
@@ -78,7 +78,7 @@ export function getSenderEmailForEvent(eventType: string): string {
     return (
       process.env.EMAIL_FROM_SUPPORT ||
       process.env.EMAIL_FROM ||
-      'FATAFAT Support <support@fatafatapp.me>'
+      'FATAFAT Support <hello.fatafat@gmail.com>'
     ).trim();
   }
 
@@ -127,7 +127,7 @@ export function getAllConfiguredSenders(): {
   return {
     orders: (process.env.EMAIL_FROM_ORDERS || process.env.EMAIL_FROM || 'FATAFAT Orders <orders@fatafatapp.me>').trim(),
     notifications: (process.env.EMAIL_FROM_NOTIFICATIONS || process.env.EMAIL_FROM || 'FATAFAT Notifications <notifications@fatafatapp.me>').trim(),
-    support: (process.env.EMAIL_FROM_SUPPORT || process.env.EMAIL_FROM || 'FATAFAT Support <support@fatafatapp.me>').trim(),
+    support: (process.env.EMAIL_FROM_SUPPORT || process.env.EMAIL_FROM || 'FATAFAT Support <hello.fatafat@gmail.com>').trim(),
     customercare: (process.env.EMAIL_FROM_CUSTOMERCARE || process.env.EMAIL_FROM_CUSTOM || process.env.EMAIL_FROM || 'FATAFAT Customer Care <customercare@fatafatapp.me>').trim(),
     refunds: (process.env.EMAIL_FROM_REFUNDS || process.env.EMAIL_FROM || 'FATAFAT Refunds <refunds@fatafatapp.me>').trim()
   };

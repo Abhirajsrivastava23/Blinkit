@@ -234,7 +234,7 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
             rating NUMERIC DEFAULT 4.5,
             reviewcount NUMERIC DEFAULT 0,
             instock BOOLEAN DEFAULT true,
-            deliverytime TEXT DEFAULT 'Within 12 hours',
+            deliverytime TEXT DEFAULT 'Within 24 hours',
             ingredients JSONB DEFAULT '[]'::jsonb,
             allergens JSONB DEFAULT '[]'::jsonb,
             storageinstructions TEXT,
@@ -258,8 +258,8 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
           ALTER TABLE products ADD COLUMN IF NOT EXISTS "reviewCount" NUMERIC DEFAULT 0;
           ALTER TABLE products ADD COLUMN IF NOT EXISTS instock BOOLEAN DEFAULT true;
           ALTER TABLE products ADD COLUMN IF NOT EXISTS "inStock" BOOLEAN DEFAULT true;
-          ALTER TABLE products ADD COLUMN IF NOT EXISTS deliverytime TEXT DEFAULT 'Within 12 hours';
-          ALTER TABLE products ADD COLUMN IF NOT EXISTS "deliveryTime" TEXT DEFAULT 'Within 12 hours';
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS deliverytime TEXT DEFAULT 'Within 24 hours';
+          ALTER TABLE products ADD COLUMN IF NOT EXISTS "deliveryTime" TEXT DEFAULT 'Within 24 hours';
           ALTER TABLE products ADD COLUMN IF NOT EXISTS storageinstructions TEXT;
           ALTER TABLE products ADD COLUMN IF NOT EXISTS "storageInstructions" TEXT;
           ALTER TABLE products ADD COLUMN IF NOT EXISTS occasions JSONB DEFAULT '[]'::jsonb;
@@ -847,7 +847,7 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
                 queryParams.push(
                   pItem.id, pItem.name, pItem.description || '', pItem.shortDescription || '', pItem.price, pItem.originalPrice || pItem.price, pItem.discount || 0,
                   pItem.image || '', JSON.stringify(pItem.gallery || []), pItem.category || 'Birthday Cakes', pItem.subCategory || null,
-                  pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 12 hours',
+                  pItem.rating || 0, pItem.reviewCount || 0, pItem.inStock !== undefined ? pItem.inStock : true, pItem.deliveryTime || 'Within 24 hours',
                   JSON.stringify(pItem.ingredients || []), JSON.stringify(pItem.allergens || []), pItem.storageInstructions || '',
                   JSON.stringify(pItem.occasions || []), JSON.stringify(pItem.variants || []), JSON.stringify(pItem.tags || []),
                   pItem.createdAt || new Date().toISOString(), pItem.updatedAt || new Date().toISOString()
@@ -905,7 +905,7 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
                   `, [
                     item.id, item.name, item.description || '', item.shortDescription || '', item.price, item.originalPrice || item.price, item.discount || 0,
                     item.image || '', JSON.stringify(item.gallery || []), item.category || 'Birthday Cakes', item.subCategory || null,
-                    item.rating || 0, item.reviewCount || 0, item.inStock !== undefined ? item.inStock : true, item.deliveryTime || 'Within 12 hours',
+                    item.rating || 0, item.reviewCount || 0, item.inStock !== undefined ? item.inStock : true, item.deliveryTime || 'Within 24 hours',
                     JSON.stringify(item.ingredients || []), JSON.stringify(item.allergens || []), item.storageInstructions || '',
                     JSON.stringify(item.occasions || []), JSON.stringify(item.variants || []), JSON.stringify(item.tags || []),
                     item.createdAt || new Date().toISOString(), item.updatedAt || new Date().toISOString()
@@ -1077,7 +1077,7 @@ export function normalizeProductRecord(row: Record<string, unknown> | Product | 
   parsed.reviewCount = Number(parsed.reviewCount || parsed.reviews || 0);
   parsed.image = resolveImageUrl(String(parsed.image || ''), parsed.category);
   parsed.gallery = Array.isArray(parsed.gallery) && parsed.gallery.length > 0 ? parsed.gallery : [parsed.image];
-  parsed.deliveryTime = parsed.deliveryTime || '30-45 mins';
+  parsed.deliveryTime = parsed.deliveryTime || 'Within 24 hours';
   parsed.inStock = parsed.inStock !== undefined ? Boolean(parsed.inStock) : true;
   parsed.description = String(parsed.description || '');
   parsed.ingredients = Array.isArray(parsed.ingredients) ? parsed.ingredients : (parsed.wellnessMaterial ? [parsed.wellnessMaterial] : ['Premium Ingredients']);
@@ -1913,7 +1913,7 @@ export const db = {
                 `, [
                   item.id, item.name, item.description || '', item.shortDescription || '', item.price, item.originalPrice || item.price, item.discount || 0,
                   item.image || '', JSON.stringify(item.gallery || [item.image || '']), item.category || 'Birthday Cakes', item.subCategory || null,
-                  item.rating || 0, item.reviewCount || 0, item.inStock !== undefined ? item.inStock : true, item.deliveryTime || 'Within 12 hours',
+                  item.rating || 0, item.reviewCount || 0, item.inStock !== undefined ? item.inStock : true, item.deliveryTime || 'Within 24 hours',
                   JSON.stringify(item.ingredients || []), JSON.stringify(item.allergens || []), item.storageInstructions || '',
                   JSON.stringify(item.occasions || []), JSON.stringify(item.variants || []), JSON.stringify(item.tags || []),
                   item.createdAt || new Date().toISOString(), item.updatedAt || new Date().toISOString()
@@ -2525,7 +2525,7 @@ export const db = {
             `, [
               canonical.id, canonical.name, canonical.description || '', canonical.shortDescription || '', canonical.price, canonical.originalPrice || canonical.price, canonical.discount || 0,
               imageUrl, canonical.category || 'Birthday Cakes', canonical.subCategory || null,
-              canonical.rating || 0, canonical.reviewCount || 0, canonical.inStock !== undefined ? canonical.inStock : true, canonical.deliveryTime || 'Within 12 hours',
+              canonical.rating || 0, canonical.reviewCount || 0, canonical.inStock !== undefined ? canonical.inStock : true, canonical.deliveryTime || 'Within 24 hours',
               JSON.stringify(canonical.ingredients || []), JSON.stringify(canonical.allergens || []), canonical.storageInstructions || '',
               JSON.stringify(canonical.occasions || []), JSON.stringify(canonical.variants || []), JSON.stringify(canonical.tags || []),
               canonical.createdAt || now, now
@@ -3772,7 +3772,7 @@ export const db = {
       rating: productData.rating || 4.5,
       reviewCount: productData.reviewCount || 0,
       image: primaryImage,
-      deliveryTime: productData.deliveryTime || '30-45 mins',
+      deliveryTime: productData.deliveryTime || 'Within 24 hours',
       inStock: productData.inStock !== undefined ? productData.inStock : true,
       description: productData.description || '',
       ingredients: productData.ingredients && productData.ingredients.length > 0 ? productData.ingredients : (productData.wellnessMaterial ? [productData.wellnessMaterial] : ['Premium Ingredients']),
@@ -3877,7 +3877,7 @@ export const db = {
           normalized.rating || 4.5,
           normalized.reviewCount || 0,
           normalized.inStock !== undefined ? normalized.inStock : true,
-          normalized.deliveryTime || 'Within 12 hours',
+          normalized.deliveryTime || 'Within 24 hours',
           JSON.stringify(normalized.ingredients || []),
           JSON.stringify(normalized.allergens || []),
           normalized.storageInstructions || 'Store fresh.',
@@ -3988,7 +3988,7 @@ export const db = {
           normalized.rating || 4.5,
           normalized.reviewCount || 0,
           normalized.inStock !== undefined ? normalized.inStock : true,
-          normalized.deliveryTime || 'Within 12 hours',
+          normalized.deliveryTime || 'Within 24 hours',
           JSON.stringify(normalized.ingredients || []),
           JSON.stringify(normalized.allergens || []),
           normalized.storageInstructions || 'Store fresh.',
@@ -4063,7 +4063,7 @@ export const db = {
             normalized.rating || 4.5,
             normalized.reviewCount || 0,
             normalized.inStock !== undefined ? normalized.inStock : true,
-            normalized.deliveryTime || 'Within 12 hours',
+            normalized.deliveryTime || 'Within 24 hours',
             JSON.stringify(normalized.ingredients || []),
             JSON.stringify(normalized.allergens || []),
             normalized.storageInstructions || 'Store fresh.',

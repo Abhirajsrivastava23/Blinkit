@@ -191,7 +191,7 @@ export default function ContactPage() {
                 </div>
                 <div className="space-y-1">
                   <h4 className="font-bold text-zinc-800 uppercase tracking-wider text-[10px]">Support Email</h4>
-                  <p className="text-zinc-900 font-extrabold text-sm">concierge@fatafat.com</p>
+                  <p className="text-zinc-900 font-extrabold text-sm">hello.fatafat@gmail.com</p>
                   <p className="text-[10px] text-zinc-500 font-medium">Average response time within 2 hours</p>
                 </div>
               </div>

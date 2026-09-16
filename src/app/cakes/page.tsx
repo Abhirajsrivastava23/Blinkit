@@ -9,7 +9,7 @@ function CakesPageContent() {
     <ProductListingPage
       categoryKey="cakes"
       title="CAKES THAT MAKE THEM SMILE."
-      description="Indulge in our exquisite collection of premium cakes, from classic Chocolate Truffle to custom designer creations, hand-baked fresh and delivered in minutes."
+      description="Indulge in our exquisite collection of premium cakes, from classic Chocolate Truffle to custom designer creations, hand-baked fresh with delivery within 24 hours."
     />
   );
 }

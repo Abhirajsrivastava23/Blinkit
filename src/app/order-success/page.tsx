@@ -80,7 +80,7 @@ function OrderSuccessContent() {
           <div className="flex justify-between">
             <span className="text-zinc-400 font-bold">ETA</span>
             <span className="font-extrabold flex items-center gap-1 text-green-700">
-              <Truck className="h-4 w-4" /> Within 12 hours
+              <Truck className="h-4 w-4" /> Within 24 hours
             </span>
           </div>
         </div>

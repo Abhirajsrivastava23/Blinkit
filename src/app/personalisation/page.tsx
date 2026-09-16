@@ -869,7 +869,7 @@ export default function PersonalisationPage() {
                   </div>
 
                   <p className="text-[10px] text-zinc-400 text-center font-medium">
-                    ⚡ Freshly handcrafted on order and delivered to your doorstep within 12 hours.
+                    ⚡ Freshly handcrafted on order and delivered to your doorstep within 24 hours.
                   </p>
                 </div>
               </div>

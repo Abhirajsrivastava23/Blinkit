@@ -355,7 +355,7 @@ export async function generateOrderPdf(order: OrderPdfData): Promise<boolean> {
     doc.setTextColor(30, 30, 30);
     const delMode = order.deliveryOption === 'Scheduled' 
       ? `Slot: ${order.deliveryTimeSlot || 'Scheduled'}` 
-      : 'ASAP (30-45 Mins)';
+      : 'Within 24 hours';
     doc.text(delMode.length > 22 ? delMode.slice(0, 20) + '...' : delMode, margin + colW * 2 + 3.5, y + 9.5);
 
     // Delivery OTP / Verification
@@ -777,7 +777,7 @@ export async function generateOrderPdf(order: OrderPdfData): Promise<boolean> {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     doc.setTextColor(120, 120, 120);
-    doc.text('Official computer-generated tax invoice. For queries, contact support@fatafatapp.me', margin, footerY + 3.2);
+    doc.text('Official computer-generated tax invoice. For queries, contact hello.fatafat@gmail.com', margin, footerY + 3.2);
 
     doc.text(`Generated on ${new Date().toLocaleDateString('en-IN')}`, pageWidth - margin, footerY + 1.5, { align: 'right' });
 

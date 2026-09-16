@@ -337,7 +337,7 @@ export default function AccountOrdersPage() {
       const date = new Date(order.scheduledDeliveryAt);
       return `Scheduled for ${date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
     }
-    return 'Within 12 hours';
+    return 'Within 24 hours';
   };
 
   // Handle order cancellation

@@ -38,7 +38,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Dynamically calculate location-specific delivery time estimates
   const getDeliveryTime = () => {
-    return 'Within 12 hours';
+    return 'Within 24 hours';
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {

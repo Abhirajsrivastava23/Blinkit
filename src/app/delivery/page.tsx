@@ -21,7 +21,7 @@ export default function DeliveryPage() {
               Delivery Logistics & Guidelines
             </h1>
             <p className="text-xs text-zinc-500">
-              How we package, carry, and deliver freshness to your doorstep in minutes.
+              How we package, carry, and deliver freshness to your doorstep within 24 hours.
             </p>
           </div>
 
@@ -35,7 +35,7 @@ export default function DeliveryPage() {
               <h3 className="text-base font-serif font-bold text-zinc-800">Delivery Options</h3>
               <ul className="space-y-3 text-zinc-600 leading-relaxed list-disc pl-4">
                 <li>
-                  <strong>Deliver ASAP:</strong> For celebrations, our runners deliver within 12 hours.
+                  <strong>Deliver ASAP:</strong> For celebrations, our runners deliver within 24 hours.
                 </li>
                 <li>
                   <strong>Scheduled Delivery:</strong> Pre-book time slots (e.g. 10:00 AM - 12:00 PM) for event planning.
@@ -72,7 +72,7 @@ export default function DeliveryPage() {
               </div>
               <h3 className="text-base font-serif font-bold text-zinc-800">Discreet Packing Promise</h3>
               <p className="text-zinc-600 leading-relaxed">
-                We respect your boundaries. All adult-wellness category shipments are packed in heavy plain cardboard boxes with unbranded receiver coordinates. The label mentions &ldquo;VM Logistics,&rdquo; keeping your order confidential.
+                We respect your boundaries. All adult-wellness category shipments are packed in heavy plain cardboard boxes with unbranded receiver coordinates. The label mentions &ldquo;FATAFAT Logistics,&rdquo; keeping your order confidential.
               </p>
             </div>
 

@@ -95,7 +95,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const [manufacturer, setManufacturer] = useState(initialProduct?.wellnessDetails?.manufacturer || 'Reckitt Benckiser');
 
   // Delivery
-  const [deliveryTime, setDeliveryTime] = useState(initialProduct?.deliveryTime || 'Within 12 hours');
+  const [deliveryTime, setDeliveryTime] = useState(initialProduct?.deliveryTime || 'Within 24 hours');
 
   // SEO
   const [seoTitle, setSeoTitle] = useState('');
@@ -427,7 +427,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                 <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px]">Delivery Time Frame</label>
                 <input
                   type="text"
-                  placeholder="e.g. 30-45 mins"
+                  placeholder="e.g. Within 24 hours"
                   value={deliveryTime}
                   onChange={(e) => setDeliveryTime(e.target.value)}
                   className="w-full p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none"

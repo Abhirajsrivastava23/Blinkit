@@ -62,7 +62,7 @@ export default function QuickViewModal() {
 
   // Location delivery estimate helper
   const getDeliveryTime = () => {
-    return 'Within 12 hours';
+    return 'Within 24 hours';
   };
 
   const handleAddToCart = () => {

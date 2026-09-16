@@ -981,7 +981,7 @@ export default function AdminSettingsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-zinc-500 font-medium">Support Tickets:</span>
                   <span className="font-bold text-zinc-900 font-mono text-[10px]">
-                    {emailConfig?.categorySenders?.support || 'support@fatafatapp.me'}
+                    {emailConfig?.categorySenders?.support || 'hello.fatafat@gmail.com'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1015,7 +1015,7 @@ export default function AdminSettingsPage() {
                   { key: 'RESEND_API_KEY', label: 'Resend API Key', desc: 'Free 3,000/mo' },
                   { key: 'EMAIL_FROM_ORDERS', label: 'Orders Sender', desc: 'orders@fatafatapp.me' },
                   { key: 'EMAIL_FROM_NOTIFICATIONS', label: 'Notifications Sender', desc: 'notifications@fatafatapp.me' },
-                  { key: 'EMAIL_FROM_SUPPORT', label: 'Support Sender', desc: 'support@fatafatapp.me' },
+                  { key: 'EMAIL_FROM_SUPPORT', label: 'Support Sender', desc: 'hello.fatafat@gmail.com' },
                   { key: 'EMAIL_FROM_CUSTOMERCARE', label: 'Customer Care Sender', desc: 'customercare@fatafatapp.me' },
                   { key: 'EMAIL_FROM_REFUNDS', label: 'Refunds Sender', desc: 'refunds@fatafatapp.me' },
                   { key: 'ADMIN_ALERT_EMAIL', label: 'Admin Recipient', desc: 'Store Alerts' },
@@ -1210,7 +1210,7 @@ export default function AdminSettingsPage() {
               </div>
               <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
                 <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_SUPPORT</span>
-                <span className="text-[11px] text-zinc-500 block">Support ticket responses: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT Support &lt;support@fatafatapp.me&gt;</code></span>
+                <span className="text-[11px] text-zinc-500 block">Support ticket responses: <code className="text-zinc-700 bg-zinc-100 px-1 py-0.5 rounded text-[10px]">FATAFAT Support &lt;hello.fatafat@gmail.com&gt;</code></span>
               </div>
               <div className="p-3 bg-white rounded-2xl border border-zinc-200 space-y-1">
                 <span className="font-mono font-bold text-brand-burgundy text-[11px] block">EMAIL_FROM_CUSTOMERCARE</span>

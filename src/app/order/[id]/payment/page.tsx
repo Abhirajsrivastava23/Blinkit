@@ -545,12 +545,12 @@ export default function OrderPaymentPage() {
                 )}
                 <div className="flex justify-between border-b border-zinc-200/80 pb-2.5">
                   <span className="text-zinc-500 font-medium">Delivery Option</span>
-                  <span className="font-bold text-zinc-800">{order.deliveryOption} ({order.eta || 'Within 12 hours'})</span>
+                  <span className="font-bold text-zinc-800">{order.deliveryOption} ({order.eta || 'Within 24 hours'})</span>
                 </div>
                 <div className="flex justify-between pt-0.5">
                   <span className="text-zinc-500 font-medium">Estimated Delivery</span>
                   <span className="font-bold text-emerald-700 flex items-center gap-1">
-                    <Truck className="h-4 w-4" /> Within 12 hours
+                    <Truck className="h-4 w-4" /> Within 24 hours
                   </span>
                 </div>
               </div>

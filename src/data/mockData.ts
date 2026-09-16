@@ -18,7 +18,7 @@ export interface Product {
   rating: number;
   reviewCount: number;
   image: string;
-  deliveryTime: string; // e.g. "30-60 mins"
+  deliveryTime: string; // e.g. "Within 24 hours"
   egglessAvailable?: boolean;
   isEgglessDefault?: boolean;
   inStock: boolean;
@@ -88,7 +88,7 @@ export const COMBOS: Combo[] = [];
 export const PRODUCTS: Product[] = (productsJson || []) as unknown as Product[];
 
 export const MOCK_REVIEWS: Review[] = [
-  { id: 'rev-1', user: 'Aman Sharma', rating: 5, text: 'The Chocolate Truffle cake was incredibly fresh! It was delivered in exactly 35 minutes and was very rich and delicious. Highly recommend FATAFAT.', date: '2026-08-15' },
+  { id: 'rev-1', user: 'Aman Sharma', rating: 5, text: 'The Chocolate Truffle cake was incredibly fresh! It was delivered fresh on time and was very rich and delicious. Highly recommend FATAFAT.', date: '2026-08-15' },
   { id: 'rev-2', user: 'Priya Iyer', rating: 4, text: 'Very elegant packaging. The roses bouquet looked exactly like the picture. A bit pricey but worth the premium feel.', date: '2026-08-18' },
   { id: 'rev-3', user: 'Rajiv Bhatia', rating: 5, text: 'I ordered the Anniversary combo. The red velvet cake was super moist and eggless. The calligraphic card was a very premium touch.', date: '2026-08-19' },
   { id: 'rev-4', user: 'Sneha Roy', rating: 5, text: 'Very quick delivery! Ordered bento cake for a small office celebration and it came with a candle and cute wooden spoon.', date: '2026-08-20' }

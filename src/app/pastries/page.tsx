@@ -9,7 +9,7 @@ function PastriesPageContent() {
     <ProductListingPage
       categoryKey="Pastries"
       title="SMALL BITES. BIG JOY."
-      description="Artisanal single-serve dessert pastries and celebration party packs. Freshly handcrafted and delivered in minutes."
+      description="Artisanal single-serve dessert pastries and celebration party packs. Freshly handcrafted with delivery within 24 hours."
     />
   );
 }

@@ -368,7 +368,7 @@ export default function CheckoutPage() {
                         <div>
                           <h4 className="font-bold text-zinc-800 text-sm">Deliver ASAP (Quick Commerce)</h4>
                           <p className="text-zinc-500 mt-1 leading-relaxed">
-                            Our runner will carry and deliver your products immediately. Est. delivery time: Within 12 hours.
+                            Our runner will carry and deliver your products immediately. Est. delivery time: Within 24 hours.
                           </p>
                         </div>
                       </div>
@@ -511,7 +511,7 @@ export default function CheckoutPage() {
                         <h4 className="font-bold uppercase tracking-wider text-[10px] text-zinc-400 mb-1">Delivery Time Slot</h4>
                         <p className="text-zinc-700">
                           {deliveryOption === 'ASAP' 
-                            ? 'Deliver ASAP (Within 12 hours)' 
+                            ? 'Deliver ASAP (Within 24 hours)' 
                             : `Scheduled delivery for slot: ${selectedTimeSlot}`}
                         </p>
                       </div>
