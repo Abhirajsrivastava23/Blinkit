@@ -2485,18 +2485,32 @@ export const db = {
         await activePool.query('ALTER TABLE products ALTER COLUMN image TYPE TEXT').catch(() => {});
         
         // 1. Direct atomic single-row update by ID with RETURNING *
-        const res = await activePool.query(
-          `UPDATE products 
-           SET image = $1, 
-               gallery = jsonb_build_array($1), 
-               updatedat = $2, 
-               "updatedAt" = $2
-           WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) OR LOWER(TRIM(name)) = LOWER(TRIM($3))
-           RETURNING *`,
-          [imageUrl, now, cleanId]
-        );
+        let res: any = null;
+        try {
+          res = await activePool.query(
+            `UPDATE products 
+             SET image = $1, 
+                 gallery = jsonb_build_array($1), 
+                 updatedat = $2, 
+                 "updatedAt" = $2
+             WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) OR LOWER(TRIM(name)) = LOWER(TRIM($3))
+             RETURNING *`,
+            [imageUrl, now, cleanId]
+          );
+        } catch (galleryQueryErr) {
+          // Fallback if gallery column type is not JSONB
+          res = await activePool.query(
+            `UPDATE products 
+             SET image = $1, 
+                 updatedat = $2, 
+                 "updatedAt" = $2
+             WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) OR LOWER(TRIM(name)) = LOWER(TRIM($3))
+             RETURNING *`,
+            [imageUrl, now, cleanId]
+          );
+        }
 
-        if (res.rows.length > 0) {
+        if (res && res.rows && res.rows.length > 0) {
           updatedProduct = normalizeProductRecord(res.rows[0]);
         } else {
           // Upsert from canonical products if row not yet in PostgreSQL

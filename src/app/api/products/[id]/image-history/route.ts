@@ -5,7 +5,10 @@ import { getSession } from '../../../../../data/auth';
 export async function GET(request: Request, context: any) {
   try {
     const session = await getSession(request);
-    if (!session || (session.role !== 'admin' && session.role !== 'delivery_partner')) {
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAuthorized = ['admin', 'super_admin', 'manager', 'inventory_manager', 'delivery_partner'].includes(userRole);
+
+    if (!session || !isAuthorized) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin or Delivery Partner session required.' },
         { status: 403 }

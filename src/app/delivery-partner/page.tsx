@@ -15,6 +15,7 @@ import { Product } from '../../data/mockData';
 import { useToast } from '../../components/Toast';
 import Logo from '../../components/Logo';
 import SafeImage from '../../components/SafeImage';
+import { compressImageFile } from '../../utils/imageCompressor';
 
 export default function DeliveryPartnerPage() {
   const router = useRouter();
@@ -206,11 +207,17 @@ export default function DeliveryPartnerPage() {
     if (!file || !activeOrder) return;
 
     setUploadingPhoto(true);
-    const formData = new FormData();
-    formData.append('orderId', activeOrder.id);
-    formData.append('file', file);
-
     try {
+      const optimizedFile = await compressImageFile(file, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.85
+      });
+
+      const formData = new FormData();
+      formData.append('orderId', activeOrder.id);
+      formData.append('file', optimizedFile);
+
       const res = await fetch('/api/delivery/upload-photo', {
         method: 'POST',
         body: formData
@@ -310,9 +317,15 @@ export default function DeliveryPartnerPage() {
     setPhotoSuccessMsg('');
 
     try {
+      const optimizedFile = await compressImageFile(photoFile, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.85
+      });
+
       const formData = new FormData();
       formData.append('productId', selectedPhotoProduct.id);
-      formData.append('file', photoFile);
+      formData.append('file', optimizedFile);
 
       const res = await fetch('/api/products/upload-photo', {
         method: 'POST',

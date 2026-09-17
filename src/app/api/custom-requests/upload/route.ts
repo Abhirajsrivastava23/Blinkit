@@ -41,10 +41,12 @@ export async function POST(request: Request) {
     const sanitizedFileName = (file.name || 'custom_photo.jpg').replace(/[^a-zA-Z0-9._-]/g, '');
     const storagePath = `custom-requests/${Date.now()}-${sanitizedFileName}`;
 
+    // Read buffer ONCE into memory
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
     if (supabaseUrl && supabaseKey) {
       try {
         const uploadUrl = `${supabaseUrl}/storage/v1/object/product-images/${storagePath}`;
-        const arrayBuffer = await file.arrayBuffer();
 
         const uploadRes = await fetch(uploadUrl, {
           method: 'POST',
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
             'Content-Type': mimeType || 'image/jpeg',
             'x-upsert': 'true'
           },
-          body: arrayBuffer,
+          body: fileBuffer,
           signal: AbortSignal.timeout(4000)
         });
 
@@ -67,12 +69,8 @@ export async function POST(request: Request) {
 
     // Fallback to base64 Data URI if storage bucket is unavailable
     if (!imageUrl) {
-      try {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        imageUrl = `data:${mimeType || 'image/jpeg'};base64,${buffer.toString('base64')}`;
-      } catch {
-        return NextResponse.json({ error: 'Failed to process image buffer.' }, { status: 500 });
-      }
+      const detectedMime = mimeType && mimeType.startsWith('image/') ? mimeType : 'image/jpeg';
+      imageUrl = `data:${detectedMime};base64,${fileBuffer.toString('base64')}`;
     }
 
     return NextResponse.json({

@@ -6,7 +6,10 @@ export async function GET(request: Request) {
   try {
     // 1. Verify authorization (Admin or Delivery Partner can view)
     const session = await getSession(request);
-    if (!session || (session.role !== 'admin' && session.role !== 'delivery_partner')) {
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAuthorized = ['admin', 'super_admin', 'manager', 'inventory_manager', 'delivery_partner'].includes(userRole);
+
+    if (!session || !isAuthorized) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin or Delivery Partner authorization required.' },
         { status: 403 }

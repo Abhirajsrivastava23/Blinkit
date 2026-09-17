@@ -24,10 +24,11 @@ export async function GET(request: Request) {
 
     // Server-side security check for Wellness 18+ Access
     const isWellnessReq = wellness === 'true' || category === 'wellness';
-    if (isWellnessReq) {
-      const session = await getSession(request);
-      const isAdmin = session && session.role === 'admin';
+    const session = await getSession(request);
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAdmin = !!session && ['admin', 'super_admin', 'manager', 'inventory_manager'].includes(userRole);
 
+    if (isWellnessReq) {
       if (!wellnessPublished && !isAdmin) {
         return new NextResponse(
           JSON.stringify({ error: '403 Forbidden: Wellness storefront is currently unpublished.' }),
@@ -52,8 +53,6 @@ export async function GET(request: Request) {
     let products = await db.readTable<Product>('products');
     
     // Force exclude wellness products if storefront is unpublished and requester is not admin
-    const session = await getSession(request);
-    const isAdmin = session && session.role === 'admin';
     if (!wellnessPublished && !isAdmin) {
       products = products.filter(p => p.category !== 'wellness');
     }
@@ -134,7 +133,10 @@ export async function POST(request: Request) {
   try {
     // Server-side authorization check (Admin only)
     const session = await getSession(request);
-    if (!session || session.role !== 'admin') {
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAdmin = ['admin', 'super_admin', 'manager', 'inventory_manager'].includes(userRole);
+
+    if (!session || !isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin authorization required to create products.' },
         { status: 403 }

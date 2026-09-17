@@ -20,7 +20,8 @@ export async function GET(request: Request, context: any) {
     if (product.category === 'wellness') {
       const wellnessSettings = await db.getWellnessSettings();
       const session = await getSession(request);
-      const isAdmin = session && session.role === 'admin';
+      const userRole = String(session?.role || '').toLowerCase().trim();
+      const isAdmin = session && ['admin', 'super_admin', 'manager', 'inventory_manager'].includes(userRole);
 
       if (!wellnessSettings.published && !isAdmin) {
         return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
@@ -57,7 +58,11 @@ export async function PATCH(request: Request, context: any) {
   try {
     // 1. Server-side session & role verification (Admin or Delivery Partner)
     const session = await getSession(request);
-    if (!session || (session.role !== 'admin' && session.role !== 'delivery_partner')) {
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAdmin = ['admin', 'super_admin', 'manager', 'inventory_manager'].includes(userRole);
+    const isPartner = userRole === 'delivery_partner';
+
+    if (!session || (!isAdmin && !isPartner)) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin or Delivery Partner authorization required to modify products.' },
         { status: 403 }
@@ -74,7 +79,7 @@ export async function PATCH(request: Request, context: any) {
     }
 
     // Block delivery partner from changing price or sensitive attributes
-    if (session.role === 'delivery_partner') {
+    if (isPartner) {
       const allowedKeys = ['image', 'gallery', 'inStock'];
       for (const k of Object.keys(body)) {
         if (!allowedKeys.includes(k)) {
@@ -129,7 +134,7 @@ export async function PATCH(request: Request, context: any) {
     }
 
     if (auditLogs.length > 0) {
-      const actor = session.role === 'delivery_partner' ? `Delivery Partner (${session.email || session.userId})` : (session.email || 'Admin Console');
+      const actor = isPartner ? `Delivery Partner (${session.email || session.userId})` : (session.email || 'Admin Console');
       db.logActivity(actor, 'Updated Product', prevProduct.name, auditLogs.join(', '), 'Success');
     }
 
@@ -153,7 +158,10 @@ export async function DELETE(request: Request, context: any) {
   try {
     // Server-side session & role verification (Admin only)
     const session = await getSession(request);
-    if (!session || session.role !== 'admin') {
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAdmin = ['admin', 'super_admin', 'manager'].includes(userRole);
+
+    if (!session || !isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin authorization required to delete products.' },
         { status: 403 }

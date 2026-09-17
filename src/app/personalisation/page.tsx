@@ -17,6 +17,7 @@ import { useProducts } from '../../context/ProductContext';
 import { PRODUCTS as fallbackProducts, Product } from '../../data/mockData';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/AuthContext';
+import { compressImageFile } from '../../utils/imageCompressor';
 
 export default function PersonalisationPage() {
   const router = useRouter();
@@ -120,8 +121,14 @@ export default function PersonalisationPage() {
     else setIsUploadingImage(true);
 
     try {
+      const optimizedFile = await compressImageFile(file, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.85
+      });
+
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', optimizedFile);
       formData.append('category', isUnlisted ? 'unlisted-reference' : 'personalisation-photo');
 
       const res = await fetch('/api/custom-requests/upload', {

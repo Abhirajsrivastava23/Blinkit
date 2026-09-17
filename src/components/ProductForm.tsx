@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useToast } from './Toast';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/mockData';
-import { ShieldCheck, Sparkles, Image as ImageIcon, Eye, Trash2, Plus, ArrowLeft, RefreshCw, Upload, UploadCloud } from 'lucide-react';
+import { ShieldCheck, Sparkles, Image as ImageIcon, Eye, Trash2, Plus, ArrowLeft, RefreshCw, Upload, UploadCloud, Camera } from 'lucide-react';
 import SafeImage from './SafeImage';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface ProductFormProps {
   initialProduct?: Product;
@@ -66,6 +67,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
   const [imageHistory, setImageHistory] = useState<ImageHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [adminUploadingPhoto, setAdminUploadingPhoto] = useState(false);
+  const [uploadingGalleryPhoto, setUploadingGalleryPhoto] = useState(false);
   const [restoringImage, setRestoringImage] = useState(false);
 
   // Inventory
@@ -138,19 +140,26 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
 
   const handleAdminPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0 || !initialProduct?.id) return;
+    if (!files || files.length === 0) return;
 
-    const file = files[0];
-    if (file.size > 8 * 1024 * 1024) {
-      showToast('Image exceeds 8 MB maximum size.', 'error');
+    const originalFile = files[0];
+    if (originalFile.size > 15 * 1024 * 1024) {
+      showToast('Image exceeds 15 MB maximum size limit.', 'error');
       return;
     }
 
     setAdminUploadingPhoto(true);
     try {
+      showToast('Optimizing & uploading real photo...', 'info');
+      const optimizedFile = await compressImageFile(originalFile, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.85
+      });
+
       const formData = new FormData();
-      formData.append('productId', initialProduct.id);
-      formData.append('file', file);
+      formData.append('productId', initialProduct?.id || `new-prod-${Date.now()}`);
+      formData.append('file', optimizedFile);
 
       const res = await fetch('/api/products/upload-photo', {
         method: 'POST',
@@ -165,14 +174,62 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
         }
         showToast('Real product photo updated successfully!', 'success');
         await refreshProducts();
-        await fetchImageHistory();
+        if (initialProduct?.id) {
+          await fetchImageHistory();
+        }
       } else {
         showToast(data.error || 'Failed to upload photo.', 'error');
       }
     } catch (err) {
-      showToast('Error uploading photo.', 'error');
+      console.error('Upload photo error:', err);
+      showToast('Error uploading photo. Please try again.', 'error');
     } finally {
       setAdminUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleGalleryPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const originalFile = files[0];
+    if (originalFile.size > 15 * 1024 * 1024) {
+      showToast('Image exceeds 15 MB maximum size limit.', 'error');
+      return;
+    }
+
+    setUploadingGalleryPhoto(true);
+    try {
+      showToast('Optimizing gallery photo...', 'info');
+      const optimizedFile = await compressImageFile(originalFile, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.85
+      });
+
+      const formData = new FormData();
+      formData.append('productId', initialProduct?.id || `gallery-prod-${Date.now()}`);
+      formData.append('file', optimizedFile);
+
+      const res = await fetch('/api/products/upload-photo', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.imageUrl) {
+        setGalleryImages(prev => [...prev, data.imageUrl]);
+        showToast('Gallery image uploaded & added!', 'success');
+      } else {
+        showToast(data.error || 'Failed to upload gallery image.', 'error');
+      }
+    } catch (err) {
+      console.error('Gallery photo upload error:', err);
+      showToast('Error uploading gallery photo.', 'error');
+    } finally {
+      setUploadingGalleryPhoto(false);
+      e.target.value = '';
     }
   };
 
@@ -513,19 +570,17 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
           <div className="bg-white border border-zinc-200/20 rounded-3xl p-6 space-y-4 shadow-sm">
             <div className="flex justify-between items-center border-b pb-2">
               <h4 className="font-serif font-extrabold text-sm text-brand-burgundy">3. Product Image Manager</h4>
-              {initialProduct?.id && (
-                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-burgundy hover:bg-[#541424] text-white text-[10px] font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-sm select-none">
-                  {adminUploadingPhoto ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  <span>{adminUploadingPhoto ? 'Uploading...' : 'Upload Real Photo'}</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleAdminPhotoUpload}
-                    disabled={adminUploadingPhoto}
-                    className="hidden"
-                  />
-                </label>
-              )}
+              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-burgundy hover:bg-[#541424] text-white text-[10px] font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-sm select-none transition-all">
+                {adminUploadingPhoto ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                <span>{adminUploadingPhoto ? 'Uploading...' : 'Upload Real Photo'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAdminPhotoUpload}
+                  disabled={adminUploadingPhoto}
+                  className="hidden"
+                />
+              </label>
             </div>
             
             <div className="space-y-2">
@@ -534,13 +589,13 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                 <input
                   type="text"
                   required
-                  placeholder="https://images.unsplash.com/photo-..."
+                  placeholder="https://images.unsplash.com/photo-... or upload above"
                   value={primaryImage}
                   onChange={(e) => setPrimaryImage(e.target.value)}
-                  className="flex-grow p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none font-mono"
+                  className="flex-grow p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none font-mono text-xs"
                 />
                 {primaryImage && (
-                  <div className="h-14 w-14 rounded-xl overflow-hidden border bg-zinc-50 shrink-0 relative group">
+                  <div className="h-14 w-14 rounded-xl overflow-hidden border bg-zinc-50 shrink-0 relative group shadow-xs">
                     <SafeImage src={primaryImage} alt="Preview" category={category} className="h-full w-full object-cover" />
                   </div>
                 )}
@@ -608,25 +663,36 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
 
             <div className="space-y-3 pt-2">
               <label className="font-bold text-zinc-500 uppercase tracking-widest text-[9px] block">Product Gallery List</label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap sm:flex-nowrap gap-2">
                 <input
                   type="text"
                   placeholder="Paste additional gallery slide image link..."
                   value={newGalleryUrl}
                   onChange={(e) => setNewGalleryUrl(e.target.value)}
-                  className="flex-grow p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none font-mono"
+                  className="flex-grow p-3.5 border rounded-xl bg-[#FAF9F6] focus:bg-white focus:outline-none font-mono text-xs"
                 />
                 <button
                   type="button"
                   onClick={handleAddGalleryImage}
-                  className="px-4 bg-zinc-800 text-white hover:bg-zinc-950 font-bold uppercase tracking-wider rounded-xl"
+                  className="px-4 py-3 bg-zinc-800 text-white hover:bg-zinc-950 font-bold uppercase tracking-wider text-xs rounded-xl transition-all"
                 >
-                  Add
+                  Add URL
                 </button>
+                <label className="flex items-center gap-1.5 px-4 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-xs select-none transition-all shrink-0">
+                  {uploadingGalleryPhoto ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                  <span>{uploadingGalleryPhoto ? 'Uploading...' : 'Upload Photo'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleGalleryPhotoUpload}
+                    disabled={uploadingGalleryPhoto}
+                    className="hidden"
+                  />
+                </label>
               </div>
 
               {galleryImages.length > 0 && (
-                <div className="grid grid-cols-4 gap-4 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
                   {galleryImages.map((url, idx) => (
                     <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-zinc-200/50 bg-zinc-50">
                       <SafeImage src={url} alt="Gallery slide" category={category} className="w-full h-full object-cover" />
@@ -634,6 +700,7 @@ export default function ProductForm({ initialProduct }: ProductFormProps) {
                         type="button"
                         onClick={() => handleRemoveGalleryImage(idx)}
                         className="absolute top-1.5 right-1.5 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove image"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

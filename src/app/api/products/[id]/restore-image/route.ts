@@ -11,7 +11,10 @@ export async function POST(request: Request, context: any) {
   try {
     // 1. Admin authorization check
     const session = await getSession(request);
-    if (!session || session.role !== 'admin') {
+    const userRole = String(session?.role || '').toLowerCase().trim();
+    const isAdmin = ['admin', 'super_admin', 'manager'].includes(userRole);
+
+    if (!session || !isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin authorization required to restore product images.' },
         { status: 403 }
