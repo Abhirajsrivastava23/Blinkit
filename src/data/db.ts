@@ -5961,11 +5961,13 @@ export const db = {
       // 3. Seed Tables Idempotently (ON CONFLICT DO NOTHING)
       const salt = process.env['AUTH_SECRET'] || 'fatafat_salt';
       
-      // Seed Admins - exactly ONE super admin
+      // Seed Admins
       const adminPasswordInput = process.env.ADMIN_PASSWORD || 'superadmin123';
       const adminHash = crypto.createHash('sha256').update(adminPasswordInput + salt).digest('hex');
+      const opsAdminHash = crypto.createHash('sha256').update('admin123' + salt).digest('hex');
       const adminsSeed = [
-        { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' }
+        { email: 'superadmin@fatafat.com', passwordHash: adminHash, name: 'FATAFAT Super Admin', phone: '9999999990', role: 'admin' },
+        { email: 'admin@fatafat.com', passwordHash: opsAdminHash, name: 'FATAFAT Ops Admin', phone: '9999999991', role: 'admin' }
       ];
       await client.query("DELETE FROM admin");
       await bulkInsert(client, 'admin', adminsSeed);

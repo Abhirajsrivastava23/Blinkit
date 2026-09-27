@@ -20,20 +20,46 @@ export async function POST(request: Request) {
     const cleanPassword = String(password).trim();
 
     // 1. Check Admin Account (admin table + admin.json fallback)
-    const admins = await db.readTable<any>('admin') || [];
-    let adminObj = admins.find(a => (a.email && a.email.toLowerCase().trim() === cleanInput));
-    if (!adminObj) {
-      adminObj = (adminJson as any[]).find((a: any) => a.email && a.email.toLowerCase().trim() === cleanInput);
-    }
+    const dbAdmins = await db.readTable<any>('admin') || [];
+    const allAdmins = [...dbAdmins, ...(adminJson as any[])];
+    
+    let adminObj = allAdmins.find((a: any) => {
+      const aEmail = String(a.email || '').toLowerCase().trim();
+      const aPhone = String(a.phone || '').replace(/\D/g, '');
+      const cleanDigits = cleanInput.replace(/\D/g, '');
+      return (
+        aEmail === cleanInput ||
+        (cleanInput === 'superadmin' && aEmail === 'superadmin@fatafat.com') ||
+        (cleanInput === 'admin' && aEmail === 'admin@fatafat.com') ||
+        (aEmail.split('@')[0] === cleanInput) ||
+        (cleanDigits.length >= 10 && aPhone && aPhone === cleanDigits)
+      );
+    });
+
     if (adminObj) {
-      if (verifyPassword(cleanPassword, adminObj.passwordHash || adminObj.passwordhash || '')) {
+      let storedHash = String(
+        adminObj.passwordHash ||
+        adminObj.passwordhash ||
+        adminObj.password_hash ||
+        adminObj.password ||
+        ''
+      ).trim();
+
+      if (!storedHash) {
+        const fallback = (adminJson as any[]).find((a: any) => 
+          String(a.email || '').toLowerCase().trim() === String(adminObj.email || '').toLowerCase().trim()
+        );
+        storedHash = String(fallback?.passwordHash || fallback?.passwordhash || '').trim();
+      }
+
+      if (verifyPassword(cleanPassword, storedHash)) {
         const session = await createSession(adminObj.email, adminObj.email, 'admin');
         const response = NextResponse.json({
           success: true,
           user: {
-            name: adminObj.name,
+            name: adminObj.name || 'FATAFAT Ops Admin',
             email: adminObj.email,
-            phone: adminObj.phone,
+            phone: adminObj.phone || '',
             role: 'admin'
           }
         });

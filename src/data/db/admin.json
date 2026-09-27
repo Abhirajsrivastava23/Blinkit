@@ -5,5 +5,12 @@
     "name": "FATAFAT Ops Admin",
     "phone": "9999999991",
     "role": "admin"
+  },
+  {
+    "email": "superadmin@fatafat.com",
+    "passwordHash": "c502147275ab30e2314d554a74f816e691ecd094d217e650d5c152a249be3eed",
+    "name": "FATAFAT Super Admin",
+    "phone": "9999999990",
+    "role": "admin"
   }
 ]
