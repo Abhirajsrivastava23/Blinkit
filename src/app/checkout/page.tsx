@@ -51,10 +51,16 @@ export default function CheckoutPage() {
       router.push('/');
       return;
     }
+    const uniqueProductCount = new Set(cartItems.map((item) => item.product.id)).size;
+    if (uniqueProductCount > 3) {
+      showToast('You can add up to 3 products per cart.', 'error');
+      router.push('/cart');
+      return;
+    }
     if (savedAddresses.length > 0 && !selectedAddressId) {
       setSelectedAddressId(savedAddresses[0].id);
     }
-  }, [isLoading, isLoggedIn, cartItems.length, savedAddresses, router]);
+  }, [isLoading, isLoggedIn, cartItems, savedAddresses, router]);
 
   const handleNextStep = () => {
     if (currentStep === 1) {

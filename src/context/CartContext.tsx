@@ -51,7 +51,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      return JSON.parse(storedCart) as CartItem[];
+      const parsed = JSON.parse(storedCart) as CartItem[];
+      if (Array.isArray(parsed)) {
+        // Enforce maximum 3 distinct products limit on stored cart
+        const unique = new Set<string>();
+        const sanitized: CartItem[] = [];
+        for (const item of parsed) {
+          if (unique.has(item.product.id) || unique.size < 3) {
+            unique.add(item.product.id);
+            sanitized.push(item);
+          }
+        }
+        if (sanitized.length !== parsed.length) {
+          localStorage.setItem('fatafat_cart', JSON.stringify(sanitized));
+        }
+        return sanitized;
+      }
+      return [];
     } catch {
       return [];
     }
@@ -96,9 +112,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Save cart to localStorage when it changes
   const saveCart = (items: CartItem[]) => {
-    setCartItems(items);
+    // Ensure items never exceed 3 distinct products
+    const unique = new Set<string>();
+    const sanitized: CartItem[] = [];
+    for (const item of items) {
+      if (unique.has(item.product.id) || unique.size < 3) {
+        unique.add(item.product.id);
+        sanitized.push(item);
+      }
+    }
+    setCartItems(sanitized);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('fatafat_cart', JSON.stringify(items));
+      localStorage.setItem('fatafat_cart', JSON.stringify(sanitized));
     }
   };
 
@@ -114,7 +139,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         alert('Access Denied: The Wellness section is currently unpublished.');
         return false;
       }
-      const stored = localStorage.getItem('fatafat_user');
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('fatafat_user') : null;
       let status = 'NOT_REQUESTED';
       if (stored) {
         try {
@@ -129,22 +154,36 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    const isExistingProductInCart = cartItems.some((item) => item.product.id === product.id);
-    const uniqueProductCount = new Set(cartItems.map((item) => item.product.id)).size;
+    // Read current items considering localStorage to eliminate fast click race conditions
+    let baseItems = cartItems;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('fatafat_cart');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > baseItems.length) {
+            baseItems = parsed;
+          }
+        }
+      } catch {}
+    }
+
+    const isExistingProductInCart = baseItems.some((item) => item.product.id === product.id);
+    const uniqueProductCount = new Set(baseItems.map((item) => item.product.id)).size;
 
     if (!isExistingProductInCart && uniqueProductCount >= 3) {
       showToast('You can add up to 3 products per cart.', 'error');
       return false;
     }
 
-    const existingIndex = cartItems.findIndex(
+    const existingIndex = baseItems.findIndex(
       (item) =>
         item.product.id === product.id &&
         item.selectedSize === (options?.size || product.variants?.[0] || '') &&
         item.selectedType === (options?.type || (product.egglessAvailable ? (product.isEgglessDefault ? 'Eggless' : 'Egg') : ''))
     );
 
-    const updatedCart = [...cartItems];
+    const updatedCart = [...baseItems];
 
     if (existingIndex > -1) {
       updatedCart[existingIndex].quantity += quantity;
@@ -163,8 +202,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const removeFromCart = (productId: string) => {
-    const updatedCart = cartItems.filter((item) => item.product.id !== productId);
-    saveCart(updatedCart);
+    setCartItems(prev => {
+      const updatedCart = prev.filter((item) => item.product.id !== productId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fatafat_cart', JSON.stringify(updatedCart));
+      }
+      return updatedCart;
+    });
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
@@ -172,10 +216,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       removeFromCart(productId);
       return;
     }
-    const updatedCart = cartItems.map((item) =>
-      item.product.id === productId ? { ...item, quantity } : item
-    );
-    saveCart(updatedCart);
+    setCartItems(prev => {
+      const updatedCart = prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity } : item
+      );
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fatafat_cart', JSON.stringify(updatedCart));
+      }
+      return updatedCart;
+    });
   };
 
   const clearCart = () => {

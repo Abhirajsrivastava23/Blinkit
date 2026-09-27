@@ -195,6 +195,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Order must contain at least one item.' }, { status: 400 });
       }
 
+      // Enforce 3 distinct products limit per cart/order
+      const uniqueProductIds = new Set(
+        body.items.map((item: any) => String(item.productId || item.product?.id || item.id || '').toLowerCase().trim())
+      );
+      if (uniqueProductIds.size > 3) {
+        return NextResponse.json({ error: 'You can add up to 3 products per cart.' }, { status: 400 });
+      }
+
       if (!body.address || !body.address.street || !body.address.city) {
         return NextResponse.json({ error: 'Valid delivery address is required.' }, { status: 400 });
       }
