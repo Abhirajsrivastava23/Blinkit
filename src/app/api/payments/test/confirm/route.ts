@@ -1,32 +1,18 @@
-'use server';
-
 import { db } from '@/data/db';
+import { validateRole } from '@/data/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * POST /api/payments/test/confirm
  * 
- * DEVELOPMENT ONLY - Test payment confirmation
- * 
- * Used for testing checkout flow WITHOUT real payment gateway
- * 
- * SECURITY:
- * ⚠️ ONLY available in development mode (NODE_ENV === 'development')
- * ⚠️ Returns 403 in production
- * ⚠️ Should NEVER be used for real payments
- * ⚠️ Protected by environment check
- * 
- * Usage (Development Only):
- * POST /api/payments/test/confirm
- * {
- *   "paymentId": "PAY-abc123",
- *   "status": "PAID",
- *   "transactionReference": "TXN-xyz789"
- * }
+ * DEVELOPMENT ONLY - Test payment confirmation (Admin Only)
  */
 export async function POST(request: Request) {
   try {
     // =========================================
-    // SECURITY: ONLY IN DEVELOPMENT
+    // SECURITY: ONLY IN DEVELOPMENT & ADMIN ONLY
     // =========================================
     if (process.env.NODE_ENV === 'production') {
       console.error('SECURITY: Test payment endpoint called in production!');
@@ -36,7 +22,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json() as {
+    const adminSession = await validateRole(request, ['admin', 'super_admin']);
+    if (!adminSession) {
+      return Response.json(
+        { error: 'Unauthorized: Admin authorization required for test payment simulation.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({})) as {
       paymentId?: string;
       status?: string;
       transactionReference?: string;
@@ -64,7 +58,7 @@ export async function POST(request: Request) {
     // =========================================
     let payment: Record<string, unknown> | null = null;
     try {
-      payment = await db.getPaymentById(paymentId);
+      payment = await db.getPaymentById(paymentId) || await db.getPaymentByOrderId(paymentId);
     } catch (err) {
       console.error('Error fetching payment:', err);
       return Response.json(
@@ -128,3 +122,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

@@ -92,14 +92,19 @@ export default function DeliveryPartnerPage() {
   useEffect(() => {
     const checkRiderAuth = async () => {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (!res.ok) {
           router.push('/delivery-partner/login');
           return;
         }
 
-        const data = await res.json();
-        if (data.user.role !== 'delivery_partner') {
+        const data = await res.json().catch(() => null);
+        if (!data || !data.authenticated || !data.user || data.user.role !== 'delivery_partner') {
           showToast('Access denied: Delivery Partner authorization required.', 'error');
           router.push('/delivery-partner/login');
           return;

@@ -9,21 +9,33 @@ export const revalidate = 0;
 export async function GET(request: Request) {
   try {
     const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Session required to view custom requests.' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const queryCustomerId = searchParams.get('customerId') || searchParams.get('customerEmail') || '';
 
-    // Authorization: User must be logged in as customer/admin, or provide customer identifier matching session
     let targetIdentifier = '';
-    if (session && session.userId) {
-      targetIdentifier = session.userId;
-    } else if (session && session.email) {
-      targetIdentifier = session.email;
-    } else if (queryCustomerId) {
+    if (session.role === 'admin' || session.role === 'super_admin') {
       targetIdentifier = queryCustomerId;
-    }
-
-    if (!targetIdentifier) {
-      return NextResponse.json({ customRequests: [] });
+      if (!targetIdentifier) {
+        const allRequests = await db.getAllCustomRequests();
+        return NextResponse.json({
+          success: true,
+          customRequests: allRequests
+        });
+      }
+    } else if (session.role === 'customer') {
+      targetIdentifier = session.userId || session.email;
+    } else {
+      return NextResponse.json(
+        { error: 'Forbidden: Unauthorized session role.' },
+        { status: 403 }
+      );
     }
 
     const requests = await db.getCustomRequestsByCustomer(targetIdentifier);

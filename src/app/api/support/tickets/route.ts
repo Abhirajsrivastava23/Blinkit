@@ -9,21 +9,33 @@ export const revalidate = 0;
 export async function GET(request: Request) {
   try {
     const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Session required to view support tickets.' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const queryCustomerId = searchParams.get('customerId') || searchParams.get('email') || searchParams.get('phone') || '';
 
-    // Authorization: User must be authenticated, or match provided query identifier
     let targetIdentifier = '';
-    if (session && session.userId) {
-      targetIdentifier = session.userId;
-    } else if (session && session.email) {
-      targetIdentifier = session.email;
-    } else if (queryCustomerId) {
+    if (session.role === 'admin' || session.role === 'super_admin') {
       targetIdentifier = queryCustomerId;
-    }
-
-    if (!targetIdentifier) {
-      return NextResponse.json({ success: true, tickets: [] });
+      if (!targetIdentifier) {
+        const allTickets = await db.getAllSupportTickets();
+        return NextResponse.json({
+          success: true,
+          tickets: allTickets
+        });
+      }
+    } else if (session.role === 'customer') {
+      targetIdentifier = session.userId || session.email;
+    } else {
+      return NextResponse.json(
+        { error: 'Forbidden: Unauthorized session role.' },
+        { status: 403 }
+      );
     }
 
     const tickets = await db.getSupportTicketsByCustomer(targetIdentifier);

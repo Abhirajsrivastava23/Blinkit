@@ -10,6 +10,14 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Session required to view custom request details.' },
+        { status: 401 }
+      );
+    }
+
     const params = await props.params;
     const cleanId = decodeURIComponent(params.id || '').trim();
 
@@ -22,32 +30,43 @@ export async function GET(
       return NextResponse.json({ error: 'Custom request not found.' }, { status: 404 });
     }
 
-    const session = await getSession(request);
-
-    // If customer is logged in, verify ownership unless admin
-    if (session && session.role === 'customer') {
+    // Role-based authorization
+    if (session.role === 'admin' || session.role === 'super_admin') {
+      return NextResponse.json({
+        success: true,
+        customRequest
+      });
+    } else if (session.role === 'customer') {
       let userPhone = '';
       if (session.userId) {
         const userRec = await db.getUserById(session.userId);
         if (userRec && userRec['phone']) userPhone = String(userRec['phone']);
       }
 
+      const sId = String(session.userId || '').toLowerCase().trim();
+      const sEmail = String(session.email || '').toLowerCase().trim();
+      const reqCustId = String(customRequest.customerId || '').toLowerCase().trim();
+      const reqEmail = String(customRequest.email || '').toLowerCase().trim();
+
       const isOwner = 
-        session.userId === customRequest.customerId ||
-        (session.email && session.email.toLowerCase() === customRequest.email.toLowerCase()) ||
-        (userPhone && userPhone === customRequest.mobile);
+        (reqCustId && (reqCustId === sId || reqCustId === sEmail)) ||
+        (reqEmail && (reqEmail === sEmail || reqEmail === sId)) ||
+        (userPhone && customRequest.mobile && userPhone === customRequest.mobile);
 
       if (!isOwner) {
-        return NextResponse.json({ error: 'Unauthorized: Access to this custom request is restricted.' }, { status: 403 });
+        return NextResponse.json({ error: 'Forbidden: Access to this custom request is restricted.' }, { status: 403 });
       }
+
+      return NextResponse.json({
+        success: true,
+        customRequest
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      customRequest
-    });
+    return NextResponse.json({ error: 'Forbidden: Unauthorized session role.' }, { status: 403 });
   } catch (err) {
     console.error('Error fetching custom request by ID:', err);
     return NextResponse.json({ error: 'Failed to retrieve custom request.' }, { status: 500 });
   }
 }
+

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../data/db';
+import { validateRole } from '../../../data/auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
@@ -9,7 +11,15 @@ export async function GET(request: Request) {
     const triggerSeed = searchParams.get('seed') === 'true';
 
     if (triggerSeed) {
-      console.log('Explicit database seed trigger received via API.');
+      const adminSession = await validateRole(request, ['admin', 'super_admin']);
+      if (!adminSession) {
+        return NextResponse.json(
+          { error: 'Unauthorized: Admin authorization required to trigger database seeding.' },
+          { status: 403 }
+        );
+      }
+
+      console.log('Explicit database seed trigger received via API from Admin:', adminSession.email);
       const seedResult = await db.seedDatabase();
       if (!seedResult.success) {
         return NextResponse.json({
@@ -29,36 +39,28 @@ export async function GET(request: Request) {
     const testDb = await db.testConnection();
     const latency = Date.now() - startTime;
 
-    let sampleProducts: any[] = [];
     let productCount = 0;
     try {
-      const pRes = await db.query('SELECT id, name, image FROM products LIMIT 5');
-      sampleProducts = pRes.rows;
       const countRes = await db.query('SELECT count(*) as count FROM products');
       productCount = Number(countRes.rows[0]?.count || 0);
-    } catch (e: any) {
-      sampleProducts = [{ error: e.message }];
+    } catch {
+      // count failure
     }
     
     return NextResponse.json({
       databaseProvider: 'Supabase PostgreSQL',
       connectionStatus: testDb.ok ? 'connected' : 'failed',
       connectionSuccessful: testDb.ok,
-      serverEnvironment: process.env.NODE_ENV || 'production',
       latency: `${latency}ms`,
-      productCount,
-      sampleProducts,
-      error: testDb.ok ? null : testDb.error
+      productCount
     });
   } catch (err: unknown) {
-    const errorObject = err instanceof Error ? err : new Error(String(err));
     return NextResponse.json({
       databaseProvider: 'Supabase PostgreSQL',
       connectionStatus: 'failed',
       connectionSuccessful: false,
-      serverEnvironment: process.env.NODE_ENV || 'production',
-      latency: 'unknown',
-      error: errorObject.message || String(err)
+      latency: 'unknown'
     }, { status: 500 });
   }
 }
+

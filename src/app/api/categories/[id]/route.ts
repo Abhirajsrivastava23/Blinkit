@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
+import { validateRole } from '../../../../data/auth';
 
 export async function PATCH(request: Request, context: any) {
   try {
+    const adminSession = await validateRole(request, ['admin', 'super_admin']);
+    if (!adminSession) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin authorization required to update categories.' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await context.params;
     const body = await request.json();
-    const categories = await db.readTable<any>('categories');
-    const idx = categories.findIndex(c => c.id === id);
+    const categories = await db.readTable<any>('categories') || [];
+    const idx = categories.findIndex((c: any) => c.id === id);
 
     if (idx === -1) {
       return NextResponse.json({ error: 'Category not found.' }, { status: 404 });
@@ -21,7 +30,7 @@ export async function PATCH(request: Request, context: any) {
     categories[idx] = updated;
     await db.writeTable('categories', categories);
 
-    db.logActivity('Admin Console', 'Updated Category', prev.name, `Status: ${prev.status}`, `Status: ${updated.status}`);
+    db.logActivity(adminSession.email || 'Admin Console', 'Updated Category', prev.name, `Status: ${prev.status}`, `Status: ${updated.status}`);
 
     return NextResponse.json({ success: true, category: updated });
   } catch (error) {
@@ -32,9 +41,17 @@ export async function PATCH(request: Request, context: any) {
 
 export async function DELETE(request: Request, context: any) {
   try {
+    const adminSession = await validateRole(request, ['admin', 'super_admin']);
+    if (!adminSession) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin authorization required to delete categories.' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await context.params;
-    const categories = await db.readTable<any>('categories');
-    const idx = categories.findIndex(c => c.id === id);
+    const categories = await db.readTable<any>('categories') || [];
+    const idx = categories.findIndex((c: any) => c.id === id);
 
     if (idx === -1) {
       return NextResponse.json({ error: 'Category not found.' }, { status: 404 });
@@ -44,7 +61,7 @@ export async function DELETE(request: Request, context: any) {
     categories.splice(idx, 1);
     await db.writeTable('categories', categories);
 
-    db.logActivity('Admin Console', 'Deleted Category', name, 'Active Category', 'Removed');
+    db.logActivity(adminSession.email || 'Admin Console', 'Deleted Category', name, 'Active Category', 'Removed');
 
     return NextResponse.json({ success: true, message: 'Category deleted.' });
   } catch (error) {
@@ -52,3 +69,4 @@ export async function DELETE(request: Request, context: any) {
     return NextResponse.json({ error: 'Failed to delete category.' }, { status: 500 });
   }
 }
+

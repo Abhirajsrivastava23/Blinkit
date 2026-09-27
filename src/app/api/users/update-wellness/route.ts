@@ -1,8 +1,20 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../data/db';
+import { validateRole } from '../../../../data/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(request: Request) {
   try {
+    const adminSession = await validateRole(request, ['admin', 'super_admin']);
+    if (!adminSession) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin authorization required to update customer wellness status.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { email, wellnessAccessStatus, approvedBy, requestId, reason } = body;
     
@@ -26,7 +38,7 @@ export async function POST(request: Request) {
     
     if (wellnessAccessStatus === 'APPROVED') {
       user.wellnessApprovedAt = new Date().toISOString();
-      user.wellnessApprovedBy = approvedBy || 'Admin';
+      user.wellnessApprovedBy = approvedBy || adminSession.email || 'Admin';
     }
     
     users[idx] = user;
@@ -49,7 +61,7 @@ export async function POST(request: Request) {
       userEmail: user.email,
       userName: user.name,
       action: actionLabel,
-      adminId: approvedBy || 'Admin',
+      adminId: approvedBy || adminSession.email || 'Admin',
       timestamp: new Date().toISOString(),
       requestId: finalRequestId,
       reason: reason || ''
@@ -64,3 +76,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

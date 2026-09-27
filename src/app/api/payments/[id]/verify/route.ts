@@ -1,41 +1,31 @@
-'use server';
-
 import { db } from '@/data/db';
-import { paymentService } from '@/services/paymentService';
+import { validateRole } from '@/data/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * POST /api/payments/[id]/verify
  * 
- * CRITICAL ENDPOINT: Server-side payment verification
- * 
- * This is the ONLY endpoint that can mark a payment as PAID.
- * 
- * SECURITY CHECKLIST:
- * ✅ Customer verified
- * ✅ Order ownership checked
- * ✅ Payment belongs to order
- * ✅ Amount verified
- * ✅ Real payment provider integration point
- * ✅ Only marks PAID after verification
- * ✅ Webhook-ready for async verification
- * 
- * Flow:
- * 1. Verify customer and order ownership
- * 2. Fetch payment from database
- * 3. Verify payment amount matches order
- * 4. Call real payment provider (Razorpay/Stripe/etc)
- * 5. Verify provider confirmation
- * 6. Mark payment as PAID only if verified
- * 7. Update order status to CONFIRMED
- * 8. Notify delivery partners
+ * Server-side manual payment verification endpoint (Admin only).
+ * Automated online payment verifications must go through /api/payments/razorpay/verify
+ * with cryptographic HMAC-SHA256 signature verification.
  */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminSession = await validateRole(request, ['admin', 'super_admin']);
+    if (!adminSession) {
+      return Response.json(
+        { error: 'Unauthorized: Admin authorization required to manually verify payments. Online payments must verify via /api/payments/razorpay/verify with HMAC signatures.' },
+        { status: 403 }
+      );
+    }
+
     const { id: paymentId } = await params;
-    const body = await request.json() as {
+    const body = await request.json().catch(() => ({})) as {
       customerId?: string;
       transactionReference?: string;
       providerResponse?: Record<string, unknown>;
@@ -84,18 +74,7 @@ export async function POST(
     }
 
     // =========================================
-    // 2. VERIFY CUSTOMER OWNERSHIP
-    // =========================================
-    if (customerId && payment.customerId !== customerId) {
-      console.error(`SECURITY: Payment ${cleanPaymentId} customer mismatch`);
-      return Response.json(
-        { error: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
-
-    // =========================================
-    // 3. FETCH ORDER AND VERIFY
+    // 2. FETCH ORDER AND VERIFY
     // =========================================
     const rawOrderId = (payment.orderId as string) || cleanPaymentId.replace(/^pay-/, '');
     let cleanOrderId = String(rawOrderId).trim();
@@ -128,12 +107,12 @@ export async function POST(
     }
 
     // =========================================
-    // 4. VERIFY AMOUNT MATCHES
+    // 3. VERIFY AMOUNT MATCHES
     // =========================================
-    const paymentAmount = payment.amount as number;
-    const orderTotal = order?.total as number;
+    const paymentAmount = Number(payment.amount || 0);
+    const orderTotal = Number(order?.total || 0);
 
-    if (Math.abs(paymentAmount - orderTotal) > 0.01) {
+    if (Math.abs(paymentAmount - orderTotal) > 0.01 && paymentAmount > 0) {
       console.error(`SECURITY: Amount mismatch for payment ${paymentId}. Payment: ${paymentAmount}, Order: ${orderTotal}`);
       return Response.json(
         { error: 'Payment amount does not match order total' },
@@ -142,69 +121,12 @@ export async function POST(
     }
 
     // =========================================
-    // 5. PAYMENT PROVIDER VERIFICATION
+    // 4. MARK PAYMENT AS PAID
     // =========================================
-    // IMPORTANT: This is where real payment gateway integration happens
-    // 
-    // In production, implement:
-    // const gateway = getPaymentGateway(payment.provider);
-    // const verificationResult = await gateway.verify(transactionReference, paymentAmount);
-    // 
-    // For now, we require the provider response to be passed
-    // In webhook scenario, provider calls this endpoint with verification
-    //
-    // NEVER mark PAID without real provider confirmation
-
-    if (!transactionReference && !providerResponse) {
-      return Response.json(
-        { error: 'Transaction reference or provider response required for verification' },
-        { status: 400 }
-      );
-    }
-
-    // =========================================
-    // 6. VERIFY WITH PAYMENT PROVIDER (TODO)
-    // =========================================
-    // This is the critical security point
-    // Call real payment provider to verify:
-    // - Amount matches
-    // - Transaction status is success
-    // - Customer matches
-    // - No replay attacks
-    //
-    // Example (Razorpay):
-    // const razorpayPayment = await razorpay.payments.fetch(transactionReference);
-    // if (razorpayPayment.status !== 'captured' || razorpayPayment.amount !== paymentAmount * 100) {
-    //   return 400 Payment verification failed
-    // }
-
-    // For development/testing without real gateway:
-    // Only mark as PAID if provider response indicates success
-    if (providerResponse && typeof providerResponse === 'object') {
-      const status = providerResponse.status as string;
-      if (status !== 'success' && status !== 'PAID' && status !== 'captured') {
-        // Payment failed - mark as failed
-        try {
-          await db.markPaymentFailed(paymentId, 'Payment failed at provider');
-        } catch (err) {
-          console.error('Error marking payment failed:', err);
-        }
-
-        return Response.json({
-          success: false,
-          status: 'FAILED',
-          reason: 'Payment verification failed at provider',
-        });
-      }
-    }
-
-    // =========================================
-    // 7. MARK PAYMENT AS PAID (ONLY HERE)
-    // =========================================
-    const finalTransactionRef = transactionReference || `TXN-${Date.now()}`;
+    const finalTransactionRef = transactionReference || `TXN-ADMIN-${Date.now()}`;
     
     try {
-      await db.updatePaymentWithReference(paymentId, finalTransactionRef, 'PAID');
+      await db.updatePaymentWithReference(cleanPaymentId, finalTransactionRef, 'PAID');
     } catch (err) {
       console.error('Error marking payment as paid:', err);
       return Response.json(
@@ -214,37 +136,34 @@ export async function POST(
     }
 
     // =========================================
-    // 8. UPDATE ORDER STATUS TO CONFIRMED
+    // 5. UPDATE ORDER STATUS TO CONFIRMED
     // =========================================
+    const now = new Date().toISOString();
     try {
-      const now = new Date().toISOString();
       await db.updateOrder(cleanOrderId, {
         status: 'Confirmed',
         paymentStatus: 'PAID',
+        paymentVerifiedAt: now,
         updatedAt: now
       });
     } catch (err) {
       console.error('Error updating order status:', err);
-      // Order update failed but payment was marked - log for recovery
     }
 
-    // =========================================
-    // 9. NOTIFY DELIVERY PARTNERS (TODO)
-    // =========================================
-    // In production:
-    // - Send notification to delivery partners
-    // - Add to fulfillment queue
-    // - Trigger order processing workflow
+    db.logActivity(
+      adminSession.email || 'Admin',
+      `Manual Payment Verified for Order #${cleanOrderId}`,
+      cleanOrderId,
+      String(order.paymentStatus || 'PENDING'),
+      'PAID'
+    );
 
-    // =========================================
-    // 10. RETURN SUCCESS
-    // =========================================
     return Response.json({
       success: true,
       status: 'PAID',
       paymentId: cleanPaymentId,
       orderId: cleanOrderId,
-      message: 'Payment verified successfully. Order confirmed.',
+      message: 'Payment verified successfully by administrator. Order confirmed.',
     });
   } catch (error) {
     console.error('Payment verification error:', error);
@@ -254,3 +173,4 @@ export async function POST(
     );
   }
 }
+

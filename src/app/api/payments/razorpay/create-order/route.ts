@@ -9,6 +9,12 @@ export const revalidate = 0;
 export async function POST(request: Request) {
   try {
     const session = await getSession(request);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Session required to create payment order.' },
+        { status: 401 }
+      );
+    }
 
     const body = await request.json().catch(() => ({})) as {
       orderId?: string;
@@ -55,15 +61,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Order #${cleanOrderId} not found in database.` }, { status: 404 });
     }
 
-    // 2. Authorization check if customer session is present
-    if (session && session.role === 'customer') {
+    // 2. Authorization check: customer must own the order, or be admin
+    if (session.role === 'customer') {
       const sId = String(session.userId || '').toLowerCase();
       const sEmail = String(session.email || '').toLowerCase();
       const oCust = String(order.customerId || '').toLowerCase();
       const oEmail = String(order.customerEmail || '').toLowerCase();
-      if (oCust && oCust !== sId && oCust !== sEmail && oEmail && oEmail !== sEmail && oEmail !== sId) {
+      const isOwner = (!oCust || oCust === sId || oCust === sEmail || (oEmail && (oEmail === sEmail || oEmail === sId)));
+      if (!isOwner) {
         return NextResponse.json({ error: 'Unauthorized: Order belongs to another account.' }, { status: 403 });
       }
+    } else if (session.role !== 'admin' && session.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden: Unauthorized session role.' }, { status: 403 });
     }
 
     // 3. Prevent duplicate order payment if already paid
