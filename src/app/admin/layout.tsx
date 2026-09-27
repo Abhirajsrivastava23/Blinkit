@@ -28,47 +28,79 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const notifRef = useRef<HTMLDivElement>(null);
 
   const isLoginPage = pathname === '/admin/login';
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(isLoginPage);
+  const [isChecking, setIsChecking] = useState<boolean>(!isLoginPage);
 
   // 1. Authorization checks
   useEffect(() => {
-    if (isLoginPage) return;
+    if (isLoginPage) {
+      setIsAuthorized(true);
+      setIsChecking(false);
+      return;
+    }
+
+    let isMounted = true;
 
     const checkAuth = async () => {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+
         if (!res.ok) {
-          showToast('Access denied: Operations Console authorization required.', 'error');
-          router.push('/admin/login');
+          if (isMounted) {
+            setIsAuthorized(false);
+            setIsChecking(false);
+            router.replace('/admin/login');
+          }
           return;
         }
 
         const data = await res.json();
-        if (data.user.role !== 'admin') {
-          showToast('Access denied: Admin role required for this system.', 'error');
-          router.push('/admin/login');
+        if (!data.authenticated || !data.user || (data.user.role !== 'admin' && data.user.role !== 'super_admin')) {
+          if (isMounted) {
+            setIsAuthorized(false);
+            setIsChecking(false);
+            showToast('Access denied: Admin role required for this system.', 'error');
+            router.replace('/admin/login');
+          }
           return;
         }
 
-        // Keep simulated role categories for sidebar visibility limits if needed
-        const email = data.user.email || '';
-        if (email === 'superadmin@fatafat.com') {
-          setUserRole('SUPER_ADMIN');
-        } else if (email === 'manager@fatafat.com') {
-          setUserRole('INVENTORY_MANAGER');
-        } else {
-          setUserRole('ADMIN');
-        }
+        if (isMounted) {
+          const email = data.user.email || '';
+          if (email === 'superadmin@fatafat.com') {
+            setUserRole('SUPER_ADMIN');
+          } else if (email === 'manager@fatafat.com') {
+            setUserRole('INVENTORY_MANAGER');
+          } else {
+            setUserRole('ADMIN');
+          }
 
-        setAdminName(data.user.name || 'Admin Operations');
-        setAdminEmail(email);
+          setAdminName(data.user.name || 'Admin Operations');
+          setAdminEmail(email);
+          setIsAuthorized(true);
+          setIsChecking(false);
+        }
       } catch (err) {
         console.error('Admin layout auth error:', err);
-        router.push('/admin/login');
+        if (isMounted) {
+          setIsAuthorized(false);
+          setIsChecking(false);
+          router.replace('/admin/login');
+        }
       }
     };
 
     checkAuth();
-  }, [pathname, router, isLoginPage]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname, router, isLoginPage, showToast]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -86,6 +118,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoginPage) {
     return <div className="min-h-screen bg-[#FAF9F6] text-brand-charcoal">{children}</div>;
+  }
+
+  // Block any rendering of admin dashboard, sidebar, or children until verified
+  if (!isAuthorized || isChecking) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-brand-burgundy border-t-transparent" />
+          <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">
+            Verifying Admin Authorization...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // Sidebar link categories as specified

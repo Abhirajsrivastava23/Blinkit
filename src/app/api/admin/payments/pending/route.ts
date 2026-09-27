@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { validateRole } from '@/data/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -7,7 +8,11 @@ export const revalidate = 0;
  * DEPRECATED: Manual payment verification queue has been decommissioned.
  * All payments are verified online via Razorpay Gateway (/api/payments).
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const adminSession = await validateRole(request, ['admin', 'super_admin']);
+  if (!adminSession) {
+    return NextResponse.json({ error: 'Forbidden: Admin session required.' }, { status: 403 });
+  }
   return NextResponse.json({
     success: true,
     count: 0,

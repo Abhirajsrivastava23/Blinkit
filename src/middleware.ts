@@ -137,10 +137,54 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // 3. Regular Page Routes: Apply Security Headers
+  // 3. Admin & Delivery Partner Server-Side Route Guard (Edge Level)
+  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+    const sessionToken =
+      request.cookies.get('fatafat_session_token')?.value ||
+      request.cookies.get('fatafat_session')?.value ||
+      request.cookies.get('session_token')?.value ||
+      request.cookies.get('admin_token')?.value ||
+      '';
+
+    if (!sessionToken.trim()) {
+      const loginUrl = new URL('/admin/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      redirectResponse.headers.set('Pragma', 'no-cache');
+      redirectResponse.headers.set('Expires', '0');
+      return redirectResponse;
+    }
+  }
+
+  if (pathname.startsWith('/delivery-partner') && pathname !== '/delivery-partner/login') {
+    const sessionToken =
+      request.cookies.get('fatafat_session_token')?.value ||
+      request.cookies.get('fatafat_session')?.value ||
+      request.cookies.get('session_token')?.value ||
+      '';
+
+    if (!sessionToken.trim()) {
+      const loginUrl = new URL('/delivery-partner/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      redirectResponse.headers.set('Pragma', 'no-cache');
+      redirectResponse.headers.set('Expires', '0');
+      return redirectResponse;
+    }
+  }
+
+  // 4. Regular Page Routes: Apply Security & Cache Control Headers
   const response = NextResponse.next();
   for (const [headerKey, headerVal] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(headerKey, headerVal);
+  }
+
+  if (pathname.startsWith('/admin') || pathname.startsWith('/delivery-partner')) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
   }
 
   return response;
