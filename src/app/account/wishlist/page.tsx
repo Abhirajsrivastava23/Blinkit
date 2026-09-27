@@ -20,11 +20,13 @@ export default function AccountWishlistPage() {
   const wishlistItems = PRODUCTS.filter((p) => wishlist.includes(p.id));
 
   const handleAddToCart = (product: Product) => {
-    addToCart(product, 1, {
+    const success = addToCart(product, 1, {
       size: product.variants?.[0],
       type: product.egglessAvailable ? 'Eggless' : undefined
     });
-    showToast(`${product.name} added to cart!`, 'success');
+    if (success) {
+      showToast(`${product.name} added to cart!`, 'success');
+    }
   };
 
   return (

@@ -106,10 +106,12 @@ export default function WellnessProductDetailPage() {
   }
 
   const handleAddToCart = () => {
-    addToCart(product, 1, {
+    const success = addToCart(product, 1, {
       size: currentVariant || undefined
     });
-    showToast(`${product.name} added to cart!`, 'success');
+    if (success) {
+      showToast(`${product.name} added to cart!`, 'success');
+    }
   };
 
   const handleAddToWishlist = () => {
@@ -359,9 +361,12 @@ export default function WellnessProductDetailPage() {
                   <p className="text-[10px] text-zinc-550 font-bold">Bundle Price: <span className="text-white font-extrabold text-sm">₹{product.price + bundleProduct.price}</span></p>
                   <button
                     onClick={() => {
-                      addToCart(product, 1);
-                      addToCart(bundleProduct, 1);
-                      showToast('Both items added to your cart!', 'success');
+                      const res1 = addToCart(product, 1);
+                      if (!res1) return;
+                      const res2 = addToCart(bundleProduct, 1);
+                      if (res2) {
+                        showToast('Both items added to your cart!', 'success');
+                      }
                     }}
                     className="px-6 py-2 bg-brand-gold text-zinc-950 hover:bg-brand-gold-light font-bold uppercase tracking-wider rounded-xl transition-colors text-[10px]"
                   >

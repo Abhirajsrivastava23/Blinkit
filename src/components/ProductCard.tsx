@@ -44,8 +44,10 @@ export default function ProductCard({ product }: ProductCardProps) {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addToCart(product, 1);
-    showToast(`Added ${product.name} to cart`, 'success');
+    const success = addToCart(product, 1);
+    if (success) {
+      showToast(`Added ${product.name} to cart`, 'success');
+    }
   };
 
   const handleWishlistToggle = (e: React.MouseEvent) => {

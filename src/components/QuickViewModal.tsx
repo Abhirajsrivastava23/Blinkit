@@ -66,12 +66,14 @@ export default function QuickViewModal() {
   };
 
   const handleAddToCart = () => {
-    addToCart(product, 1, {
+    const success = addToCart(product, 1, {
       size: selectedSize || undefined,
       type: product.egglessAvailable ? selectedType : undefined,
       message: cakeMessage || undefined
     });
-    showToast(`Added ${product.name} to cart.`, 'success');
+    if (success) {
+      showToast(`Added ${product.name} to cart.`, 'success');
+    }
   };
 
   const handleWishlistToggle = () => {

@@ -146,11 +146,15 @@ export default function ProductDetailPage() {
     if (!product.inStock) return;
 
     // Add main product to cart
-    addToCart(product, 1, {
+    const success = addToCart(product, 1, {
       size: selectedSize || undefined,
       type: hasTypeSelection ? selectedType : undefined,
       message: isCakes ? cakeMessage : undefined
     });
+
+    if (!success) {
+      return;
+    }
 
     // Add selected addons to cart as separate line items
     selectedAddons.forEach((addonId) => {

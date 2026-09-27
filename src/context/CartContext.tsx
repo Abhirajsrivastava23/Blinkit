@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product } from '../data/mockData';
 import { useAuth } from './AuthContext';
+import { useToast } from '../components/Toast';
 
 export interface CartItem {
   product: Product;
@@ -18,7 +19,7 @@ export interface CartItem {
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (product: Product, quantity?: number, options?: { size?: string; type?: string; message?: string }) => void;
+  addToCart: (product: Product, quantity?: number, options?: { size?: string; type?: string; message?: string }) => boolean;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -38,6 +39,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { wellnessPublished } = useAuth();
+  const { showToast } = useToast();
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     if (typeof window === 'undefined') {
       return [];
@@ -104,13 +106,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     product: Product,
     quantity: number = 1,
     options?: { size?: string; type?: string; message?: string }
-  ) => {
-    if (!product.inStock) return;
+  ): boolean => {
+    if (!product.inStock) return false;
 
     if (product.category === 'wellness') {
       if (!wellnessPublished) {
         alert('Access Denied: The Wellness section is currently unpublished.');
-        return;
+        return false;
       }
       const stored = localStorage.getItem('fatafat_user');
       let status = 'NOT_REQUESTED';
@@ -123,8 +125,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (status !== 'ACTIVE' && status !== 'APPROVED') {
         alert('Access Denied: You must request and receive approval for Wellness 18+ products.');
-        return;
+        return false;
       }
+    }
+
+    const isExistingProductInCart = cartItems.some((item) => item.product.id === product.id);
+    const uniqueProductCount = new Set(cartItems.map((item) => item.product.id)).size;
+
+    if (!isExistingProductInCart && uniqueProductCount >= 3) {
+      showToast('You can add up to 3 products per cart.', 'error');
+      return false;
     }
 
     const existingIndex = cartItems.findIndex(
@@ -149,6 +159,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     saveCart(updatedCart);
+    return true;
   };
 
   const removeFromCart = (productId: string) => {
