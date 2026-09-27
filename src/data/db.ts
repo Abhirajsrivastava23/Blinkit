@@ -1789,6 +1789,9 @@ export const db = {
   },
 
   async readTable<T>(key: 'products' | 'categories' | 'brands' | 'auditLogs' | 'users' | 'orders' | 'admin' | 'partners' | 'sessions' | 'inventoryIssues' | 'product_image_history' | 'payment_transactions'): Promise<T[]> {
+    if (key === 'admin') {
+      return adminJson as unknown as T[];
+    }
     const activePool = getPool();
     if (!activePool) {
       const memList = (inMemoryData[key] || []) as unknown as Record<string, unknown>[];
