@@ -30,14 +30,11 @@ export async function POST(request: Request, context: any) {
     const { historyId, targetImageUrl } = body;
 
     // 2. Fetch product from PostgreSQL
-    const products = await db.readTable<Product>('products') || [];
-    const productIdx = products.findIndex(p => p.id === id);
-
-    if (productIdx === -1) {
+    const product = await db.getProductById(id);
+    if (!product) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     }
 
-    const product = products[productIdx];
     const previousImage = product.image || '';
     let restoredUrl = targetImageUrl || '';
 

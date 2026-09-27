@@ -54,17 +54,14 @@ export async function POST(request: Request) {
     }
 
     // 3. Validate product existence
-    const products = await db.readTable<Product>('products') || [];
-    const productIdx = products.findIndex(p => p.id === productId);
-
-    if (productIdx === -1) {
+    const product = await db.getProductById(productId);
+    if (!product) {
       return NextResponse.json(
         { error: `Product not found with ID: ${productId}` },
         { status: 404 }
       );
     }
 
-    const product = products[productIdx];
     const currentImage = product.image || '';
 
     // 4. Restore the image atomically

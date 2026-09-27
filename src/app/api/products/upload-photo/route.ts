@@ -76,29 +76,11 @@ export async function POST(request: Request) {
     let previousImage = '';
 
     if (!isNewProductUpload) {
-      try {
-        const pRes = await db.query(
-          'SELECT * FROM products WHERE LOWER(TRIM(id)) = LOWER(TRIM($1)) OR LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1',
-          [cleanProductId]
-        );
-        if (pRes.rows.length > 0) {
-          rawProduct = pRes.rows[0];
-        }
-      } catch (e) {
-        console.warn('PostgreSQL product lookup warning:', e);
-      }
-
-      if (!rawProduct) {
-        const products = await db.readTable<Product>('products') || [];
-        rawProduct = products.find(p => 
-          String(p.id).trim().toLowerCase() === cleanProductId.toLowerCase() ||
-          String(p.name).trim().toLowerCase() === cleanProductId.toLowerCase()
-        );
-      }
-
-      if (rawProduct) {
-        canonicalId = String(rawProduct.id || cleanProductId).trim();
-        previousImage = rawProduct.image || '';
+      const existingProduct = await db.getProductById(cleanProductId);
+      if (existingProduct) {
+        rawProduct = existingProduct;
+        canonicalId = String(existingProduct.id || cleanProductId).trim();
+        previousImage = existingProduct.image || '';
       }
     }
 

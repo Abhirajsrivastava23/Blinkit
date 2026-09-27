@@ -860,25 +860,7 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
                   category, subcategory, rating, reviewcount, instock, deliverytime,
                   ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
                 ) VALUES ${valuePlaceholders.join(', ')}
-                ON CONFLICT (id) DO UPDATE SET
-                  name = EXCLUDED.name,
-                  description = EXCLUDED.description,
-                  shortdescription = EXCLUDED.shortdescription,
-                  price = EXCLUDED.price,
-                  originalprice = EXCLUDED.originalprice,
-                  discount = EXCLUDED.discount,
-                  image = EXCLUDED.image,
-                  gallery = EXCLUDED.gallery,
-                  category = EXCLUDED.category,
-                  subcategory = EXCLUDED.subcategory,
-                  rating = EXCLUDED.rating,
-                  reviewcount = EXCLUDED.reviewcount,
-                  instock = EXCLUDED.instock,
-                  deliverytime = EXCLUDED.deliverytime,
-                  occasions = EXCLUDED.occasions,
-                  variants = EXCLUDED.variants,
-                  tags = EXCLUDED.tags,
-                  updatedat = EXCLUDED.updatedat
+                ON CONFLICT (id) DO NOTHING
               `;
               await p.query(chunkInsertQuery, queryParams).catch(async () => {
                 // Individual fallback for this chunk
@@ -889,19 +871,7 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
                       category, subcategory, rating, reviewcount, instock, deliverytime,
                       ingredients, allergens, storageinstructions, occasions, variants, tags, createdat, updatedat
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
-                    ON CONFLICT (id) DO UPDATE SET
-                      name = EXCLUDED.name,
-                      price = EXCLUDED.price,
-                      originalprice = EXCLUDED.originalprice,
-                      discount = EXCLUDED.discount,
-                      image = EXCLUDED.image,
-                      gallery = EXCLUDED.gallery,
-                      category = EXCLUDED.category,
-                      subcategory = EXCLUDED.subcategory,
-                      occasions = EXCLUDED.occasions,
-                      variants = EXCLUDED.variants,
-                      tags = EXCLUDED.tags,
-                      updatedat = EXCLUDED.updatedat
+                    ON CONFLICT (id) DO NOTHING
                   `, [
                     item.id, item.name, item.description || '', item.shortDescription || '', item.price, item.originalPrice || item.price, item.discount || 0,
                     item.image || '', JSON.stringify(item.gallery || []), item.category || 'Birthday Cakes', item.subCategory || null,
@@ -917,12 +887,8 @@ export async function ensureDbSchema(p: Pool): Promise<void> {
             console.warn('[DB SCHEMA WARNING] Chunked product insert encountered an issue:', batchErr);
           }
 
-          // Purge non-canonical / demo / test products from PostgreSQL
-          const canonicalIds = (productsJson as any[]).map(p => String(p.id).toLowerCase().trim());
-          if (canonicalIds.length > 0) {
-            await p.query(`DELETE FROM "products" WHERE LOWER(TRIM(id)) != ALL($1::text[])`, [canonicalIds]).catch(() => {});
-            await p.query(`DELETE FROM "products" WHERE id LIKE 'demo-%' OR id LIKE 'test-%' OR id LIKE 'rzp-%' OR id = 'rzp-test-product-2'`).catch(() => {});
-          }
+          // Purge test / demo products only, NEVER purge admin-created or canonical products
+          await p.query(`DELETE FROM "products" WHERE id LIKE 'demo-%' OR id LIKE 'test-%' OR id LIKE 'rzp-%' OR id = 'rzp-test-product-2'`).catch(() => {});
         }
 
         schemaEnsured = true;
@@ -1063,7 +1029,8 @@ export function normalizeProductRecord(row: Record<string, unknown> | Product | 
   if (parsed.wellnessverified !== undefined && parsed.wellnessVerified === undefined) parsed.wellnessVerified = parsed.wellnessverified;
   if (parsed.wellnesssku !== undefined && parsed.wellnessSku === undefined) parsed.wellnessSku = parsed.wellnesssku;
   if (parsed.wellnessdetails !== undefined && parsed.wellnessDetails === undefined) parsed.wellnessDetails = parsed.wellnessdetails;
-  if (parsed.storageinstructions !== undefined && parsed.storageInstructions === undefined) parsed.storageInstructions = parsed.storageinstructions;
+  if (parsed.createdat !== undefined && parsed.createdAt === undefined) parsed.createdAt = parsed.createdat;
+  if (parsed.updatedat !== undefined && parsed.updatedAt === undefined) parsed.updatedAt = parsed.updatedat;
   if (parsed.isegglessdefault !== undefined && parsed.isEgglessDefault === undefined) parsed.isEgglessDefault = parsed.isegglessdefault;
   if (parsed.egglessavailable !== undefined && parsed.egglessAvailable === undefined) parsed.egglessAvailable = parsed.egglessavailable;
 
@@ -1087,6 +1054,8 @@ export function normalizeProductRecord(row: Record<string, unknown> | Product | 
   parsed.variants = Array.isArray(parsed.variants) ? parsed.variants : ['Standard'];
   parsed.wellnessBrand = parsed.wellnessBrand || parsed.brand || undefined;
   parsed.wellnessVerified = parsed.wellnessVerified !== undefined ? Boolean(parsed.wellnessVerified) : true;
+  parsed.createdAt = String(parsed.createdAt || parsed.createdat || new Date().toISOString());
+  parsed.updatedAt = String(parsed.updatedAt || parsed.updatedat || parsed.createdAt);
 
   return parsed as Product;
 }
@@ -2475,6 +2444,8 @@ export const db = {
       return { success: false, error: 'Image URL is required' };
     }
 
+    const existing = await this.getProductById(cleanId);
+    const targetId = existing?.id || cleanId;
     let updatedProduct: Product | null = null;
     const now = new Date().toISOString();
 
@@ -2490,12 +2461,12 @@ export const db = {
           res = await activePool.query(
             `UPDATE products 
              SET image = $1, 
-                 gallery = jsonb_build_array($1), 
+                 gallery = jsonb_build_array($1::text), 
                  updatedat = $2, 
                  "updatedAt" = $2
              WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) OR LOWER(TRIM(name)) = LOWER(TRIM($3))
              RETURNING *`,
-            [imageUrl, now, cleanId]
+            [imageUrl, now, targetId]
           );
         } catch (galleryQueryErr) {
           // Fallback if gallery column type is not JSONB
@@ -2506,47 +2477,41 @@ export const db = {
                  "updatedAt" = $2
              WHERE LOWER(TRIM(id)) = LOWER(TRIM($3)) OR LOWER(TRIM(name)) = LOWER(TRIM($3))
              RETURNING *`,
-            [imageUrl, now, cleanId]
+            [imageUrl, now, targetId]
           );
         }
 
         if (res && res.rows && res.rows.length > 0) {
           updatedProduct = normalizeProductRecord(res.rows[0]);
-        } else {
-          // Upsert from canonical products if row not yet in PostgreSQL
-          const canonical = (productsJson as any[]).find(p => 
-            String(p.id).trim().toLowerCase() === cleanId.toLowerCase() ||
-            String(p.name).trim().toLowerCase() === cleanId.toLowerCase()
-          );
-          if (canonical) {
-            const insRes = await activePool.query(`
-              INSERT INTO products (
-                id, name, description, shortdescription, "shortDescription", price, originalprice, "originalPrice", discount, image, gallery,
-                category, subcategory, "subCategory", rating, reviewcount, "reviewCount", instock, "inStock", deliverytime, "deliveryTime",
-                ingredients, allergens, storageinstructions, "storageInstructions", occasions, variants, tags, createdat, "createdAt", updatedat, "updatedAt"
-              ) VALUES (
-                $1, $2, $3, $4, $4, $5, $6, $6, $7, $8, jsonb_build_array($8),
-                $9, $10, $10, $11, $12, $12, $13, $13, $14, $14,
-                $15::jsonb, $16::jsonb, $17, $17,
-                $18::jsonb, $19::jsonb, $20::jsonb,
-                $21, $21, $22, $22
-              ) ON CONFLICT (id) DO UPDATE SET
-                image = EXCLUDED.image,
-                gallery = EXCLUDED.gallery,
-                updatedat = EXCLUDED.updatedat,
-                "updatedAt" = EXCLUDED."updatedAt"
-              RETURNING *
-            `, [
-              canonical.id, canonical.name, canonical.description || '', canonical.shortDescription || '', canonical.price, canonical.originalPrice || canonical.price, canonical.discount || 0,
-              imageUrl, canonical.category || 'Birthday Cakes', canonical.subCategory || null,
-              canonical.rating || 0, canonical.reviewCount || 0, canonical.inStock !== undefined ? canonical.inStock : true, canonical.deliveryTime || 'Within 24 hours',
-              JSON.stringify(canonical.ingredients || []), JSON.stringify(canonical.allergens || []), canonical.storageInstructions || '',
-              JSON.stringify(canonical.occasions || []), JSON.stringify(canonical.variants || []), JSON.stringify(canonical.tags || []),
-              canonical.createdAt || now, now
-            ]);
-            if (insRes.rows.length > 0) {
-              updatedProduct = normalizeProductRecord(insRes.rows[0]);
-            }
+        } else if (existing) {
+          // Upsert from existing product if row not yet in PostgreSQL
+          const insRes = await activePool.query(`
+            INSERT INTO products (
+              id, name, description, shortdescription, "shortDescription", price, originalprice, "originalPrice", discount, image, gallery,
+              category, subcategory, "subCategory", rating, reviewcount, "reviewCount", instock, "inStock", deliverytime, "deliveryTime",
+              ingredients, allergens, storageinstructions, "storageInstructions", occasions, variants, tags, createdat, "createdAt", updatedat, "updatedAt"
+            ) VALUES (
+              $1, $2, $3, $4, $4, $5, $6, $6, $7, $8, jsonb_build_array($8::text),
+              $9, $10, $10, $11, $12, $12, $13, $13, $14, $14,
+              $15::jsonb, $16::jsonb, $17, $17,
+              $18::jsonb, $19::jsonb, $20::jsonb,
+              $21, $21, $22, $22
+            ) ON CONFLICT (id) DO UPDATE SET
+              image = EXCLUDED.image,
+              gallery = EXCLUDED.gallery,
+              updatedat = EXCLUDED.updatedat,
+              "updatedAt" = EXCLUDED."updatedAt"
+            RETURNING *
+          `, [
+            existing.id, existing.name, existing.description || '', existing.shortDescription || '', existing.price, existing.originalPrice || existing.price, existing.discount || 0,
+            imageUrl, existing.category || 'Birthday Cakes', existing.subCategory || null,
+            existing.rating || 0, existing.reviewCount || 0, existing.inStock !== undefined ? existing.inStock : true, existing.deliveryTime || 'Within 24 hours',
+            JSON.stringify(existing.ingredients || []), JSON.stringify(existing.allergens || []), existing.storageInstructions || '',
+            JSON.stringify(existing.occasions || []), JSON.stringify(existing.variants || []), JSON.stringify(existing.tags || []),
+            existing.createdAt || now, now
+          ]);
+          if (insRes.rows.length > 0) {
+            updatedProduct = normalizeProductRecord(insRes.rows[0]);
           }
         }
 
@@ -2562,8 +2527,8 @@ export const db = {
     // Update in-memory products array
     const memList = inMemoryData['products'] || [];
     const idx = memList.findIndex((p: any) => 
-      String(p.id || p.ID || '').trim().toLowerCase() === cleanId.toLowerCase() ||
-      String(p.name || '').trim().toLowerCase() === cleanId.toLowerCase()
+      String(p.id || p.ID || '').trim().toLowerCase() === targetId.toLowerCase() ||
+      String(p.name || '').trim().toLowerCase() === targetId.toLowerCase()
     );
 
     if (idx >= 0) {
@@ -2572,6 +2537,7 @@ export const db = {
         image: imageUrl,
         gallery: [imageUrl],
         updatedAt: now,
+        updatedat: now,
       };
       if (!updatedProduct) {
         updatedProduct = normalizeProductRecord(memList[idx]);
@@ -2579,8 +2545,9 @@ export const db = {
     } else if (!updatedProduct && !activePool) {
       return { success: false, error: `Product not found for ID: "${cleanId}"` };
     }
+    inMemoryData['products'] = memList;
 
-    const finalProduct = updatedProduct || { id: cleanId, image: imageUrl, gallery: [imageUrl], updatedAt: now } as Product;
+    const finalProduct = updatedProduct || { id: targetId, image: imageUrl, gallery: [imageUrl], updatedAt: now, createdAt: now } as Product;
 
     return {
       success: true,
