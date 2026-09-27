@@ -50,6 +50,7 @@ export const metadata: Metadata = {
 
 import QuickViewModal from '../components/QuickViewModal';
 import KeyboardShortcutListener from '../components/KeyboardShortcutListener';
+import CouponCelebration from '../components/CouponCelebration';
 
 export default function RootLayout({
   children,
@@ -71,6 +72,7 @@ export default function RootLayout({
                     <OrderProvider>
                       {children}
                       <QuickViewModal />
+                      <CouponCelebration />
                       <KeyboardShortcutListener />
                     </OrderProvider>
                   </WellnessProvider>

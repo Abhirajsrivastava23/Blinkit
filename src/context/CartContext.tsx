@@ -17,6 +17,12 @@ export interface CartItem {
   flavour?: string;
 }
 
+export interface CouponCelebrationState {
+  isOpen: boolean;
+  code: string;
+  discountAmount: number;
+}
+
 interface CartContextType {
   cartItems: CartItem[];
   addToCart: (product: Product, quantity?: number, options?: { size?: string; type?: string; message?: string }) => boolean;
@@ -33,6 +39,8 @@ interface CartContextType {
   total: number;
   freeDeliveryThreshold: number;
   amountToFreeDelivery: number;
+  couponCelebration: CouponCelebrationState;
+  dismissCelebration: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -75,6 +83,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [promoCode, setPromoCode] = useState<string>('');
   const [promoError, setPromoError] = useState<string>('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [couponCelebration, setCouponCelebration] = useState<CouponCelebrationState>({
+    isOpen: false,
+    code: '',
+    discountAmount: 0,
+  });
+
+  const dismissCelebration = () => {
+    setCouponCelebration(prev => ({ ...prev, isOpen: false }));
+  };
 
   const freeDeliveryThreshold = 799;
 
@@ -300,19 +317,36 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const data = await res.json();
       if (res.ok && data.valid) {
+        const discount = Number(data.discountAmount) || 0;
         setPromoCode(normalizedCode);
-        setDiscountAmount(Number(data.discountAmount) || 0);
+        setDiscountAmount(discount);
         setPromoError('');
+        // Trigger celebration animation only on successful coupon application
+        setCouponCelebration({
+          isOpen: true,
+          code: normalizedCode,
+          discountAmount: discount
+        });
         return true;
       } else {
         setPromoError(data.error || 'Invalid coupon code.');
         setPromoCode('');
         setDiscountAmount(0);
+        setCouponCelebration({
+          isOpen: false,
+          code: '',
+          discountAmount: 0
+        });
         return false;
       }
     } catch (err) {
       console.error('Error applying coupon:', err);
       setPromoError('Unable to validate coupon. Please try again.');
+      setCouponCelebration({
+        isOpen: false,
+        code: '',
+        discountAmount: 0
+      });
       return false;
     }
   };
@@ -321,6 +355,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPromoCode('');
     setDiscountAmount(0);
     setPromoError('');
+    setCouponCelebration({
+      isOpen: false,
+      code: '',
+      discountAmount: 0
+    });
   };
 
   const total = Math.max(0, subtotal - discountAmount + deliveryFee);
@@ -342,7 +381,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deliveryFee,
         total,
         freeDeliveryThreshold,
-        amountToFreeDelivery
+        amountToFreeDelivery,
+        couponCelebration,
+        dismissCelebration
       }}
     >
       {children}
