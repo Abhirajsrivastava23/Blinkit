@@ -86,9 +86,65 @@ export async function POST(request: Request) {
       });
     }
 
-    const totalAmount = Number(order.total || 0);
+    // 4. Server-Side Canonical Total Recalculation against PostgreSQL products
+    const KNOWN_ADDONS: Record<string, number> = {
+      'addon-candle': 49,
+      'addon-card': 99,
+      'addon-knife': 149,
+      'addon-choco': 299,
+      'addon-bouquet': 499,
+    };
+
+    let authoritativeSubtotal = 0;
+    const items = Array.isArray(order.items) ? order.items : [];
+    
+    for (const item of items) {
+      const pid = String(item.productId || item.id || '').trim();
+      const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      let canonicalPrice = Number(item.price) || 0;
+      
+      const prod = await db.getProductById(pid);
+      if (prod && Number(prod.price) > 0) {
+        canonicalPrice = Number(prod.price);
+      } else if (KNOWN_ADDONS[pid]) {
+        canonicalPrice = KNOWN_ADDONS[pid];
+      }
+      authoritativeSubtotal += canonicalPrice * qty;
+    }
+
+    const authoritativeDeliveryFee = authoritativeSubtotal >= 799 ? 0 : 49;
+    let authoritativeDiscount = 0;
+
+    if (order.couponCode) {
+      const couponValidation = await db.validateCoupon(
+        String(order.couponCode),
+        authoritativeSubtotal,
+        { userId: session.userId, email: session.email }
+      );
+      if (couponValidation.valid) {
+        authoritativeDiscount = Number(couponValidation.discountAmount || 0);
+      } else {
+        authoritativeDiscount = 0;
+      }
+    }
+
+    const authoritativeGrandTotal = Math.max(0, authoritativeSubtotal + authoritativeDeliveryFee - authoritativeDiscount);
+    const totalAmount = authoritativeGrandTotal;
+
     if (totalAmount <= 0) {
       return NextResponse.json({ error: 'Invalid order amount.' }, { status: 400 });
+    }
+
+    // If order record had mismatched/tampered total, update DB order record to match canonical amount
+    if (Math.abs(Number(order.total) - totalAmount) > 0.01) {
+      try {
+        await db.updateOrder(cleanOrderId, {
+          total: totalAmount,
+          subtotal: authoritativeSubtotal,
+          deliveryFee: authoritativeDeliveryFee,
+          discount: authoritativeDiscount
+        });
+      } catch {}
     }
 
     // Razorpay requires amount in paise (1 INR = 100 paise)

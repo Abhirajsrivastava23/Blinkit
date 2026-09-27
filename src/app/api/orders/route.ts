@@ -238,23 +238,90 @@ export async function POST(request: Request) {
         }
       }
 
-      // 2. Server-side calculations & ID generation
+      // 2. Server-side canonical price resolution & calculations
       const orderId = body.id ? String(body.id).replace(/^#+/, '').trim() : `FT${Math.floor(100000 + Math.random() * 900000)}`;
       
+      const KNOWN_ADDONS: Record<string, { name: string; price: number; category: string; image: string }> = {
+        'addon-candle': { name: 'Sparkling Candle', price: 49, category: 'celebrations', image: '/images/products/candle.png' },
+        'addon-card': { name: 'Greeting Card', price: 99, category: 'celebrations', image: '/images/products/card.png' },
+        'addon-knife': { name: 'Designer Cake Knife', price: 149, category: 'celebrations', image: '/images/products/knife.png' },
+        'addon-choco': { name: 'Premium Chocolate Box', price: 299, category: 'chocolates', image: '/images/products/choco.png' },
+        'addon-bouquet': { name: 'Celebration Flower Bouquet', price: 499, category: 'flowers', image: '/images/products/bouquet.png' },
+      };
+
       let calculatedSubtotal = 0;
-      const sanitizedItems = (body.items || []).map((item: any) => {
-        const price = Number(item.price) || 0;
-        const qty = Number(item.quantity) || 1;
-        calculatedSubtotal += price * qty;
-        return {
-          productId: String(item.productId || item.id || '').trim(),
-          id: String(item.id || item.productId || '').trim(),
-          name: String(item.name || item.title || 'Product').trim(),
-          price,
+      const sanitizedItems: any[] = [];
+
+      for (const item of (body.items || [])) {
+        const rawProductId = String(item.productId || item.id || '').trim();
+        const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+
+        // Fetch canonical product record from PostgreSQL database
+        let canonicalProduct: any = await db.getProductById(rawProductId);
+        if (!canonicalProduct) {
+          canonicalProduct = await db.getProductById(rawProductId.toLowerCase());
+        }
+
+        let canonicalPrice = 0;
+        let canonicalName = String(item.name || item.title || 'Product').trim();
+        let canonicalImage = item.image || item.imageUrl || '';
+        let canonicalCategory = item.category;
+
+        if (canonicalProduct) {
+          canonicalPrice = Number(canonicalProduct.price) || 0;
+          canonicalName = canonicalProduct.name || canonicalName;
+          canonicalImage = canonicalProduct.image || canonicalImage;
+          canonicalCategory = canonicalProduct.category || canonicalCategory;
+
+          // Check if product is in stock
+          if (canonicalProduct.inStock === false) {
+            return NextResponse.json(
+              { error: `Product "${canonicalProduct.name}" is currently out of stock.` },
+              { status: 400 }
+            );
+          }
+        } else if (KNOWN_ADDONS[rawProductId]) {
+          const addon = KNOWN_ADDONS[rawProductId];
+          canonicalPrice = addon.price;
+          canonicalName = addon.name;
+          canonicalImage = addon.image || canonicalImage;
+          canonicalCategory = addon.category;
+        } else {
+          // Fallback check across products table
+          const allProducts = await db.readTable<any>('products').catch(() => []);
+          const matched = allProducts.find((p: any) => String(p.id).toLowerCase() === rawProductId.toLowerCase());
+          if (matched) {
+            canonicalPrice = Number(matched.price) || 0;
+            canonicalName = matched.name || canonicalName;
+            canonicalImage = matched.image || canonicalImage;
+            canonicalCategory = matched.category || canonicalCategory;
+          } else {
+            return NextResponse.json(
+              { error: `Invalid product ID "${rawProductId}". Product not found in catalog.` },
+              { status: 400 }
+            );
+          }
+        }
+
+        if (canonicalPrice <= 0) {
+          return NextResponse.json(
+            { error: `Invalid canonical price for product "${canonicalName}".` },
+            { status: 400 }
+          );
+        }
+
+        const itemSubtotal = canonicalPrice * qty;
+        calculatedSubtotal += itemSubtotal;
+
+        sanitizedItems.push({
+          productId: rawProductId,
+          id: rawProductId,
+          name: canonicalName,
+          price: canonicalPrice, // Strictly canonical DB price (ignores any tampered client price)
           quantity: qty,
-          image: item.image || item.imageUrl || '',
+          image: canonicalImage,
           unit: item.unit || '',
-          category: item.category || undefined,
+          category: canonicalCategory,
           selectedSize: item.selectedSize || item.size || item.weight || undefined,
           selectedType: item.selectedType || item.type || item.eggless || undefined,
           cakeMessage: item.cakeMessage || item.message || item.text || undefined,
@@ -263,12 +330,15 @@ export async function POST(request: Request) {
           flavour: item.flavour || item.flavor || undefined,
           specialInstructions: item.specialInstructions || item.instructions || item.notes || undefined,
           customisation: item.customisation || item.customization || undefined,
-          subtotal: price * qty
-        };
-      });
+          subtotal: itemSubtotal
+        });
+      }
 
-      const deliveryFee = body.deliveryFee !== undefined ? Number(body.deliveryFee) : (calculatedSubtotal >= 799 ? 0 : 49);
-      let discount = Number(body.discount) || 0;
+      // Authoritative delivery fee calculation: Free delivery at >= 799, else 49
+      const deliveryFee = calculatedSubtotal >= 799 ? 0 : 49;
+      
+      // Authoritative discount calculation - NEVER trust client-supplied discount
+      let discount = 0;
       let appliedCoupon: any = null;
 
       if (body.couponCode) {

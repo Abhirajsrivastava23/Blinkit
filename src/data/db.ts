@@ -2909,30 +2909,42 @@ export const db = {
     return usage;
   },
 
-  async getCouponUsageCount(couponIdOrCode: string, customerId?: string): Promise<number> {
+  async getCouponUsageCount(
+    couponIdOrCode: string, 
+    customerIdentifier?: string | { userId?: string; email?: string; phone?: string }
+  ): Promise<number> {
     const clean = String(couponIdOrCode || '').trim().toUpperCase();
+    const identifiers: string[] = [];
+    if (customerIdentifier) {
+      if (typeof customerIdentifier === 'object') {
+        if (customerIdentifier.userId) identifiers.push(String(customerIdentifier.userId).trim().toLowerCase());
+        if (customerIdentifier.email) identifiers.push(String(customerIdentifier.email).trim().toLowerCase());
+        if (customerIdentifier.phone) identifiers.push(String(customerIdentifier.phone).trim().toLowerCase());
+      } else {
+        identifiers.push(String(customerIdentifier).trim().toLowerCase());
+      }
+    }
+
     if (!pool) {
       const list = inMemoryData['coupon_usages'] || [];
       return list.filter((u: any) => {
         const matchCoupon = String(u.couponId || '').toUpperCase() === clean || String(u.couponCode || '').toUpperCase() === clean;
         if (!matchCoupon) return false;
-        if (customerId) {
-          const cId = String(customerId).trim().toLowerCase();
+        if (identifiers.length > 0) {
           const uCustId = String(u.customerId || '').trim().toLowerCase();
           const uCustEmail = String(u.customerEmail || '').trim().toLowerCase();
-          return uCustId === cId || uCustEmail === cId;
+          return identifiers.includes(uCustId) || identifiers.includes(uCustEmail);
         }
         return true;
       }).length;
     }
     try {
-      if (customerId) {
-        const cId = String(customerId).trim().toLowerCase();
+      if (identifiers.length > 0) {
         const res = await pool.query(
           `SELECT COUNT(*) FROM coupon_usages 
            WHERE (UPPER("couponId") = $1 OR UPPER("couponCode") = $1) 
-           AND (LOWER("customerId") = $2 OR LOWER("customerEmail") = $2)`,
-          [clean, cId]
+           AND (LOWER("customerId") = ANY($2::text[]) OR LOWER("customerEmail") = ANY($2::text[]))`,
+          [clean, identifiers]
         );
         return parseInt(res.rows[0]?.count || '0', 10);
       } else {
@@ -3016,12 +3028,9 @@ export const db = {
 
     // Check per-customer usage limit
     if (coupon.perCustomerLimit && Number(coupon.perCustomerLimit) > 0 && customer) {
-      const custIdentifier = customer.userId || customer.email || customer.phone;
-      if (custIdentifier) {
-        const custUsed = await this.getCouponUsageCount(String(coupon.id), custIdentifier);
-        if (custUsed >= Number(coupon.perCustomerLimit)) {
-          return { valid: false, error: 'You have already used this coupon the maximum allowed number of times.' };
-        }
+      const custUsed = await this.getCouponUsageCount(String(coupon.id), customer);
+      if (custUsed >= Number(coupon.perCustomerLimit)) {
+        return { valid: false, error: 'You have already used this coupon the maximum allowed number of times.' };
       }
     }
 
