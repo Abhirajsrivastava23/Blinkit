@@ -99,14 +99,14 @@ export default function DeliveryPartnerPage() {
           }
         });
         if (!res.ok) {
-          router.push('/delivery-partner/login');
+          router.replace('/');
           return;
         }
 
         const data = await res.json().catch(() => null);
         if (!data || !data.authenticated || !data.user || data.user.role !== 'delivery_partner') {
           showToast('Access denied: Delivery Partner authorization required.', 'error');
-          router.push('/delivery-partner/login');
+          router.replace('/');
           return;
         }
 
@@ -114,7 +114,7 @@ export default function DeliveryPartnerPage() {
         setVerifyingSession(false);
       } catch (err) {
         console.error('Rider layout verify error:', err);
-        router.push('/delivery-partner/login');
+        router.replace('/');
       }
     };
 

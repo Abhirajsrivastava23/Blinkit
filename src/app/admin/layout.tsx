@@ -54,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (isMounted) {
             setIsAuthorized(false);
             setIsChecking(false);
-            router.replace('/admin/login');
+            router.replace('/');
           }
           return;
         }
@@ -64,8 +64,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (isMounted) {
             setIsAuthorized(false);
             setIsChecking(false);
-            showToast('Access denied: Admin role required for this system.', 'error');
-            router.replace('/admin/login');
+            showToast('Access denied: Admin role required.', 'error');
+            router.replace('/');
           }
           return;
         }
@@ -90,7 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (isMounted) {
           setIsAuthorized(false);
           setIsChecking(false);
-          router.replace('/admin/login');
+          router.replace('/');
         }
       }
     };

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Truck, Mail, Lock } from 'lucide-react';
 import { useToast } from '../../../components/Toast';
@@ -9,9 +9,20 @@ export default function DeliveryPartnerLoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
+  const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
   const [emailOrId, setEmailOrId] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Client-side guard: verify controlled portal intent
+  useEffect(() => {
+    const hasPortalIntent = typeof document !== 'undefined' && document.cookie.includes('fatafat_portal_intent=delivery_partner');
+    if (!hasPortalIntent) {
+      router.replace('/');
+    } else {
+      setIsAllowed(true);
+    }
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,12 +54,16 @@ export default function DeliveryPartnerLoginPage() {
       
       setTimeout(() => {
         router.push('/delivery-partner');
-      }, 600);
+      }, 500);
     } catch {
       showToast('Connection to auth server failed. Please check your network.', 'error');
       setIsLoading(false);
     }
   };
+
+  if (!isAllowed) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] flex flex-col justify-center items-center p-4 font-sans text-xs text-brand-charcoal select-none">

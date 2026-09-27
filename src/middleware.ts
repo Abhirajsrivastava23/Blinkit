@@ -138,7 +138,11 @@ export function middleware(request: NextRequest) {
   }
 
   // 3. Admin & Delivery Partner Server-Side Route Guard (Edge Level)
-  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+  const normalizedPath = decodeURIComponent(pathname).toLowerCase().replace(/\/+$/, '') || '/';
+  const isAdminRoute = normalizedPath === '/admin' || normalizedPath.startsWith('/admin/');
+  const isDeliveryRoute = normalizedPath === '/delivery-partner' || normalizedPath.startsWith('/delivery-partner/');
+
+  if (isAdminRoute || isDeliveryRoute) {
     const sessionToken =
       request.cookies.get('fatafat_session_token')?.value ||
       request.cookies.get('fatafat_session')?.value ||
@@ -146,32 +150,30 @@ export function middleware(request: NextRequest) {
       request.cookies.get('admin_token')?.value ||
       '';
 
-    if (!sessionToken.trim()) {
-      const loginUrl = new URL('/admin/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      const redirectResponse = NextResponse.redirect(loginUrl);
-      redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-      redirectResponse.headers.set('Pragma', 'no-cache');
-      redirectResponse.headers.set('Expires', '0');
-      return redirectResponse;
-    }
-  }
+    const portalIntent = request.cookies.get('fatafat_portal_intent')?.value || '';
 
-  if (pathname.startsWith('/delivery-partner') && pathname !== '/delivery-partner/login') {
-    const sessionToken =
-      request.cookies.get('fatafat_session_token')?.value ||
-      request.cookies.get('fatafat_session')?.value ||
-      request.cookies.get('session_token')?.value ||
-      '';
-
+    // Handle Unauthenticated Requests
     if (!sessionToken.trim()) {
-      const loginUrl = new URL('/delivery-partner/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      const redirectResponse = NextResponse.redirect(loginUrl);
-      redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-      redirectResponse.headers.set('Pragma', 'no-cache');
-      redirectResponse.headers.set('Expires', '0');
-      return redirectResponse;
+      const isAllowedAdminLogin = normalizedPath === '/admin/login' && portalIntent === 'admin';
+      const isAllowedDeliveryLogin = normalizedPath === '/delivery-partner/login' && portalIntent === 'delivery_partner';
+
+      if (!isAllowedAdminLogin && !isAllowedDeliveryLogin) {
+        // Direct manual URL navigation without authorized shortcut intent is strictly blocked and redirected to homepage
+        const homeUrl = new URL('/', request.url);
+        const redirectResponse = NextResponse.redirect(homeUrl, 307);
+        redirectResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+        redirectResponse.headers.set('Pragma', 'no-cache');
+        redirectResponse.headers.set('Expires', '0');
+        return redirectResponse;
+      }
+    } else {
+      // Authenticated users visiting login page are redirected to their dashboards
+      if (isAdminRoute && normalizedPath === '/admin/login') {
+        return NextResponse.redirect(new URL('/admin', request.url), 307);
+      }
+      if (isDeliveryRoute && normalizedPath === '/delivery-partner/login') {
+        return NextResponse.redirect(new URL('/delivery-partner', request.url), 307);
+      }
     }
   }
 
@@ -181,7 +183,7 @@ export function middleware(request: NextRequest) {
     response.headers.set(headerKey, headerVal);
   }
 
-  if (pathname.startsWith('/admin') || pathname.startsWith('/delivery-partner')) {
+  if (isAdminRoute || isDeliveryRoute) {
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
     response.headers.set('Pragma', 'no-cache');
     response.headers.set('Expires', '0');

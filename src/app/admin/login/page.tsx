@@ -1,18 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Mail, Lock, Sparkles, HelpCircle } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { useToast } from '../../../components/Toast';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
+  const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Client-side guard: verify controlled portal intent
+  useEffect(() => {
+    const hasPortalIntent = typeof document !== 'undefined' && document.cookie.includes('fatafat_portal_intent=admin');
+    if (!hasPortalIntent) {
+      router.replace('/');
+    } else {
+      setIsAllowed(true);
+    }
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +43,7 @@ export default function AdminLoginPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Authentication failed. Please verify credentials.', 'error');
         setIsLoading(false);
         return;
@@ -45,12 +56,16 @@ export default function AdminLoginPage() {
       // Redirect to main admin dashboard
       setTimeout(() => {
         router.push('/admin');
-      }, 800);
-    } catch (err) {
+      }, 500);
+    } catch {
       showToast('Connection to auth server failed.', 'error');
       setIsLoading(false);
     }
   };
+
+  if (!isAllowed) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FAF9F6] p-4 text-xs font-sans text-brand-charcoal selection:bg-brand-burgundy/10 select-none">
