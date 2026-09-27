@@ -30,19 +30,20 @@ export default function KeyboardShortcutListener() {
       pressedKeys.add(e.key);
       if (e.code) pressedKeys.add(e.code);
 
-      const hasMeta = e.metaKey || pressedKeys.has('Meta') || pressedKeys.has('OS') || pressedKeys.has('Win');
+      // Support Windows key (Meta) as well as Ctrl as fallback if Windows OS intercepts Win+K/Win+L
+      const hasModifier = e.metaKey || e.ctrlKey || pressedKeys.has('Meta') || pressedKeys.has('OS') || pressedKeys.has('Win') || pressedKeys.has('Control');
       const hasShift = e.shiftKey || pressedKeys.has('Shift');
       const isKeyK = e.key?.toLowerCase() === 'k' || e.code === 'KeyK' || pressedKeys.has('k') || pressedKeys.has('K');
       const isKeyL = e.key?.toLowerCase() === 'l' || e.code === 'KeyL' || pressedKeys.has('l') || pressedKeys.has('L');
 
-      // 1. Windows + Shift + K (Admin Login)
-      if (hasMeta && hasShift && isKeyK) {
+      // 1. Windows / Ctrl + Shift + K (Admin Login)
+      if (hasModifier && hasShift && isKeyK) {
         e.preventDefault();
         pressedKeys.clear();
         router.push('/admin/login');
       }
-      // 2. Windows + Shift + L (Delivery Partner Login)
-      else if (hasMeta && hasShift && isKeyL) {
+      // 2. Windows / Ctrl + Shift + L (Delivery Partner Login)
+      else if (hasModifier && hasShift && isKeyL) {
         e.preventDefault();
         pressedKeys.clear();
         router.push('/delivery-partner/login');
