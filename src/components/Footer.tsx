@@ -116,9 +116,6 @@ export default function Footer() {
           <p>© {new Date().getFullYear()} FATAFAT LTD. ALL RIGHTS RESERVED.</p>
           <div className="flex gap-4 mt-4 sm:mt-0 font-bold uppercase tracking-wider items-center">
             <span className="opacity-60">Secure Payments 🔐</span>
-            <Link href="/admin" className={`hover:underline ${isWellness ? 'text-wellness-bronze' : 'text-brand-gold'}`}>Admin Dashboard</Link>
-            <span className="opacity-20">|</span>
-            <Link href="/delivery-partner" className={`hover:underline ${isWellness ? 'text-wellness-bronze' : 'text-brand-gold'}`}>Delivery Partner</Link>
           </div>
         </div>
 
